@@ -19,13 +19,19 @@ MetaData = {
 }
 
 def get_metadata_from_filename(fpath):
+    fpath = os.path.normpath(fpath)
     metadata = MetaData
     ffolder, ffile = os.path.split(fpath)
     fsplit = ffile.split("_")
     metadata["uri"] = os.path.abspath(fpath)
     metadata["sp_type"] = fsplit[1]
     metadata["material"] = fsplit[2]
-    metadata["central_wl"] = int(fsplit[3].split("w")[1])
+    try:
+        metadata["central_wl"] = int(fsplit[3].split("w")[1])
+    except IndexError:
+        match_cw = re.search("_wl(\d+)", ffile)
+        if match_cw:
+            metadata["central_wl"] = int(match_cw.group(1))
 
     # find gain
     match_gain = re.search("_g([cm\d]+)_", ffile)
