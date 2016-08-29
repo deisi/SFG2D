@@ -15,8 +15,8 @@ def sum_of_spectra(ts, spec, ax=None):
         axis obj to plot on. If None current is created or used.
     """
 
-    if ax:
-        plt.sca(ax)
+    if isinstance(ax, type(None)):
+        ax = plt.gca()
     g = ts._df.sum(level='pp_delay')[spec]
     tds = len(ts.pp_delays)
     exp = ts.metadata['exposure_time'][0]
@@ -26,14 +26,14 @@ def sum_of_spectra(ts, spec, ax=None):
         for i in range(g.shape[1]):
             x = np.arange(tds)*exp
             x = x + tds*exp*i 
-            plt.plot(x ,g.iloc[:,i], label = 'run %i' % i)
+            ax.plot(x ,g.iloc[:,i], label = 'run %i' % i)
     except IndexError:
         x = np.arange(tds)*exp 
-        plt.plot(x ,g, label = 'run %i' % 0)
+        ax.plot(x ,g, label = 'run %i' % 0)
         
-    plt.title('Sum of Spectra for %s' % spec)
+    ax.set_title('Sum of Spectra for %s' % spec)
     #plt.legend()
-    plt.xlabel('$\Delta$t/%s'%exp_unit)
+    ax.set_xlabel('$\Delta$t/%s'%exp_unit)
 
 def bleach_spec(ts, pp_delay, w_roi , ax=None):
     """plot the bleach of a TimeScan at a pp_delay in w_roi 

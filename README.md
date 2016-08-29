@@ -12,4 +12,5 @@ A toolkit for my Analysis
 - PIL
 - ipython
 - jupyter-notebook
-- ipywidgets
+- Jupyter Dashboards
+

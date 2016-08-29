@@ -239,16 +239,18 @@ def read_auto(fpath, **kwargs):
     return ret
 
         
-def get_scan(fpath, fbase=None, fnorm=None):
+def get_scan(fpath, fbase=None, fnorm=None, sub_base=True, div_norm=True):
     ret = read_auto(fpath)
 
     if fbase:
         ret.base = read_auto(fbase).med
-        ret.sub_base(inplace=True)
+        if sub_base:
+            ret.sub_base(inplace=True)
 
     if fnorm:
         ret.norm = read_auto(fnorm).med
-        ret.normalize(inplace=True)
+        if div_norm:
+            ret.normalize(inplace=True)
 
     return ret
 
