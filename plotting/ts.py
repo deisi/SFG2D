@@ -18,22 +18,23 @@ def sum_of_spectra(ts, spec, ax=None):
     if isinstance(ax, type(None)):
         ax = plt.gca()
     g = ts._df.sum(level='pp_delay')[spec]
-    tds = len(ts.pp_delays)
+    l_ppdelays = len(ts.pp_delays)
     exp = ts.metadata['exposure_time'][0]
     exp_unit = ts.metadata['exposure_time'][1]
-    x = np.arange(len(ts.pp_delays))*ts.metadata['exposure_time'][0]
+    #x = np.arange(len(ts.pp_delays))*ts.metadata['exposure_time'][0]
     try:
         for i in range(g.shape[1]):
-            x = np.arange(tds)*exp
-            x = x + tds*exp*i 
+            x = np.arange(l_ppdelays)*exp
+            x = x + l_ppdelays*exp*i 
             ax.plot(x ,g.iloc[:,i], label = 'run %i' % i)
     except IndexError:
-        x = np.arange(tds)*exp 
+        x = np.arange(l_ppdelays)*exp 
         ax.plot(x ,g, label = 'run %i' % 0)
         
+    ax.set_xlabel('$\Delta$t/%s'%exp_unit)    
     ax.set_title('Sum of Spectra for %s' % spec)
     #plt.legend()
-    ax.set_xlabel('$\Delta$t/%s'%exp_unit)
+    
 
 def bleach_spec(ts, pp_delay, w_roi , ax=None):
     """plot the bleach of a TimeScan at a pp_delay in w_roi 

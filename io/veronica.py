@@ -2,7 +2,9 @@
 
 import os 
 import re
-import logging
+import copy
+#import logging
+import warnings
 
 from pandas import read_csv, MultiIndex, Series
 import numpy as np
@@ -75,7 +77,7 @@ def read_save(fpath, **kwargs):
     ret.index = ret.index.sort_values()
     ret.sort_index(inplace=True)
 
-    ret = Scan(ret, metadata=metadata)
+    ret = Scan(ret, metadata=copy.deepcopy(metadata))
 
     return ret
 
@@ -139,7 +141,7 @@ def read_scan_stack(fpath, **kwargs):
     #ret['wavenumber'] = wavenumber
     
     # Link Repeated Columns together
-    return Scan(ret, metadata=metadata)
+    return Scan(ret, metadata=copy.deepcopy(metadata))
 
 def read_time_scan(fpath, **kwargs):
     """ """
@@ -212,7 +214,7 @@ def read_time_scan(fpath, **kwargs):
     #ret.index.names = ['pp_delays', 'pixel', 'nm', 'wavenumber']
 
     # Link Repeated Columns together
-    return TimeScan(ret, metadata=metadata)
+    return TimeScan(ret, metadata=copy.deepcopy(metadata))
 
 def read_auto(fpath, **kwargs):
     """ use fpath and datashape to automatically determine data type
@@ -220,8 +222,30 @@ def read_auto(fpath, **kwargs):
     folder, ffile = os.path.split(fpath)
     metadata = get_metadata_from_filename(fpath)
 
+    # check if name determines spectrum type
+    if metadata['sp_type'] is 'sp' or \
+       metadata['sp_type'] is 'sc' or \
+       metadata['sp_type'] == 'ts':
+        pass
+
+    else:
+        warnings.warn('cant determine spectrum type of data by filename.'
+                      'Trying to determine datatype from content.'
+                      'This is much slower')
+        ret = read_csv(
+            fpath,
+            sep = '\t',
+            header = None,
+        )
+        if ret.shape is (1600, 6):
+            metadata['sp_type'] = 'sp'
+        elif ret.shape[0] == 1602 and ret.shape[1]%6 is 0:
+            metadata['sp_type'] = 'sc'
+        elif ret.shape[0]%1602 is 0 and ret.shape[1]%6 is 0:
+            metadata['sp_type'] = 'ts'
+
     # simple spectrum
-    if metadata['sp_type'] == 'sp': 
+    if metadata['sp_type'] == 'sp':
         ret = read_save(fpath, **kwargs)
 
     # scan
@@ -231,11 +255,10 @@ def read_auto(fpath, **kwargs):
     # time scan
     elif metadata['sp_type'] == 'ts':
         ret = read_time_scan(fpath, **kwargs)
-
-    else:
-        logging.warning('cant determine spectrum type of data automaticaly.'
-                     'Check file name')
+        
     ret.df.drop("pixel", inplace=True, axis=1)
+    # Needed in the case of content import. Else no harm
+    ret.metadata['sp_type'] = copy.deepcopy(metadata['sp_type'])
     return ret
 
         

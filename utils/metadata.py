@@ -1,5 +1,6 @@
 import os
 import re
+import copy
 
 MetaData = {
     "uri" : "",
@@ -8,7 +9,7 @@ MetaData = {
     "central_wl" : -1,
     "vis_wl" : 810,
     "gain" : -2,
-    "exposure_time" : (), # exposure time is (value, unit) tuple
+    "exposure_time" : (1, 'u'), # exposure time is (value, unit) tuple
     "polarisation" : "",
     "pump" : None,
     "probe" : None,
@@ -20,7 +21,7 @@ MetaData = {
 
 def get_metadata_from_filename(fpath):
     fpath = os.path.normpath(fpath)
-    metadata = MetaData
+    metadata = copy.deepcopy(MetaData)
     ffolder, ffile = os.path.split(fpath)
     fsplit = ffile.split("_")
     metadata["uri"] = os.path.abspath(fpath)
@@ -42,7 +43,7 @@ def get_metadata_from_filename(fpath):
             metadata["gain"] = int(match_gain(1))
 
     # find exposiure time
-    match_exp_time = re.search("_e(\d.)([msh]+)_", ffile)
+    match_exp_time = re.search("_e(\d+)([msh]+)_", ffile)
     if match_exp_time:
         metadata["exposure_time"] = int(match_exp_time.group(1)), match_exp_time.group(2)
     

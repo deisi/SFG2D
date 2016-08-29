@@ -1,3 +1,5 @@
+import copy # this really should be here? Seems like something is not right
+
 class ScanBase():
     """ABS for Scans."""
     
@@ -150,7 +152,7 @@ class TimeScan(ScanBase, PumpProbe):
             self._base,
             self._norm,
             self._pump,
-            self.metadata,
+            copy.deepcopy(self.metadata),
             self._pumped,
             self._probed)
 
