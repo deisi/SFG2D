@@ -42,6 +42,35 @@ def pixel_to_nm(x, central_wl):
     pixel_to_nm = np.poly1d(params) + central_wl - calib_cw
     return pixel_to_nm(x)
 
+def nm_to_pixel(x, central_wl):
+    """ transform nm to pixel koordinates for central wavelength 
+
+    Parameters
+    ----------
+    x : array like
+        nm to transform in pixel
+    central_wl : int
+        central wavelength of the camera
+    
+    Returns
+    -------
+    num or array of x in pixel coordinates
+    """
+
+    params_file_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "../data/calib/params_Ne_670.npy"
+    )
+    params = np.load(params_file_path)
+    calib_cw = int(params_file_path[-7:-4])
+    if len(params) > 2:
+        params = params[-2:]
+    if len(params) < 2:
+        warnings.Warn("Can't use constant calibration")
+    nm_to_pixel = lambda x: (x - params[1] - central_wl + calib_cw)/params[0]
+
+    return nm_to_pixel(x)   
+
 def read_save(fpath, **kwargs):
     """read files saved with veronica save button """
 

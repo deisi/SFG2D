@@ -20,3 +20,24 @@ def nm_to_ir_wavenumbers(x, up_wl):
     up_wl : int
         wavelength of the upconvertion pulse in nm"""
     return nm_to_wavenumbers(1/(1/x - 1/up_wl))
+
+def ir_wavenumbers_to_nm(x, up_wl):
+    """ir wavenumbers to upconverted nm 
+
+    The wavelength of the vibrational ir signal is upconverted, so that
+    the real detected wavelength in nm is returned
+
+    Parameters
+    ----------
+    x : array linke
+        ir wavenumbers to convert to nm wavelength
+    up_wl : int
+        wavelength of the upconversion photon in nm.
+
+    Returns
+    -------
+    float or array
+
+    """
+    #return (wavenumbers_to_nm(x)*up_wl)/( wavenumbers_to_nm(x)+up_wl)
+    return (1/(1/wavenumbers_to_nm(x) + 1/up_wl))
