@@ -1,10 +1,10 @@
 import os
 import ipywidgets as ipyw
+import matplotlib.pyplot as plt
+import SFG2D
 
-#from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from glob import glob
-
 
 
 class PumpProbeDashboardData():
@@ -15,8 +15,8 @@ class PumpProbeDashboardData():
         self._ffiles = []
         self._fnames = []
 
-        self.ir = None
-        self.pump = None
+        self._ir = None
+        self._pump = None
         self.base = None
         self.ts0 = None
         self.ts0u = None
@@ -42,6 +42,77 @@ class PumpProbeDashboardData():
     def fnames(self, value):
         self._fnames = value
 
+    @property
+    def ir(self):
+        return self._ir
+
+    @ir.setter
+    def ir(self, value):
+        if isinstance(value, str):
+            ir = SFG2D.io.veronica.read_auto(self.ffolder + value)
+            if isinstance(ir, SFG2D.core.scan.TimeScan):
+                raise NotImplementedError
+            self._ir = ir
+
+        if isinstance(value, SFG2D.core.scan.Scan):
+            self._ir = value
+
+        if isinstance(value, SFG2D.core.scan.TimeScan):
+            raise NotImplementedError
+
+### Hier mit settern und getter weiter machen
+
+    @property
+    def pump(self):
+        """ """
+        return self._pump
+        
+    @pump.setter
+    def pump(self, value):
+        """Can set a pump as str, or as TimeScan  """
+        if isinstance(value, str):
+            self.pump = SFG2D.io.veronica.read_auto(self.ffolder + value)
+
+        if isinstance(value, SFG2D.core.scan.Scan):
+            raise NotImplementedError
+
+        if isinstance(value, SFG2D.core.scan.TimeScan):
+            self._pump = value
+
+    def pump_plot(self, spec, pp_delay):
+        if isinstance(self.pump, SFG2D.core.scan.TimeScan):
+
+            if spec == "All":
+                self.pump.med.ix[pp_delay].plot()
+            else:
+                self.pump.med.ix[pp_delay, spec].plot()
+            plt.title('%i fs'%pp_delay)
+            plt.draw()
+
+    def get_base(self, fbase):
+        self.base = SFG2D.io.veronica.read_auto(self.ffolder + fbase)
+        if isinstance(self.base, SFG2D.core.scan.TimeScan):
+            raise NotImplementedError
+        self.base.med.plot()
+        plt.title("Baseline")
+        plt.draw()
+
+    def get_pump_probe(self, fpath, ppWidget, sub_base=False, normalize=False):
+        self.ts0 = SFG2D.io.veronica.read_auto(self.ffolder + fpath)
+        if sub_base:
+            self.ts0.base = base.med
+            self.ts0.sub_base(inplace=True)
+        if w_ir_spec.value is "All":
+            self.ts0.norm = ir.med
+        else:
+            self.ts0.norm = ir.med[w_ir_spec.value]
+        self.ts0u = ts0.__deepcopy__()
+        if normalize:
+            self.ts0.normalize(inplace=True)
+        if isinstance(ts0, SFG2D.core.scan.TimeScan):
+            ppWidget.ts0_ppdelay.options = list(ts0.pp_delays)
+            ppWidget.ts0_ppdelay.value=0
+
 
 # Watchdog to monitor ppdData.ffolder
 class MyHandler(FileSystemEventHandler):
@@ -65,6 +136,7 @@ class PumpProbeWidget():
         ppdData : PumpProbeDasboardData obj
             The object that holds the actual data and
             the information abot the data."""
+        #self._ppdData = ppdData
         self.ir_fpath = ipyw.Select(options=ppdData.fnames, description='IR Profile')
         self.ir_fbase = ipyw.Select(description='IR Base')
         self.ir_spec = ipyw.Select(
@@ -105,28 +177,46 @@ class PumpProbeWidget():
         self._l_fpath = {}
         self._l_ts0_ppdelay_childs = []
 
-    def setupObservers(self):
-        """ Sets up the observers of the widget """
+    def setupObservers(self, ppdData):
+        """ Sets up the observers of the widget 
+
+        Parameters
+        ----------
+        ppdData : PumpProbeData obj
+        Datacontainer
+        """
         def pump_plot_update(change):
-            pump_plot(self.pump_spec.value, self.pump_ppdelay.value)  
+            ppdData.pump_plot(self.pump_spec.value, self.pump_ppdelay.value)  
 
         def pump_probe_plot_update(change):
-            pump_probe_plot(self.ts0_ppdelay.value)
+            ppdData.pump_probe_plot(self.ts0_ppdelay.value)
 
-        def ts0_pumped_update(change):
-            ts0._pumped = self.ts0_pumped.value
-            if isinstance(ts0._df.get("bleach"), pd.core.series.Series):
-                ts0.df.drop('bleach', axis=1, inplace=True)
+        # Why do I need to delete bleach in df here I forgot
+        # But there was a reason
+        #def ts0_pumped_update(change):
+        #    ts0._pumped = self.ts0_pumped.value
+        #    if isinstance(ts0._df.get("bleach"), pd.core.series.Series):
+        #        ppdData.ts0.df.drop('bleach', axis=1, inplace=True)
 
-        def ts0_proped_update(change):
-            ts0._probed = self.ts0_probed.value
-            if isinstance(ts0._df.get("bleach"), pd.core.series.Series):
-                ts0.df.drop('bleach', axis=1, inplace=True)
+        #def ts0_proped_update(change):
+        #    ts0._probed = self.ts0_probed.value
+        #    if isinstance(ts0._df.get("bleach"), pd.core.series.Series):
+        #        ppdData.ts0.df.drop('bleach', axis=1, inplace=True)
+
+        def ts0_pump_update(*args):
+            ppdData.ts0.pumped = w_ts0_pumped.value
+            ppdData.ts0u.pumped = w_ts0_pumped.value
+
+        def ts0_probe_update(*args):
+            ppdData.ts0u.probed = w_ts0_probed.value
+            ppdData.ts0.probed = w_ts0_probed.value
 
         self.pump_fpath.observe(pump_plot_update, names="value")
         self.ts0_fpath.observe(pump_probe_plot_update, names="value")
-        self.ts0_pumped.observe(ts0_pumped_update, names="value")
-        self.ts0_probed.observe(ts0_proped_update, names="value")
+        self.ts0_pumped.observe(ts0_pump_update, 'value')
+        self.ts0_probed.observe(ts0_probe_update, 'value')
+        #self.ts0_pumped.observe(ts0_pumped_update, names="value")
+        #self.ts0_probed.observe(ts0_proped_update, names="value")
 
     def linkTraitlets(self):
         """ links the traitlets in the gui """

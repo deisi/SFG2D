@@ -83,6 +83,7 @@ class ScanBase():
 
 class PumpProbe():
     """ABS for PumpProbe data"""
+    _df = None
     _pumped = None
     _probed = None
     _pump = None
@@ -94,6 +95,8 @@ class PumpProbe():
 
     @pumped.setter
     def pumped(self, value):
+        if isinstance(self._df.get("bleach"), pd.core.series.Series):
+            self.df.drop('bleach', axis=1, inplace=True)
         self._pumped = value
 
     @property
@@ -102,6 +105,8 @@ class PumpProbe():
 
     @probed.setter
     def probed(self, value):
+        if isinstance(self._df.get("bleach"), pd.core.series.Series):
+            self.df.drop('bleach', axis=1, inplace=True)
         self.probed = value
 
     @property
