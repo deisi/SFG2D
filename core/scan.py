@@ -3,12 +3,13 @@ import pandas as pd
 
 class ScanBase():
     """ABS for Scans."""
-    
-    _df = None
-    _base = None
-    _norm = None
     _med = None
-    metadata = None
+
+    def __init__(self, df, base = None, norm = None, metadata=None):
+        self._df = df
+        self._base = base
+        self._norm = norm
+        self.metadata = metadata
 
     @property
     def norm(self):
@@ -133,10 +134,9 @@ class Scan(ScanBase):
         self.metadata = metadata
 
     def model_base(self):
-        raise NotImplemented
+        raise NotImplementedError
         left = self._df[:50].median(0)
         right = self._df[-50:].median(0)
-
 
     
 class TimeScan(ScanBase, PumpProbe):

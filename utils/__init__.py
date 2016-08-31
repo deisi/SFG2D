@@ -1,1 +1,1 @@
-#from . import metadata, static
+from .detect_peaks import detect_peaks

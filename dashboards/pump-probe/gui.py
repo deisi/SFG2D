@@ -67,18 +67,18 @@ class PumpProbeDashboardData():
         
     @pump.setter
     def pump(self, value):
-        """Can set a pump as str, or as TimeScan  """
+        """Can set a pump as str, or as PumpVisSFG  """
         if isinstance(value, str):
             pump = SFG2D.io.veronica.read_auto(self.ffolder + value)
-            if isinstance(value, SFG2D.core.scan.Scan):
+            if isinstance(pump, SFG2D.core.scan.Scan):
                 raise NotImplementedError
-            self._pump = pump
+            self._pump = SFG2D.PumpVisSFG(pump.df)
 
         if isinstance(value, SFG2D.core.scan.Scan):
             raise NotImplementedError
 
         if isinstance(value, SFG2D.core.scan.TimeScan):
-            self._pump = value
+            self._pump = SFG2D.PumpVisSFG(value.df)
 
 
     @property
