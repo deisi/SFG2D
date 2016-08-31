@@ -1,4 +1,5 @@
 import copy # this really should be here? Seems like something is not right
+import pandas as pd
 
 class ScanBase():
     """ABS for Scans."""
@@ -97,7 +98,10 @@ class PumpProbe():
     def pumped(self, value):
         if isinstance(self._df.get("bleach"), pd.core.series.Series):
             self.df.drop('bleach', axis=1, inplace=True)
-        self._pumped = value
+        if isinstance(value, str):
+            self._pumped = value
+        else:
+            raise NotImplementedError
 
     @property
     def probed(self):
@@ -107,7 +111,10 @@ class PumpProbe():
     def probed(self, value):
         if isinstance(self._df.get("bleach"), pd.core.series.Series):
             self.df.drop('bleach', axis=1, inplace=True)
-        self.probed = value
+        if isinstance(value, str):
+            self._probed = value
+        else:
+            raise NotImplementedError
 
     @property
     def pump(self):
@@ -215,9 +222,27 @@ class TimeScan(ScanBase, PumpProbe):
     def pumped(self):
         return self.med[self._pumped]
 
+    @pumped.setter
+    def pumped(self, value):
+        if isinstance(self._df.get("bleach"), pd.core.series.Series):
+            self.df.drop('bleach', axis=1, inplace=True)
+        if isinstance(value, str):
+            self._pumped = value
+        else:
+            raise NotImplementedError
+
     @property
     def probed(self):
         return self.med[self._probed]
+
+    @probed.setter
+    def probed(self, value):
+        if isinstance(self._df.get("bleach"), pd.core.series.Series):
+            self.df.drop('bleach', axis=1, inplace=True)
+        if isinstance(value, str):
+            self._probed = value
+        else:
+            raise NotImplementedError
 
     @property
     def bleach(self):

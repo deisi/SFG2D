@@ -18,7 +18,7 @@ class PumpProbeDashboardData():
         self._ir = None
         self._pump = None
         self._base = None
-        self.ts0 = None
+        self._ts0 = None
         self.ts0u = None
 
     @property
@@ -207,13 +207,13 @@ class PumpProbeWidget():
         #    if isinstance(ts0._df.get("bleach"), pd.core.series.Series):
         #        ppdData.ts0.df.drop('bleach', axis=1, inplace=True)
 
-        def ts0_pump_update(*args):
-            ppdData.ts0.pumped = w_ts0_pumped.value
-            ppdData.ts0u.pumped = w_ts0_pumped.value
-
-        def ts0_probe_update(*args):
-            ppdData.ts0u.probed = w_ts0_probed.value
-            ppdData.ts0.probed = w_ts0_probed.value
+#        def ts0_pump_update(*args):
+#            ppdData.ts0.pumped = w_ts0_pumped.value
+#            ppdData.ts0u.pumped = w_ts0_pumped.value
+#
+#        def ts0_probe_update(*args):
+#            ppdData.ts0u.probed = w_ts0_probed.value
+#            ppdData.ts0.probed = w_ts0_probed.value
 
         #self.pump_fpath.observe(pump_plot_update, names="value")
         #self.ts0_fpath.observe(pump_probe_plot_update, names="value")
