@@ -49,6 +49,7 @@ class ScanBase():
         ret = self._df.add(self._base, axis=axis, **kwargs)
         if inplace:
             self._df = ret
+            self._med = None
             return
         return ret
 
@@ -57,6 +58,7 @@ class ScanBase():
         ret = self._df.divide(self._norm, axis=axis, **kwargs)
         if inplace:
             self._df = ret
+            self._med = None
             return
         return ret
 
@@ -65,6 +67,7 @@ class ScanBase():
         ret = self._df.multiply(self._norm, axis=axis, **kwargs)
         if inplace:
             self._df = ret
+            self._med = None
             return
         return ret
 
