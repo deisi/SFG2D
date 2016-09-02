@@ -52,13 +52,16 @@ class PumpProbeDashboardData():
             ir = SFG2D.io.veronica.read_auto(self.ffolder + value)
             if isinstance(ir, SFG2D.core.scan.TimeScan):
                 raise NotImplementedError
-            self._ir = ir
+            self._ir = SFG2D.core.contents.IR(ir.df, metadata=ir.metadata)
 
         if isinstance(value, SFG2D.core.scan.Scan):
-            self._ir = value
+            self._ir = SFG2D.core.contents.IR(value)
 
         if isinstance(value, SFG2D.core.scan.TimeScan):
             raise NotImplementedError
+
+        if isinstance(value, SFG2D.core.contents.IR):
+            self._ir = ir
 
     @property
     def pump(self):
@@ -70,16 +73,15 @@ class PumpProbeDashboardData():
         """Can set a pump as str, or as PumpVisSFG  """
         if isinstance(value, str):
             pump = SFG2D.io.veronica.read_auto(self.ffolder + value)
-            if isinstance(pump, SFG2D.core.scan.Scan):
-                raise NotImplementedError
-            self._pump = SFG2D.PumpVisSFG(pump.df)
+            #if isinstance(pump, SFG2D.core.scan.Scan):
+            #    raise NotImplementedError
+            self._pump = SFG2D.PumpVisSFG(pump.df, metadata=pump.metadata)
 
         if isinstance(value, SFG2D.core.scan.Scan):
             raise NotImplementedError
 
         if isinstance(value, SFG2D.core.scan.TimeScan):
             self._pump = SFG2D.PumpVisSFG(value.df)
-
 
     @property
     def base(self):

@@ -40,6 +40,7 @@ class ScanBase():
         ret = self._df.subtract(self._base, axis=axis, **kwargs)
         if inplace:
             self._df = ret
+            self._med = None
             return
         return ret
 
@@ -173,6 +174,7 @@ class TimeScan(ScanBase, PumpProbe):
         ret = self._df.subtract(self._base, axis=axis, level=level, **kwargs)
         if inplace:
             self._df = ret
+            self._med = None
             return
         return ret
 
@@ -181,6 +183,7 @@ class TimeScan(ScanBase, PumpProbe):
         ret = self._df.add(self._base, axis=axis, level=level, **kwargs)
         if inplace:
             self._df = ret
+            self._med = None
             return
         return ret
 

@@ -1,8 +1,38 @@
 """ Module for clases, that infer a cetain content """
-from .scan import ScanBase
+from .scan import ScanBase, Scan
 from ..utils.detect_peaks import detect_peaks
 
-class PumpVisSFG(ScanBase):
+class ContenClass():
+    _spec = None
+    _current = None
+    
+    @property
+    def spec(self):
+        """A selected Spectrum """
+        return self._spec
+
+    @spec.setter
+    def spec(self, value):
+        self._spec = value
+
+    @property
+    def current(self):
+        return self._current
+
+    @current.setter
+    def current(self, value):
+        self._current = value
+
+    @property
+    def freq(self):
+        raise NotImplementedError
+
+    @property
+    def width(self):
+        raise NotImplementedError
+
+
+class PumpVisSFG(ScanBase, ContenClass):
     
     def __init__(self, *args, spec=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -43,16 +73,51 @@ class PumpVisSFG(ScanBase):
     @property
     def freq(self):
         """ estimator for the frequency seted by the pump """
-        r = self.current.rolling(5).median().idxmax()
+        r = self.current.rolling(10).median().idxmax()
         return r
 
     @property
     def width(self):
         """ estimator for the width of the pump """
-        r = self.current.rolling(5).median().diff()
-        return r.idxmin() - r.idxmax()
+        r = self.current.rolling(10).median().diff()
+        return abs(r.idxmin() - r.idxmax())
         
 
-class IR(Scan):
-    
+class IR(Scan, ContenClass):
+    def __init__(self, *args, spec=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.spec = spec # Identifier of spectrum with the data.
+        self._pp_delay_pos = 0 
+
+        
+    @property
+    def spec(self):
+        return self._spec
+
+    @spec.setter
+    def spec(self, value):
+        if isinstance(value, str):
+            self._spec = self.med[value]
+        elif isinstance(value, type(None)):
+            self._spec = self.med["spec_1"]
+        else:
+            return NotImplementedError
+
+    @property
+    def current(self):
+        return self.spec
+
+    @property
+    def freq(self):
+        """ estimator for the frequency seted by the pump """
+        r = self.current.rolling(10).median().idxmax()
+        return r
+
+    @property
+    def width(self):
+        """ estimator for the width of the pump """
+        r = self.current.rolling(20).median().diff()
+        return abs(r.idxmin() - r.idxmax())
+        
+
     
