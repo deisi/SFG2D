@@ -37,7 +37,7 @@ class PumpVisSFG(ScanBase, ContenClass):
     def __init__(self, *args, spec=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.spec = spec # The spectrum with the data.
-        self._pp_delay_pos = 0 # With of the spectra is important
+        self.ppdelay_current = None # With of the spectra is important
 
     @property
     def pp_delays(self):
@@ -53,8 +53,13 @@ class PumpVisSFG(ScanBase, ContenClass):
 
     @spec.setter
     def spec(self, value):
+        # Force self.med to be recalculated
+        self._med = None
         if isinstance(value, str):
-            self._spec = self.med[value]
+            if value is 'All':
+                self._spec = self.med
+            else:
+                self._spec = self.med[value]
         elif isinstance(value, type(None)):
             self._spec = self.med["spec_1"]
         else:
@@ -63,12 +68,14 @@ class PumpVisSFG(ScanBase, ContenClass):
     @property
     def current(self):
         """ Selected representing spectra """
+        # guarantee it has pp_delays in it
+        # because we can also load spectra and
+        # scans here
         if 'pp_delay' in self._df.index.names:
-            current = self.spec.ix[self._pp_delay_pos]
+            current = self.spec.ix[self.ppdelay_current]
         else:
             current = self.spec
         return current
-        
         
     @property
     def freq(self):
@@ -84,7 +91,7 @@ class PumpVisSFG(ScanBase, ContenClass):
         
 
 class IR(Scan, ContenClass):
-    def __init__(self, *args, spec=None, **kwargs):
+    def __init__(self, *args, spec='spec_1', **kwargs):
         super().__init__(*args, **kwargs)
         self.spec = spec # Identifier of spectrum with the data.
         self._pp_delay_pos = 0 
@@ -97,9 +104,14 @@ class IR(Scan, ContenClass):
     @spec.setter
     def spec(self, value):
         if isinstance(value, str):
-            self._spec = self.med[value]
-        elif isinstance(value, type(None)):
-            self._spec = self.med["spec_1"]
+            # Reset med to make sure its up to date
+            self._med = None
+            if value is "All":
+                self._spec = self.med
+            else:
+                self._spec = self.med[value]
+        #elif isinstance(value, type(None)):
+        #    self._spec = self.med["spec_1"]
         else:
             return NotImplementedError
 

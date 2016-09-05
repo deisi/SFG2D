@@ -148,7 +148,7 @@ class PumpProbeWidget():
         self.ir_fbase = ipyw.Select(description='IR Base')
         self.ir_spec = ipyw.Select(
             options = ["All", "spec_0", "spec_1", "spec_2"], 
-            description="Spectrum", value="spec_1"
+            description="Spectrum", value="All"
         )
         self.ir_sub_base = ipyw.ToggleButton(
             description='Sub Baseline',
