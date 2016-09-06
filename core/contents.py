@@ -37,14 +37,14 @@ class PumpVisSFG(ScanBase, ContenClass):
     def __init__(self, *args, spec=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.spec = spec # The spectrum with the data.
-        self.ppdelay_current = None # With of the spectra is important
+        self.ppdelay_current = self.pp_delays[0]
 
     @property
     def pp_delays(self):
         if 'pp_delay' in self._df.index.names:
             ret = self._df.index.levels[0]
         else:
-            ret = 0
+            ret = [0]
         return ret
 
     @property
