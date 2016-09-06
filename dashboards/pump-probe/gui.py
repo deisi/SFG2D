@@ -112,13 +112,13 @@ class PumpProbeDashboardData():
             ts0 = SFG2D.io.veronica.read_auto(self.ffolder + value)
             if isinstance(ts0, SFG2D.core.scan.Scan):
                 raise NotImplementedError
-            self._ts0 = ts0
+            self._ts0 = SFG2D.PumpProbe(ts0.df, metadata=ts0.metadata)
 
         elif isinstance(value, SFG2D.core.scan.Scan):
             raise NotImplementedError
 
         elif isinstance(value, SFG2D.core.scan.TimeScan):
-            self._ts0 = value
+            self._ts0 = SFG2D.PumpProbe(value.df, metadata=value.metadata)
 
 
 # Watchdog to monitor ppdData.ffolder

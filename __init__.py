@@ -7,4 +7,4 @@ import SFG2D.plotting
 
 from .core.scan import Scan, TimeScan
 from .utils.metadata import MetaData
-from .core.contents import PumpVisSFG
+from .core.contents import PumpVisSFG, PumpProbe
