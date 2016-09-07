@@ -1,4 +1,5 @@
 import os
+import json
 import ipywidgets as ipyw
 import matplotlib.pyplot as plt
 import SFG2D
@@ -183,6 +184,11 @@ class PumpProbeWidget():
 
         self._l_fpath = {}
         self._l_ts0_ppdelay_childs = []
+        self._saveable_attributes = (
+            'fbase', 'ir_fbase', 'ir_fpath', 
+            'pump_fbase', 'pump_fpath', 'pump_spec', 
+            'ts0_fpath', 'ts0_probed', 'ts0_pumped'
+        )
 
     def setupObservers(self, ppdData):
         """ Sets up the observers of the widget 
@@ -241,5 +247,34 @@ class PumpProbeWidget():
                 traitlets.dlink((self.ts0_ppdelay, 'options'),(_w, 'options'))
             )
 
+    def save(self, ffolder):
+        """Save widget config as ppWidget.json in ffolder
+        """
+        def getattr_value(*args):
+            return getattr(getattr(*args), "value")
+
+        data = {}
+        for attribute in self._saveable_attributes:
+            data[attribute] = getattr_value(self, attribute)
+        #return data
+
+        with open(ffolder + '/ppWidget.json', 'w') as outfile:
+            json.dump(data, outfile)
+            outfile.close()
+
+    def load(self, ffolder):
+        try:
+            with open(ffolder + '/ppWidget.json', 'r') as infile:
+                data = json.load(infile)
+                infile.close()
+                for name in self._saveable_attributes:
+                    attribute = getattr(self, name)
+                    attribute.value =  data[name]
+        except FileNotFoundError:
+            pass
+        
 
 
+#class WidgetConserveer():
+#    """Save config of widget and restore it on startup """
+    
