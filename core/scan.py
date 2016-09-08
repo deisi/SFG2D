@@ -203,7 +203,6 @@ class TimeScan(ScanBase, PumpProbe):
             return
         return ret
 
-    def un_normalize(self, axis=0, inplace=False, level=1, **kwargs):
         """unnormalize data """
         ret = self._df.multiply(self._norm, axis=axis, level=level, **kwargs)
         if inplace:

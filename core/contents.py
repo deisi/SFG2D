@@ -93,9 +93,8 @@ class PumpVisSFG(ScanBase, ContenClass):
 class IR(Scan, ContenClass):
     def __init__(self, *args, spec='spec_1', **kwargs):
         super().__init__(*args, **kwargs)
-        self.spec = spec # Identifier of spectrum with the data.
-        self._pp_delay_pos = 0 
-
+        self.spec = spec # Identifier of spectrum with the important data.
+        self._pp_delay_pos = 0
         
     @property
     def spec(self):
