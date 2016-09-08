@@ -1,5 +1,6 @@
 import os
 import json
+import warnings
 import ipywidgets as ipyw
 import matplotlib.pyplot as plt
 import SFG2D
@@ -52,14 +53,16 @@ class PumpProbeDashboardData():
         if isinstance(value, str):
             ir = SFG2D.io.veronica.read_auto(self.ffolder + value)
             if isinstance(ir, SFG2D.core.scan.TimeScan):
-                raise NotImplementedError
+                #raise NotImplementedError
+                warnings.warn('Not implemented')
+                return
             self._ir = SFG2D.core.contents.IR(ir.df, metadata=ir.metadata)
 
         if isinstance(value, SFG2D.core.scan.Scan):
             self._ir = SFG2D.core.contents.IR(value)
 
         if isinstance(value, SFG2D.core.scan.TimeScan):
-            raise NotImplementedError
+            warnings.warn('Not Implemented,')
 
         if isinstance(value, SFG2D.core.contents.IR):
             self._ir = ir
@@ -79,7 +82,7 @@ class PumpProbeDashboardData():
             self._pump = SFG2D.PumpVisSFG(pump.df, metadata=pump.metadata)
 
         if isinstance(value, SFG2D.core.scan.Scan):
-            raise NotImplementedError
+            warnings.warn('Not Implemented')
 
         if isinstance(value, SFG2D.core.scan.TimeScan):
             self._pump = SFG2D.PumpVisSFG(value.df)
@@ -93,7 +96,9 @@ class PumpProbeDashboardData():
         if isinstance(value, str):
             base = SFG2D.io.veronica.read_auto(self.ffolder + value)
             if isinstance(base, SFG2D.core.scan.TimeScan):
-                raise NotImplementedError
+                #raise NotImplementedError
+                warnings.warn('Not Implemented,')
+                return
             self._base = base
 
         if isinstance(value, SFG2D.core.scan.Scan):
@@ -101,7 +106,8 @@ class PumpProbeDashboardData():
 
         if isinstance(value, SFG2D.core.scan.TimeScan):
             #self._base = value
-            raise NotImplementedError
+            #raise NotImplementedError
+            warnings.warn('Not Implemented,')
 
     @property
     def ts0(self):
@@ -112,11 +118,14 @@ class PumpProbeDashboardData():
         if isinstance(value, str):
             ts0 = SFG2D.io.veronica.read_auto(self.ffolder + value)
             if isinstance(ts0, SFG2D.core.scan.Scan):
-                raise NotImplementedError
+                #raise NotImplementedError
+                warnings.warn('Not Implemented,')
+                return 
             self._ts0 = SFG2D.PumpProbe(ts0.df, metadata=ts0.metadata)
 
         elif isinstance(value, SFG2D.core.scan.Scan):
-            raise NotImplementedError
+            #raise NotImplementedError
+            warnings.warn('Not Implemented,')
 
         elif isinstance(value, SFG2D.core.scan.TimeScan):
             self._ts0 = SFG2D.PumpProbe(value.df, metadata=value.metadata)
