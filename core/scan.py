@@ -174,6 +174,12 @@ class TimeScan(ScanBase, PumpProbe):
 
     def sub_base(self, inplace=False, axis=0, level=1, **kwargs):
         """substract baseline from data"""
+
+        # When indeces are different pandas cand substract correctly
+        # The result will then be onlay NaNs
+        if any(self._df.index.levels[1] != self._base.index.levels[1]):
+            level = None
+            
         ret = self._df.subtract(self._base, axis=axis, level=level, **kwargs)
         if inplace:
             self._df = ret
@@ -181,7 +187,7 @@ class TimeScan(ScanBase, PumpProbe):
             return
         return ret
 
-    def add_base(self, inplaxe=False, axis=0, level=1, **kwargs):
+    def add_base(self, inplace=False, axis=0, level=1, **kwargs):
         """add baseline to data"""
         ret = self._df.add(self._base, axis=axis, level=level, **kwargs)
         if inplace:

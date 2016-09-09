@@ -164,6 +164,7 @@ class PumpProbeWidget():
             description='Sub Baseline',
             value=False
         )
+        self.ir_ppdelay = ipyw.SelectionSlider(continuous_update=False)
 
         self.pump_fpath = ipyw.Select(description='Pump SFG')
         self.pump_fbase = ipyw.Select(description='Pump Base')
