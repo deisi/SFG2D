@@ -48,44 +48,10 @@ class PumpProbeDashboardData():
     def ir(self):
         return self._ir
 
-#     @ir.setter
-#     def ir(self, value):
-#         if isinstance(value, str):
-#             ir = SFG2D.io.veronica.read_auto(self.ffolder + value)
-#             if isinstance(ir, SFG2D.core.scan.TimeScan):
-#                 #raise NotImplementedError
-#                 warnings.warn('Not implemented')
-#                 return
-#             self._ir = SFG2D.core.contents.IR(ir.df, metadata=ir.metadata)
-# 
-#         if isinstance(value, SFG2D.core.scan.Scan):
-#             self._ir = SFG2D.core.contents.IR(value)
-# 
-#         if isinstance(value, SFG2D.core.scan.TimeScan):
-#             warnings.warn('Not Implemented,')
-# 
-#         if isinstance(value, SFG2D.core.contents.IR):
-#             self._ir = ir
-
     @property
     def pump(self):
         """ """
         return self._pump
-        
-#     @pump.setter
-#     def pump(self, value):
-#         """Can set a pump as str, or as PumpVisSFG  """
-#         if isinstance(value, str):
-#             pump = SFG2D.io.veronica.read_auto(self.ffolder + value)
-#             #if isinstance(pump, SFG2D.core.scan.Scan):
-#             #    raise NotImplementedError
-#             self._pump = SFG2D.PumpVisSFG(pump.df, metadata=pump.metadata)
-# 
-#         if isinstance(value, SFG2D.core.scan.Scan):
-#             warnings.warn('Not Implemented')
-# 
-#         if isinstance(value, SFG2D.core.scan.TimeScan):
-#             self._pump = SFG2D.PumpVisSFG(value.df)
 
     @property
     def base(self):
@@ -112,24 +78,6 @@ class PumpProbeDashboardData():
     @property
     def ts0(self):
         return self._ts0
-
-    @ts0.setter
-    def ts0(self, value):
-        if isinstance(value, str):
-            ts0 = SFG2D.io.veronica.read_auto(self.ffolder + value)
-            if isinstance(ts0, SFG2D.core.scan.Scan):
-                #raise NotImplementedError
-                warnings.warn('Not Implemented,')
-                return 
-            self._ts0 = SFG2D.PumpProbe(ts0.df, metadata=ts0.metadata)
-
-        elif isinstance(value, SFG2D.core.scan.Scan):
-            #raise NotImplementedError
-            warnings.warn('Not Implemented,')
-
-        elif isinstance(value, SFG2D.core.scan.TimeScan):
-            self._ts0 = SFG2D.PumpProbe(value.df, metadata=value.metadata)
-
 
 # Watchdog to monitor ppdData.ffolder
 class MyHandler(FileSystemEventHandler):
@@ -173,6 +121,10 @@ class PumpProbeWidget():
             description="Spectrum", value="spec_1"
         )
         self.pump_ppdelay = ipyw.SelectionSlider(continuous_update=False)
+        self.pump_sub_base = ipyw.ToggleButton(
+            description='Sub Baseline',
+            value=False
+        )
 
         self.ts0_fpath = ipyw.Select(description='Pump Probe')
         self.ts0_pumped = ipyw.Dropdown(

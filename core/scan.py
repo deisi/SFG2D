@@ -177,8 +177,11 @@ class TimeScan(ScanBase, PumpProbe):
 
         # When indeces are different pandas cand substract correctly
         # The result will then be onlay NaNs
-        if any(self._df.index.levels[1] != self._base.index.levels[1]):
-            level = None
+        try:
+            if any(self._df.index.levels[1] != self._base.index.levels[1]):
+                level = None
+        except AttributeError:
+            pass
             
         ret = self._df.subtract(self._base, axis=axis, level=level, **kwargs)
         if inplace:
