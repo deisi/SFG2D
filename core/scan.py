@@ -226,7 +226,9 @@ class TimeScan(ScanBase, PumpProbe):
 
     @property
     def pp_delays(self):
-        return self._df.index.levels[0]
+        # Cast to int needed because json.dump wont work otherwise
+        return [int(elm) for elm in self._df.index.levels[0]]
+        #return self._df.index.levels[0]
     
     @property
     def groupby_pp_delay(self):

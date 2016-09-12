@@ -1,13 +1,55 @@
 import SFG2D
 from IPython.display import display
-from bqplot import LinearScale, Axis, Lines, Figure, Toolbar
+from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
 from ipywidgets import VBox, HBox
+from traitlets import TraitError
+import json
+import warnings
 
 
-class DataImporter():
+class MyBqPlot():
+    """Class for Bqolot setup. """
+    def fig_init(self, title='',x_label='', y_label=''):
+        """Init an empty bqplot figure"""
+        x_sc = LinearScale()
+        y_sc = LinearScale()
+
+        line = Lines(scales={'x':x_sc, 'y':y_sc})
+
+        ax_x = Axis(scale=x_sc,
+                    label=x_label)
+        ax_y = Axis(scale=y_sc, 
+                    label=y_label, orientation='vertical')
+
+        # Zoom only y-scale
+        pz = PanZoom(scales={'y': [y_sc]})
+
+        fig = Figure(marks=[line], axes=[ax_x, ax_y], 
+                     title=title)
+
+        tb = Toolbar(figure=fig)
+        tb._panzoom = pz
+
+        fig.pyplot = tb
+        #fig.interaction = pz
+        
+        return fig
+
+    def fig_update(self, *args, **kwargs):
+        """Update bqplot figure with new data"""
+        self.fig.marks[0].x = self.data.index
+        self.fig.marks[0].y = self.data.transpose()
+
+
+class DataImporter(MyBqPlot):
     data = None # Data presented by the widget
     scan = None # Full data used by the widget
     base = None # Full Baseline data
+    # List of widget names used to obtain widget status
+    _widgets = (
+        'fpath_selector', 'fbase_selector', 'pp_delay_slider',
+        'spec_selector', 'sub_baseline_toggle'
+    )
 
     def __init__(self, ffolder, fpath_selector,
                  fbase_selector,  pp_delay_slider,
@@ -105,29 +147,6 @@ class DataImporter():
         self.get(self.ffolder + self.fpath_selector.value,
                  self.ffolder + self.fbase_selector.value)
         
-    def fig_init(self, title='',x_label='', y_label=''):
-        """Init an empty bqplot figure"""
-        x_sc = LinearScale()
-        y_sc = LinearScale()
-
-        line = Lines(scales={'x':x_sc, 'y':y_sc})
-
-        ax_x = Axis(scale=x_sc,
-                    label=x_label)
-        ax_y = Axis(scale=y_sc, 
-                    label=y_label, orientation='vertical')
-
-        fig = Figure(marks=[line], axes=[ax_x, ax_y], 
-                     title=title)
-
-        fig.pyplot = Toolbar(figure=fig)
-        return fig
-
-    def fig_update(self, *args, **kwargs):
-        """Update bqplot figure with new data"""
-        self.fig.marks[0].x = self.data.index
-        self.fig.marks[0].y = self.data.transpose()
-
     def update_scan(self, *args):
 
         if self.sub_baseline_toggle.value:
@@ -143,38 +162,47 @@ class DataImporter():
         else:
             self.data = self.scan.med
             
-        if self.spec_selector.value is not "All":
+        if self.spec_selector.value != 'All':
             self.data = self.data[self.spec_selector.value]
-
+                        
     @property
-    def _widgets():
-        """ List of widgets used by this widget """
-        return (
-            self.fpath_selector, self.fbase_selector, self.pp_delay_slider,
-            self.spec_selector, self.sub_baseline_toggle)
-                
-
-    def save(self):
-        """Save widget config as ppWidget.json in ffolder
-        """
+    def widget_status(self):
+        """Save widget config as ppWidget.json in ffolder"""
         def getattr_value_from_widget(*args):
-            return getattr(*args, "value")
+            return getattr(getattr(self,  *args), "value")
 
         # Status of widget elements
-        widget_dict = {}
-        for widget in self._widgets:
-            widget_dict[attribute] = getattr_value_from_widget(widget)
-        #return data
+        widget_status = {}
+        for widget_name in self._widgets:
+            widget_status[widget_name] = getattr_value_from_widget(widget_name)
+        return widget_status
 
-        with open(self.ffolder + '/ppWidget.json', 'w') as outfile:
-            json.dump(data, outfile)
-            outfile.close()
-    
+    def load_widget_status(self, widget_status):
+        """load status of widget from widget_status
 
+        Parameters
+        ----------
+        widget_status: dict
+            Dict to load widget status from"""
+
+        for key in widget_status:
+            widget = getattr(self, key)
+            try:
+                widget.value = widget_status[key]
+            # happens if attributes are loaded in the wrong order
+            except TraitError:
+                warnings.warn("Error loading widget status at %s" % key)
+            
 
 class PumpProbeDataImporter(DataImporter):
     """ Very Similar to the DataImporter but the handling of spectra is
-        slightly different. This one needs two """
+    slightly different. This one needs two """
+    # List of widget names used to obtain widget status
+    _widgets = (
+        'fpath_selector', 'fbase_selector', 'pp_delay_slider',
+        'pump_selector',  'probe_selector', 'sub_baseline_toggle',
+        'normalize_toggle'
+    )
 
     def __init__(self, ffolder, 
                  fpath_selector, fbase_selector, pp_delay_slider,

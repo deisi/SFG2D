@@ -25,8 +25,12 @@ def get_metadata_from_filename(fpath):
     ffolder, ffile = os.path.split(fpath)
     fsplit = ffile.split("_")
     metadata["uri"] = os.path.abspath(fpath)
-    metadata["sp_type"] = fsplit[1]
-    metadata["material"] = fsplit[2]
+    try:
+        metadata["sp_type"] = fsplit[1]
+        metadata["material"] = fsplit[2]
+    except IndexError:
+        pass
+        
     try:
         metadata["central_wl"] = int(fsplit[3].split("w")[1])
     except IndexError:

@@ -87,24 +87,21 @@ def read_save(fpath, **kwargs):
 
     # metadata based on filename makes the calibration
     metadata = get_metadata_from_filename(fpath)
-    pixel = np.arange(PIXEL)
-    nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
-    wavenumber = np.round(nm_to_ir_wavenumbers(
-        nm, up_wl=metadata['vis_wl']
-    ), decimals = 1)
-
-    #index = MultiIndex.from_arrays(
-    #    (pixel, nm, wavenumber), names=('pixel', 'nm', 'wavenumber')
-    #)
-
-    #ret.index = index
-    
     ret = ret.astype('int16')
 
-    ret.set_index(wavenumber, inplace=True)
-    ret.index.name = 'wavenumber'
-    ret.index = ret.index.sort_values()
-    ret.sort_index(inplace=True)
+    if metadata["central_wl"] == -1:
+        ret.set_index("pixel", inplace=True)        
+    else:
+        pixel = np.arange(PIXEL)
+        nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
+        wavenumber = np.round(nm_to_ir_wavenumbers(
+            nm, up_wl=metadata['vis_wl']
+        ), decimals = 1)
+        ret.set_index(wavenumber, inplace=True)
+        ret.index.name = 'wavenumber'
+        ret.index = ret.index.sort_values()
+        ret.sort_index(inplace=True)
+        ret.drop("pixel", inplace=True, axis=1)
 
     ret = Scan(ret, metadata=copy.deepcopy(metadata))
 
@@ -146,30 +143,24 @@ def read_scan_stack(fpath, **kwargs):
 
     # metadata based on filename makes the calibration
     metadata = get_metadata_from_filename(fpath)
-    pixel = np.arange(1600)
-    nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
-    wavenumber = np.round(nm_to_ir_wavenumbers(
-        nm, up_wl=metadata['vis_wl']
-    ), decimals = 1)
-
-    #index = MultiIndex.from_arrays(
-    #    (pixel, nm, wavenumber), names=('pixel', 'nm', 'wavenumber')
-    #)
-
-    #ret.index = index
-
+    
     # Data types are integers
     ret = ret.astype('int16')    
 
-    # Use pixel as index
-    #ret.set_index("pixel", inplace=True)
-    #ret['wavenumber'] = Series(wavenumber, index=ret.index)
-    ret.set_index(wavenumber, inplace=True)
-    ret.index.name = 'wavenumber'
-    ret.sort_index(inplace=True)
-    #ret['wavenumber'] = wavenumber
+    if metadata["central_wl"] == -1:
+        # Use pixel as index
+        ret.set_index("pixel", inplace=True)        
+    else:
+        pixel = np.arange(1600)
+        nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
+        wavenumber = np.round(nm_to_ir_wavenumbers(
+            nm, up_wl=metadata['vis_wl']
+        ), decimals = 1)
+        ret.drop('pixel', axis=1, inplace=True)
+        ret.set_index(wavenumber, inplace=True)
+        ret.index.name = 'wavenumber'
+        ret.sort_index(inplace=True)
     
-    # Link Repeated Columns together
     return Scan(ret, metadata=copy.deepcopy(metadata))
 
 def read_time_scan(fpath, **kwargs):
@@ -247,16 +238,15 @@ def read_time_scan(fpath, **kwargs):
 
 def read_auto(fpath, **kwargs):
     """ use fpath and datashape to automatically determine data type
-    of fpath and use according read function to import data"""
+    of fpath and use according read function to import data."""
     folder, ffile = os.path.split(fpath)
     metadata = get_metadata_from_filename(fpath)
 
     # check if name determines spectrum type
-    if metadata['sp_type'] is 'sp' or \
-       metadata['sp_type'] is 'sc' or \
+    if metadata['sp_type'] == 'sp' or \
+       metadata['sp_type'] == 'sc' or \
        metadata['sp_type'] == 'ts':
         pass
-
     else:
         warnings.warn('cant determine spectrum type of data by filename.'
                       'Trying to determine datatype from content.'
@@ -266,26 +256,27 @@ def read_auto(fpath, **kwargs):
             sep = '\t',
             header = None,
         )
-        if ret.shape is (1600, 6):
+        if ret.shape == (1600, 6):
+            #print("%s is of type Spectrum" % fpath)
             metadata['sp_type'] = 'sp'
         elif ret.shape[0] == 1602 and ret.shape[1]%6 is 0:
+            #print("%s is of type Scan" % fpath)
             metadata['sp_type'] = 'sc'
         elif ret.shape[0]%1602 is 0 and ret.shape[1]%6 is 0:
+            #print("%s is of type TimeScan" % fpath)
             metadata['sp_type'] = 'ts'
+        else:
+            raise IOError("Can't determine spectrum type of %s\nshape is %s" % (fpath, ret.shape))
 
-    # simple spectrum
     if metadata['sp_type'] == 'sp':
         ret = read_save(fpath, **kwargs)
 
-    # scan
     elif metadata['sp_type'] == 'sc':
         ret = read_scan_stack(fpath, **kwargs)
 
-    # time scan
     elif metadata['sp_type'] == 'ts':
         ret = read_time_scan(fpath, **kwargs)
-        
-    ret.df.drop("pixel", inplace=True, axis=1)
+
     # Needed in the case of content import. Else no harm
     ret.metadata['sp_type'] = copy.deepcopy(metadata['sp_type'])
     return ret
