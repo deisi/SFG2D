@@ -151,7 +151,7 @@ def read_scan_stack(fpath, **kwargs):
         # Use pixel as index
         ret.set_index("pixel", inplace=True)        
     else:
-        pixel = np.arange(1600)
+        pixel = np.arange(PIXEL)
         nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
         wavenumber = np.round(nm_to_ir_wavenumbers(
             nm, up_wl=metadata['vis_wl']
@@ -195,7 +195,7 @@ def read_time_scan(fpath, **kwargs):
     ret = ret.astype('int16')
     
     # Set colum names
-    names = ['pixel'] +_iterator(lambda i: ['spec_0', 'spec_1', 'spec_2'])
+    names = ['pixel'] + _iterator(lambda i: ['spec_0', 'spec_1', 'spec_2'])
     ret.columns = names
 
     # time delays so we can use them for multiaxes
@@ -207,26 +207,33 @@ def read_time_scan(fpath, **kwargs):
     # remove empty lines like the 1600 row
     ret = ret[~np.all(ret == ret.iloc[1600], 1)]
 
-    # drop pixel column. We add it as one axes of the multiaxes later
-    #ret.drop('pixel', axis=1, inplace=True)
+    # drop pixel column. If needed its added later again
+    ret.drop('pixel', axis=1, inplace=True)
     
     # metadata based on filename makes the calibration and are used to
     # index the dataframe
     metadata = get_metadata_from_filename(fpath)
     pixel = np.arange(PIXEL)
-    nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
-    wavenumber = np.round(nm_to_ir_wavenumbers(
-        nm, up_wl=metadata['vis_wl']
-    ), decimals = 1)
 
-    #ret['wavenumber'] = np.repeat([wavenumber], len(pp_delays), axis=0) .flatten()
+    if metadata["central_wl"] == -1:
+        # Use pixel as index
+        pp_delays = pp_delays.as_matrix()
+        index = MultiIndex.from_product(
+            (pp_delays, pixel),
+            names=('pp_delay', 'pixel')
+        )    
+    else:
+        nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
+        wavenumber = np.round(nm_to_ir_wavenumbers(
+            nm, up_wl=metadata['vis_wl']
+        ), decimals = 1)
 
-    # make indeces
-    pp_delays = pp_delays.as_matrix()
-    index = MultiIndex.from_product(
-        (pp_delays, wavenumber),
-        names=('pp_delay', 'wavenumber')
-    )
+        # make indeces
+        pp_delays = pp_delays.as_matrix()
+        index = MultiIndex.from_product(
+            (pp_delays, wavenumber),
+            names=('pp_delay', 'wavenumber')
+        )
     ret.index = index
     ret.sort_index(inplace=True)
 

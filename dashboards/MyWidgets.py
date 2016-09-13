@@ -1,7 +1,7 @@
 import SFG2D
 from IPython.display import display
 from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
-from ipywidgets import VBox, HBox
+from ipywidgets import VBox, HBox, ToggleButton
 from traitlets import TraitError
 import json
 import warnings
@@ -22,21 +22,34 @@ class MyBqPlot():
                     label=y_label, orientation='vertical')
 
         # Zoom only y-scale
-        pz = PanZoom(scales={'y': [y_sc]})
+        def py_update(new):
+            if tb_py.value:
+                py = PanZoom(scales={'y': [y_sc]})
+                fig.interaction = py
+            else:
+                fig.interaction.close()
+        tb_py = ToggleButton(description="Zoom-Y")
+        tb_py.observe(py_update, "value")
 
         fig = Figure(marks=[line], axes=[ax_x, ax_y], 
                      title=title)
 
         tb = Toolbar(figure=fig)
-        tb._panzoom = pz
 
         fig.pyplot = tb
-        #fig.interaction = pz
+        fig.tb_py = tb_py
         
         return fig
 
     def fig_update(self, *args, **kwargs):
         """Update bqplot figure with new data"""
+        # use index of data to set labels
+        x_label = self.data.index.name
+        if x_label == 'wavenumber':
+            x_label += ' in 1/cm'
+        
+        self.fig.axes[0].label = x_label
+        
         self.fig.marks[0].x = self.data.index
         self.fig.marks[0].y = self.data.transpose()
 
@@ -47,7 +60,7 @@ class DataImporter(MyBqPlot):
     base = None # Full Baseline data
     # List of widget names used to obtain widget status
     _widgets = (
-        'fpath_selector', 'fbase_selector', 'pp_delay_slider',
+        'fpath_selector', 'fbase_selector',
         'spec_selector', 'sub_baseline_toggle'
     )
 
@@ -84,6 +97,7 @@ class DataImporter(MyBqPlot):
         self.get(self.ffolder + self.fpath_selector.value,
                  self.ffolder + self.fbase_selector.value)
         self.update_data()
+        #self.update_scan()
         self.fig = self.fig_init(title,x_label, y_label)
         self.fig_update()
         
@@ -110,7 +124,7 @@ class DataImporter(MyBqPlot):
             HBox([self.fpath_selector, self.fbase_selector]),
             HBox([self.pp_delay_slider, self.spec_selector])
             , self.sub_baseline_toggle,
-            VBox([self.fig, self.fig.pyplot])
+            VBox([self.fig, self.fig.pyplot, self.fig.tb_py])
         )
 
     def get(self, fpath, fbase):
@@ -123,9 +137,11 @@ class DataImporter(MyBqPlot):
         self.scan = data
         if isinstance(data, SFG2D.core.scan.TimeScan):
             self.pp_delay_slider.options = list(data.pp_delays)
+            _exp_data = data.med.ix[list(data.pp_delays)[0]]
         else:
             self.pp_delay_slider.options = [0]
             self.pp_delay_slider.value = 0
+            _exp_data = data.med
 
         base = SFG2D.io.veronica.read_auto(fbase)
         if isinstance(base, SFG2D.core.scan.TimeScan) and not isinstance(data,  SFG2D.core.scan.TimeScan):
@@ -139,8 +155,13 @@ class DataImporter(MyBqPlot):
 
         self.scan.base = self.base
 
-        if self.sub_baseline_toggle.value:
+        # Uses seted baseline toggle if possible or resets
+        # if substitution due to different axes is not possible
+        if self.sub_baseline_toggle.value and \
+        all(_exp_data.index == self.scan.base.index):
             self.scan.sub_base(inplace=True)
+        else:
+            self.sub_baseline_toggle.value = False
 
     def update(self, *args, **kwargs):
         """Update the data on value change"""
@@ -148,11 +169,18 @@ class DataImporter(MyBqPlot):
                  self.ffolder + self.fbase_selector.value)
         
     def update_scan(self, *args):
-
-        if self.sub_baseline_toggle.value:
-            self.scan.sub_base(inplace=True)
-        else:
-            self.scan.add_base(inplace=True)
+        
+        # there can be different indeces and then we dont want
+        # baseline substitution we also need to make shure that
+        # baseline toggle is only caled in case of this function has
+        # been triggered by thin function
+        
+        if args[0].get('owner') is self.sub_baseline_toggle:
+            if all(self.data.index == self.scan.base.index):
+                if self.sub_baseline_toggle.value:
+                    self.scan.sub_base(inplace=True)
+                else:
+                    self.scan.add_base(inplace=True)
 
         self.update_data()
 
@@ -172,9 +200,10 @@ class DataImporter(MyBqPlot):
             return getattr(getattr(self,  *args), "value")
 
         # Status of widget elements
-        widget_status = {}
+        widget_status = []
         for widget_name in self._widgets:
-            widget_status[widget_name] = getattr_value_from_widget(widget_name)
+            widget_status.append(getattr_value_from_widget(widget_name))
+        widget_status = list(zip(self._widgets, widget_status))
         return widget_status
 
     def load_widget_status(self, widget_status):
@@ -185,13 +214,10 @@ class DataImporter(MyBqPlot):
         widget_status: dict
             Dict to load widget status from"""
 
-        for key in widget_status:
-            widget = getattr(self, key)
-            try:
-                widget.value = widget_status[key]
-            # happens if attributes are loaded in the wrong order
-            except TraitError:
-                warnings.warn("Error loading widget status at %s" % key)
+        for widget_name, widget_value in widget_status:
+            #print(widget_name, widget_value)
+            widget = getattr(self, widget_name)
+            widget.value = widget_value
             
 
 class PumpProbeDataImporter(DataImporter):
@@ -199,7 +225,7 @@ class PumpProbeDataImporter(DataImporter):
     slightly different. This one needs two """
     # List of widget names used to obtain widget status
     _widgets = (
-        'fpath_selector', 'fbase_selector', 'pp_delay_slider',
+        'fpath_selector', 'fbase_selector',
         'pump_selector',  'probe_selector', 'sub_baseline_toggle',
         'normalize_toggle'
     )
@@ -279,7 +305,7 @@ class PumpProbeDataImporter(DataImporter):
             self.pp_delay_slider,
             HBox([self.pump_selector, self.probe_selector]),
             HBox([self.sub_baseline_toggle, self.normalize_toggle]),
-            VBox([self.fig, self.fig.pyplot])
+            VBox([self.fig, self.fig.pyplot, self.fig.tb_py])
         )
 
     def get(self, fpath, fbase):
@@ -301,7 +327,7 @@ class PumpProbeDataImporter(DataImporter):
     def update_scan(self, *args):
 
         # Normalize was toggeled
-        if args[0]['owner'] is self.normalize_toggle:
+        if args[0].get('owner') is self.normalize_toggle:
             if self.normalize_toggle.value:
                 self.scan.normalize(inplace=True)
             else:

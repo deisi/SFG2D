@@ -120,8 +120,6 @@ class PumpProbeWidget():
             json.dump(widget_dict, outfile)
             outfile.close()
             
-            
-
     def load(self, ffolder):
         try:
             with open(ffolder + '/ppWidget.json', 'r') as infile:
