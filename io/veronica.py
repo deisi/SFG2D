@@ -42,6 +42,35 @@ def pixel_to_nm(x, central_wl):
     pixel_to_nm = np.poly1d(params) + central_wl - calib_cw
     return pixel_to_nm(x)
 
+def nm_to_pixel(x, central_wl):
+    """ transform nm to pixel koordinates for central wavelength 
+
+    Parameters
+    ----------
+    x : array like
+        nm to transform in pixel
+    central_wl : int
+        central wavelength of the camera
+    
+    Returns
+    -------
+    num or array of x in pixel coordinates
+    """
+
+    params_file_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "../data/calib/params_Ne_670.npy"
+    )
+    params = np.load(params_file_path)
+    calib_cw = int(params_file_path[-7:-4])
+    if len(params) > 2:
+        params = params[-2:]
+    if len(params) < 2:
+        warnings.Warn("Can't use constant calibration")
+    nm_to_pixel = lambda x: (x - params[1] - central_wl + calib_cw)/params[0]
+
+    return nm_to_pixel(x)   
+
 def read_save(fpath, **kwargs):
     """read files saved with veronica save button """
 
@@ -58,24 +87,21 @@ def read_save(fpath, **kwargs):
 
     # metadata based on filename makes the calibration
     metadata = get_metadata_from_filename(fpath)
-    pixel = np.arange(PIXEL)
-    nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
-    wavenumber = np.round(nm_to_ir_wavenumbers(
-        nm, up_wl=metadata['vis_wl']
-    ), decimals = 1)
-
-    #index = MultiIndex.from_arrays(
-    #    (pixel, nm, wavenumber), names=('pixel', 'nm', 'wavenumber')
-    #)
-
-    #ret.index = index
-    
     ret = ret.astype('int16')
 
-    ret.set_index(wavenumber, inplace=True)
-    ret.index.name = 'wavenumber'
-    ret.index = ret.index.sort_values()
-    ret.sort_index(inplace=True)
+    if metadata["central_wl"] == -1:
+        ret.set_index("pixel", inplace=True)        
+    else:
+        pixel = np.arange(PIXEL)
+        nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
+        wavenumber = np.round(nm_to_ir_wavenumbers(
+            nm, up_wl=metadata['vis_wl']
+        ), decimals = 1)
+        ret.set_index(wavenumber, inplace=True)
+        ret.index.name = 'wavenumber'
+        ret.index = ret.index.sort_values()
+        ret.sort_index(inplace=True)
+        ret.drop("pixel", inplace=True, axis=1)
 
     ret = Scan(ret, metadata=copy.deepcopy(metadata))
 
@@ -117,30 +143,24 @@ def read_scan_stack(fpath, **kwargs):
 
     # metadata based on filename makes the calibration
     metadata = get_metadata_from_filename(fpath)
-    pixel = np.arange(1600)
-    nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
-    wavenumber = np.round(nm_to_ir_wavenumbers(
-        nm, up_wl=metadata['vis_wl']
-    ), decimals = 1)
-
-    #index = MultiIndex.from_arrays(
-    #    (pixel, nm, wavenumber), names=('pixel', 'nm', 'wavenumber')
-    #)
-
-    #ret.index = index
-
+    
     # Data types are integers
     ret = ret.astype('int16')    
 
-    # Use pixel as index
-    #ret.set_index("pixel", inplace=True)
-    #ret['wavenumber'] = Series(wavenumber, index=ret.index)
-    ret.set_index(wavenumber, inplace=True)
-    ret.index.name = 'wavenumber'
-    ret.sort_index(inplace=True)
-    #ret['wavenumber'] = wavenumber
+    if metadata["central_wl"] == -1:
+        # Use pixel as index
+        ret.set_index("pixel", inplace=True)        
+    else:
+        pixel = np.arange(PIXEL)
+        nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
+        wavenumber = np.round(nm_to_ir_wavenumbers(
+            nm, up_wl=metadata['vis_wl']
+        ), decimals = 1)
+        ret.drop('pixel', axis=1, inplace=True)
+        ret.set_index(wavenumber, inplace=True)
+        ret.index.name = 'wavenumber'
+        ret.sort_index(inplace=True)
     
-    # Link Repeated Columns together
     return Scan(ret, metadata=copy.deepcopy(metadata))
 
 def read_time_scan(fpath, **kwargs):
@@ -175,7 +195,7 @@ def read_time_scan(fpath, **kwargs):
     ret = ret.astype('int16')
     
     # Set colum names
-    names = ['pixel'] +_iterator(lambda i: ['spec_0', 'spec_1', 'spec_2'])
+    names = ['pixel'] + _iterator(lambda i: ['spec_0', 'spec_1', 'spec_2'])
     ret.columns = names
 
     # time delays so we can use them for multiaxes
@@ -187,26 +207,33 @@ def read_time_scan(fpath, **kwargs):
     # remove empty lines like the 1600 row
     ret = ret[~np.all(ret == ret.iloc[1600], 1)]
 
-    # drop pixel column. We add it as one axes of the multiaxes later
-    #ret.drop('pixel', axis=1, inplace=True)
+    # drop pixel column. If needed its added later again
+    ret.drop('pixel', axis=1, inplace=True)
     
     # metadata based on filename makes the calibration and are used to
     # index the dataframe
     metadata = get_metadata_from_filename(fpath)
     pixel = np.arange(PIXEL)
-    nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
-    wavenumber = np.round(nm_to_ir_wavenumbers(
-        nm, up_wl=metadata['vis_wl']
-    ), decimals = 1)
 
-    #ret['wavenumber'] = np.repeat([wavenumber], len(pp_delays), axis=0) .flatten()
+    if metadata["central_wl"] == -1:
+        # Use pixel as index
+        pp_delays = pp_delays.as_matrix()
+        index = MultiIndex.from_product(
+            (pp_delays, pixel),
+            names=('pp_delay', 'pixel')
+        )    
+    else:
+        nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
+        wavenumber = np.round(nm_to_ir_wavenumbers(
+            nm, up_wl=metadata['vis_wl']
+        ), decimals = 1)
 
-    # make indeces
-    pp_delays = pp_delays.as_matrix()
-    index = MultiIndex.from_product(
-        (pp_delays, wavenumber),
-        names=('pp_delay', 'wavenumber')
-    )
+        # make indeces
+        pp_delays = pp_delays.as_matrix()
+        index = MultiIndex.from_product(
+            (pp_delays, wavenumber),
+            names=('pp_delay', 'wavenumber')
+        )
     ret.index = index
     ret.sort_index(inplace=True)
 
@@ -218,16 +245,15 @@ def read_time_scan(fpath, **kwargs):
 
 def read_auto(fpath, **kwargs):
     """ use fpath and datashape to automatically determine data type
-    of fpath and use according read function to import data"""
+    of fpath and use according read function to import data."""
     folder, ffile = os.path.split(fpath)
     metadata = get_metadata_from_filename(fpath)
 
     # check if name determines spectrum type
-    if metadata['sp_type'] is 'sp' or \
-       metadata['sp_type'] is 'sc' or \
+    if metadata['sp_type'] == 'sp' or \
+       metadata['sp_type'] == 'sc' or \
        metadata['sp_type'] == 'ts':
         pass
-
     else:
         warnings.warn('cant determine spectrum type of data by filename.'
                       'Trying to determine datatype from content.'
@@ -237,26 +263,27 @@ def read_auto(fpath, **kwargs):
             sep = '\t',
             header = None,
         )
-        if ret.shape is (1600, 6):
+        if ret.shape == (1600, 6):
+            #print("%s is of type Spectrum" % fpath)
             metadata['sp_type'] = 'sp'
         elif ret.shape[0] == 1602 and ret.shape[1]%6 is 0:
+            #print("%s is of type Scan" % fpath)
             metadata['sp_type'] = 'sc'
         elif ret.shape[0]%1602 is 0 and ret.shape[1]%6 is 0:
+            #print("%s is of type TimeScan" % fpath)
             metadata['sp_type'] = 'ts'
+        else:
+            raise IOError("Can't determine spectrum type of %s\nshape is %s" % (fpath, ret.shape))
 
-    # simple spectrum
     if metadata['sp_type'] == 'sp':
         ret = read_save(fpath, **kwargs)
 
-    # scan
     elif metadata['sp_type'] == 'sc':
         ret = read_scan_stack(fpath, **kwargs)
 
-    # time scan
     elif metadata['sp_type'] == 'ts':
         ret = read_time_scan(fpath, **kwargs)
-        
-    ret.df.drop("pixel", inplace=True, axis=1)
+
     # Needed in the case of content import. Else no harm
     ret.metadata['sp_type'] = copy.deepcopy(metadata['sp_type'])
     return ret

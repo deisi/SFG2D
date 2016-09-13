@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import bqplot.pyplot as bplt
 import numpy as np
 
 def sum_of_spectra(ts, spec, ax=None):

@@ -25,8 +25,12 @@ def get_metadata_from_filename(fpath):
     ffolder, ffile = os.path.split(fpath)
     fsplit = ffile.split("_")
     metadata["uri"] = os.path.abspath(fpath)
-    metadata["sp_type"] = fsplit[1]
-    metadata["material"] = fsplit[2]
+    try:
+        metadata["sp_type"] = fsplit[1]
+        metadata["material"] = fsplit[2]
+    except IndexError:
+        pass
+        
     try:
         metadata["central_wl"] = int(fsplit[3].split("w")[1])
     except IndexError:
@@ -40,7 +44,7 @@ def get_metadata_from_filename(fpath):
         if match_gain.group(1) == "cm":
             metadata["gain"] = -1
         else:
-            metadata["gain"] = int(match_gain(1))
+            metadata["gain"] = int(match_gain.group(1))
 
     # find exposiure time
     match_exp_time = re.search("_e(\d+)([msh]+)_", ffile)
@@ -68,3 +72,8 @@ def get_metadata_from_filename(fpath):
     _match_booleans("purge", "purge")
     
     return metadata
+
+def time_scan_time(pp_delays, exp_time, reps):
+    """Return time, when the measurment is done. """
+    import datetime
+    return datetime.datetime.now() + datetime.timedelta(minutes=pp_delays*exp_time*reps)
