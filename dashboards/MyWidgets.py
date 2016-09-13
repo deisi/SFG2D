@@ -1,14 +1,16 @@
 import SFG2D
 from IPython.display import display
 from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
-from ipywidgets import VBox, HBox, ToggleButton
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText
 from traitlets import TraitError
 import json
 import warnings
+import os
 
 
 class MyBqPlot():
     """Class for Bqolot setup. """
+    
     def fig_init(self, title='',x_label='', y_label=''):
         """Init an empty bqplot figure"""
         x_sc = LinearScale()
@@ -31,6 +33,16 @@ class MyBqPlot():
         tb_py = ToggleButton(description="Zoom-Y")
         tb_py.observe(py_update, "value")
 
+        # Smooth data here because it only effects the way the
+        # data is shown, it has not deeper physical meaning
+        # and doesnt interfere with the data containing classes
+        smooth_width = BoundedIntText(
+            value=0, min=0, max=100,
+            description = 'Smooth',
+            tooltip = 'Size of the windows used for rolling median to smooth data'
+            )
+        smooth_width.observe(self.fig_update, "value")
+
         fig = Figure(marks=[line], axes=[ax_x, ax_y], 
                      title=title)
 
@@ -38,12 +50,17 @@ class MyBqPlot():
 
         fig.pyplot = tb
         fig.tb_py = tb_py
+        fig.smooth_width = smooth_width
         
         return fig
 
     def fig_update(self, *args, **kwargs):
         """Update bqplot figure with new data"""
         # use index of data to set labels
+        if isinstance(self.data, type(None)):
+            warnings.warn("No data to update figure with in %s" % self)
+            return
+        
         x_label = self.data.index.name
         if x_label == 'wavenumber':
             x_label += ' in 1/cm'
@@ -51,7 +68,10 @@ class MyBqPlot():
         self.fig.axes[0].label = x_label
         
         self.fig.marks[0].x = self.data.index
-        self.fig.marks[0].y = self.data.transpose()
+        if self.fig.smooth_width.value == 0:
+            self.fig.marks[0].y = self.data.transpose()
+        else:
+            self.fig.marks[0].y = self.data.rolling(self.fig.smooth_width.value).median().transpose()
 
 
 class DataImporter(MyBqPlot):
@@ -92,16 +112,39 @@ class DataImporter(MyBqPlot):
         self.sub_baseline_toggle = sub_baseline_toggle
 
     def __call__(self, title='', x_label='', y_label=''):
-
+        """ create the widget by calling it."""
+        # Hackaround for not automatic valueupdate problem
+        # when ffolder is changed on the fly
+        try:
+            fpath = self.ffolder + self.fpath_selector.value
+            fbase = self.ffolder + self.fbase_selector.value
+        except TypeError:
+            fpath = self.ffolder
+            fbase = self.ffolder
+        if not os.path.isfile(fpath) or not os.path.isfile(fbase):
+            warnings.warn('File does not exist. Skipping update\n%s\n%s'
+                          % (fpath, fbase))
+            self.fig = self.fig_init(title, x_label, y_label)
         # Init the Widget
-        self.get(self.ffolder + self.fpath_selector.value,
-                 self.ffolder + self.fbase_selector.value)
-        self.update_data()
-        #self.update_scan()
-        self.fig = self.fig_init(title,x_label, y_label)
-        self.fig_update()
-        
-        # Link the observers
+        else:
+            self.get(fpath, fbase)
+            self.update_data()
+            #self.update_scan()
+            self.fig = self.fig_init(title, x_label, y_label)
+            self.fig_update()
+
+        self.observe()
+
+        # Display the Widget
+        display(
+            HBox([self.fpath_selector, self.fbase_selector]),
+            HBox([self.pp_delay_slider, self.spec_selector]),
+            HBox([self.sub_baseline_toggle, self.fig.smooth_width]),
+            VBox([self.fig, self.fig.pyplot, self.fig.tb_py])
+        )
+
+    def observe(self):
+        """ Init the observers """
         self.fpath_selector.observe(self.update, 'value')
         self.fpath_selector.observe(self.update_data, 'value')
         self.fpath_selector.observe(self.fig_update, 'value')
@@ -119,13 +162,11 @@ class DataImporter(MyBqPlot):
         self.sub_baseline_toggle.observe(self.update_scan, 'value')
         self.sub_baseline_toggle.observe(self.fig_update, 'value')
 
-        # Display the Widget
-        display(
-            HBox([self.fpath_selector, self.fbase_selector]),
-            HBox([self.pp_delay_slider, self.spec_selector])
-            , self.sub_baseline_toggle,
-            VBox([self.fig, self.fig.pyplot, self.fig.tb_py])
-        )
+    def unobserve(self):
+        """ Unobservers all widgets"""
+        for widget_name in self._widgets:
+            widget = getattr(self, widget_name)
+            widget.unobserve_all()
 
     def get(self, fpath, fbase):
         """Get Data from HDD
@@ -165,30 +206,51 @@ class DataImporter(MyBqPlot):
 
     def update(self, *args, **kwargs):
         """Update the data on value change"""
-        self.get(self.ffolder + self.fpath_selector.value,
-                 self.ffolder + self.fbase_selector.value)
+        # Hackaround for not automatic valueupdate problem
+        # when ffolder is changed on the fly
+        try:
+            fpath = self.ffolder + self.fpath_selector.value
+            fbase = self.ffolder + self.fbase_selector.value
+        except TypeError:
+            fbase = self.ffolder
+            fpath = self.ffolder
+        if not os.path.isfile(fpath) or not os.path.isfile(fbase):
+            warnings.warn('File does not exist. Skipping update\n%s\n%s'
+                          % (fpath, fbase))
+            return        
+        self.get(fpath, fbase )
         
     def update_scan(self, *args):
+        """update scan related things here."""
         
         # there can be different indeces and then we dont want
         # baseline substitution we also need to make shure that
         # baseline toggle is only caled in case of this function has
-        # been triggered by thin function
-        
-        if args[0].get('owner') is self.sub_baseline_toggle:
-            if all(self.data.index == self.scan.base.index):
-                if self.sub_baseline_toggle.value:
-                    self.scan.sub_base(inplace=True)
-                else:
-                    self.scan.add_base(inplace=True)
+        # been triggered by the coresponding function
+
+        if isinstance(self.data, type(None)):
+            warnings.warn("No data to update in %s" % self)
+        elif isinstance(self.scan.base, type(None)):
+            warnings.warn('No scan.base in %s' % self.scan)
+        else:
+            if args[0].get('owner') is self.sub_baseline_toggle:
+                if all(self.data.index == self.scan.base.index):
+                    if self.sub_baseline_toggle.value:
+                        self.scan.sub_base(inplace=True)
+                    else:
+                        self.scan.add_base(inplace=True)
 
         self.update_data()
 
     def update_data(self, *args):
+        """ update the viewd data itself """
         if isinstance(self.scan, SFG2D.core.scan.TimeScan):
             self.data = self.scan.med.ix[self.pp_delay_slider.value]
-        else:
+        elif isinstance(self.scan, SFG2D.core.scan.Scan):
             self.data = self.scan.med
+        else:
+            warnings.warn('No data to update in %s' % self)
+            return
             
         if self.spec_selector.value != 'All':
             self.data = self.data[self.spec_selector.value]
@@ -233,7 +295,7 @@ class PumpProbeDataImporter(DataImporter):
     def __init__(self, ffolder, 
                  fpath_selector, fbase_selector, pp_delay_slider,
                  pump_selector, probe_selector, sub_baseline_toggle,
-                 normalize_toggle, norm_scan=None):
+                 normalize_toggle, norm_widget):
         """
             fpath_seeelector:
                 Selection widget for fpath
@@ -251,8 +313,8 @@ class PumpProbeDataImporter(DataImporter):
             sub_baseline_toggle:
                 Toggle button for substracting baseline
 
-            norm_scan: Scan obj 
-                Scan used for normalization
+            norm_widget: widget_obj
+                widget used to obtain norm_widget.data
         """
 
         # Init Properties
@@ -264,18 +326,43 @@ class PumpProbeDataImporter(DataImporter):
         self.probe_selector = probe_selector
         self.sub_baseline_toggle = sub_baseline_toggle
         self.normalize_toggle = normalize_toggle
-        self.norm = norm_scan
+        self.norm_widget = norm_widget
 
     def __call__(self, title='', x_label='', y_label=''):
+        """Create the widget by calling it """
+        # Hackaround for not automatic valueupdate problem
+        # when ffolder is changed on the fly
+        try:
+            fpath = self.ffolder + self.fpath_selector.value
+            fbase = self.ffolder + self.fbase_selector.value
+        except TypeError:
+            fpath = self.ffolder
+            fbase = self.ffolder
+        if not os.path.isfile(fpath) or not os.path.isfile(fbase):
+            warnings.warn('File does not exist. Skipping update\n%s\n%s'
+                          % (fpath, fbase))
+            self.fig = self.fig_init(title,x_label, y_label)
+        else:
+            # Init the Widget
+            self.get(fpath, fbase)
+            self.update_data()
+            self.fig = self.fig_init(title,x_label, y_label)
+            self.fig_update()
 
-        # Init the Widget
-        self.get(self.ffolder + self.fpath_selector.value,
-                 self.ffolder + self.fbase_selector.value)
-        self.update_data()
-        self.fig = self.fig_init(title,x_label, y_label)
-        self.fig_update()
-        
-        # Link the observers
+        # Init the observere
+        self.observe()
+
+        # Display the Widget
+        display(
+            HBox([self.fpath_selector, self.fbase_selector]),
+            self.pp_delay_slider,
+            HBox([self.pump_selector, self.probe_selector]),
+            HBox([self.sub_baseline_toggle, self.normalize_toggle, self.fig.smooth_width]),
+            VBox([self.fig, self.fig.pyplot, self.fig.tb_py])
+        )
+
+    def observe(self):
+        """ Init the observers """
         self.fpath_selector.observe(self.update, 'value')
         self.fpath_selector.observe(self.update_data, 'value')
         self.fpath_selector.observe(self.fig_update, 'value')
@@ -299,39 +386,46 @@ class PumpProbeDataImporter(DataImporter):
         self.normalize_toggle.observe(self.update_scan, 'value')
         self.normalize_toggle.observe(self.fig_update, 'value')
 
-        # Display the Widget
-        display(
-            HBox([self.fpath_selector, self.fbase_selector]),
-            self.pp_delay_slider,
-            HBox([self.pump_selector, self.probe_selector]),
-            HBox([self.sub_baseline_toggle, self.normalize_toggle]),
-            VBox([self.fig, self.fig.pyplot, self.fig.tb_py])
-        )
-
     def get(self, fpath, fbase):
+        """get data from HDD"""
         super().get(fpath, fbase)
-        self.scan.norm = self.norm
+        if isinstance(self.norm_widget.data, type(None)):
+            warnings.warn("No valid normalization in %s", self.norm_widget)
+            return
+        self.scan.norm = self.norm_widget.data
         if self.normalize_toggle.value:
             self.scan.normalize(inplace=True)
     
     def update_data(self, *args):
+        """ update the data viewd in the plot"""
         if isinstance(self.scan, SFG2D.core.scan.TimeScan):
             self.data = self.scan.med.ix[self.pp_delay_slider.value]
-        else:
+        elif isinstance(self.scan, SFG2D.core.scan.Scan):
             self.data = self.scan.med
+        # In case of invalid call we just dot to anything
+        else:
+            warnings.warn('No data to plot in %s' % self)
+            return
 
         self.scan.pump = self.pump_selector.value
         self.scan.probe = self.probe_selector.value
-        self.scan.norm = self.norm
+        self.scan.norm = self.norm_widget.data
 
     def update_scan(self, *args):
+        """update the scan itself"""
+        if isinstance(self.scan, type(None)):
+            warnings.warn('No scan to normalize in %s' % self)
+            return
 
         # Normalize was toggeled
         if args[0].get('owner') is self.normalize_toggle:
-            if self.normalize_toggle.value:
-                self.scan.normalize(inplace=True)
+            if isinstance(self.scan.norm, type(None)):
+                warnings.warn('No normalization data in %s', self.scan.norm)
             else:
-                self.scan.un_normalize(inplace=True)
+                if self.normalize_toggle.value:
+                    self.scan.normalize(inplace=True)
+                else:
+                    self.scan.un_normalize(inplace=True)
             self.update_data()
         # Sub Baseline was toggeled
         else:

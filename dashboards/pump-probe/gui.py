@@ -5,10 +5,12 @@ import ipywidgets as ipyw
 import matplotlib.pyplot as plt
 import SFG2D
 
+from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from SFG2D.dashboards import MyWidgets
 from glob import glob
 
-class MyHandler(FileSystemEventHandler):
+class FileHandler(FileSystemEventHandler):
     ppWidget = None
     ffiles = None
     fnames = None
@@ -21,12 +23,11 @@ class MyHandler(FileSystemEventHandler):
         self.fnames = [os.path.split(ffile)[1] for ffile in self.ffiles]
     
     def on_modified(self, event):
-        #print('jepjep')
+        #print('got event', event)
         self.ffiles = glob(self.ffolder + '/*.dat')
         self.ffiles = [ x for x in self.ffiles if "AVG" not in x ]
         self.fnames = [os.path.split(ffile)[1] for ffile in self.ffiles]
         self.ppWidget.ir_fpath.options = self.fnames
-
 
 class PumpProbeWidget():
     w_ir = None # Widget for IR spectrum
@@ -83,6 +84,7 @@ class PumpProbeWidget():
 
         self.fbase = ipyw.Select(description='Baseline')
 
+
         self._l_fpath = {}
         self._l_ts0_ppdelay_childs = []
 
@@ -102,6 +104,15 @@ class PumpProbeWidget():
             self._l_ts0_ppdelay_childs.append(
                 traitlets.dlink((self.ts0_ppdelay, 'options'),(_w, 'options'))
             )
+
+    def unlinkTraitlets(self):
+        """ unlink all traitlets """
+        for key in self._l_fpath:
+            link = self._l_fpath[key]
+            link.unlink()
+
+        for link in self._l_ts0_ppdelay_childs:
+            link.unlink()
 
     def save(self, ffolder):
         """Save widget config as ppWidget.json in ffolder"""
@@ -140,3 +151,93 @@ class PumpProbeWidget():
         except FileNotFoundError:
             warnings.warn('No ppWidget.json file in %s' % ffolder)
             pass    
+
+        
+def gen_PumpProbeWidget(ffolder):
+    
+    # Observer to monitor changes in ffolder
+    observer = Observer()
+    event_handler = FileHandler(ffolder)
+
+    # Widget for the PumpProbe Dashboard
+    ppWidget = PumpProbeWidget(event_handler.fnames)
+
+    # link eventhandler and widget, so widget is informed
+    # by event_handler in case of file changes
+    event_handler.ppWidget = ppWidget
+
+    # Start file observer so monitor
+    observer.schedule(event_handler, ffolder, recursive=False)
+    if os.path.isdir(ffolder):
+        observer.start()
+
+    # Link Traitlets to have the same files in all widgets
+    ppWidget.linkTraitlets()
+
+    # Stup individual widgets
+    ppWidget.w_ir = MyWidgets.DataImporter(ffolder, ppWidget.ir_fpath, 
+                               ppWidget.fbase, ppWidget.ir_ppdelay, 
+                               ppWidget.ir_spec, ppWidget.ir_sub_base)
+    ppWidget.w_pump = MyWidgets.DataImporter(ffolder, ppWidget.pump_fpath, 
+                               ppWidget.pump_fbase, ppWidget.pump_ppdelay, 
+                               ppWidget.pump_spec, ppWidget.pump_sub_base)
+    ppWidget.w_pump_probe = MyWidgets.PumpProbeDataImporter(
+        ffolder, ppWidget.ts0_fpath, 
+        ppWidget.fbase, ppWidget.ts0_ppdelay, 
+        ppWidget.ts0_pumped, ppWidget.ts0_probed, ppWidget.pump_sub_base,
+        ppWidget.ts0_normalize, norm_widget = ppWidget.w_ir
+    )
+    ppWidget.load(ffolder)
+    return ppWidget, observer
+
+def update_ffolder(ffolder, observer, ppWidget):
+    """update eventhandler and widget if folder is changed 
+
+    Parameters
+    ----------
+    observer:
+
+    ppWidget:
+
+    ffolder:
+
+    """
+    if not os.path.isdir(ffolder):
+        return ppWidget, observer
+
+    if observer.isAlive():
+        observer.unschedule_all()
+        observer.stop()
+        observer.join()
+    
+    observer = Observer()
+    event_handler = FileHandler(ffolder)
+
+    ppWidget.w_ir.ffolder = ffolder
+    ppWidget.w_pump.ffolder = ffolder
+    ppWidget.w_pump_probe.ffolder = ffolder
+
+    # Allow event_handler to update ppWidget fpath properties
+    # so changes in the new folde can be monitored
+    event_handler.ppWidget = ppWidget
+
+    # Otherwise errors are thrown because observed widgets get updated
+    # but data is not available jet.
+    for sub_widget in (ppWidget.w_ir, ppWidget.w_pump, ppWidget.w_pump_probe):
+        sub_widget.unobserve()
+    #ppWidget.unlinkTraitlets()
+    ppWidget.ir_fpath.options = event_handler.fnames
+    for sub_widget in (ppWidget.w_ir, ppWidget.w_pump, ppWidget.w_pump_probe):
+        sub_widget.observe()
+    ppWidget.linkTraitlets()
+    event_handler.ppWidget = ppWidget
+
+    # Start file observer to monitor filechanges in new folder
+    observer.schedule(event_handler, ffolder, recursive=False)
+    observer.start()
+
+    #ppWidget.load(ffolder)
+
+    return ppWidget, observer
+    
+    
