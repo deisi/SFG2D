@@ -57,12 +57,16 @@ def nm_to_pixel(x, central_wl):
     num or array of x in pixel coordinates
     """
 
+    # calibrations has been perfored manual before
+    # here we only load it.
     params_file_path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "../data/calib/params_Ne_670.npy"
     )
     params = np.load(params_file_path)
     calib_cw = int(params_file_path[-7:-4])
+    # Calculating the inverse is a pain in the ass.
+    # But for a straight line that easy. 
     if len(params) > 2:
         params = params[-2:]
     if len(params) < 2:
@@ -97,11 +101,12 @@ def read_save(fpath, **kwargs):
         wavenumber = np.round(nm_to_ir_wavenumbers(
             nm, up_wl=metadata['vis_wl']
         ), decimals = 1)
-        ret.set_index(wavenumber, inplace=True)
-        ret.index.name = 'wavenumber'
-        ret.index = ret.index.sort_values()
-        ret.sort_index(inplace=True)
         ret.drop("pixel", inplace=True, axis=1)
+        ret.set_index(wavenumber, inplace=True)
+        #ret.index = ret.index.sort_values()
+        ret.index.name = 'wavenumber'
+        ret.sort_index(inplace=True)
+
 
     ret = Scan(ret, metadata=copy.deepcopy(metadata))
 
@@ -147,6 +152,7 @@ def read_scan_stack(fpath, **kwargs):
     # Data types are integers
     ret = ret.astype('int16')    
 
+    # Cecause central wavelength migh be missing
     if metadata["central_wl"] == -1:
         # Use pixel as index
         ret.set_index("pixel", inplace=True)        
@@ -249,15 +255,10 @@ def read_auto(fpath, **kwargs):
     folder, ffile = os.path.split(fpath)
     metadata = get_metadata_from_filename(fpath)
 
-    # check if name determines spectrum type
-    if metadata['sp_type'] == 'sp' or \
-       metadata['sp_type'] == 'sc' or \
-       metadata['sp_type'] == 'ts':
-        pass
-    else:
+    def _guess_sepctrum_type_by_content(fpath):
         warnings.warn('cant determine spectrum type of data by filename.'
                       'Trying to determine datatype from content.'
-                      'This is much slower')
+                      'This is much slower.')
         ret = read_csv(
             fpath,
             sep = '\t',
@@ -274,18 +275,46 @@ def read_auto(fpath, **kwargs):
             metadata['sp_type'] = 'ts'
         else:
             raise IOError("Can't determine spectrum type of %s\nshape is %s" % (fpath, ret.shape))
+        return ret
 
-    if metadata['sp_type'] == 'sp':
-        ret = read_save(fpath, **kwargs)
+    # check if name determines spectrum type
+    if metadata['sp_type'] == 'sp' or \
+       metadata['sp_type'] == 'sc' or \
+       metadata['sp_type'] == 'ts':
+        pass
+    else:
+        ret = _guess_sepctrum_type_by_content(fpath)
 
-    elif metadata['sp_type'] == 'sc':
-        ret = read_scan_stack(fpath, **kwargs)
+    # If name wa entered wringly, this can still be wrong
+    try:
+        if metadata['sp_type'] == 'sp':
+            ret = read_save(fpath, **kwargs)
 
-    elif metadata['sp_type'] == 'ts':
-        ret = read_time_scan(fpath, **kwargs)
+        elif metadata['sp_type'] == 'sc':
+            ret = read_scan_stack(fpath, **kwargs)
 
-    # Needed in the case of content import. Else no harm
-    ret.metadata['sp_type'] = copy.deepcopy(metadata['sp_type'])
+        elif metadata['sp_type'] == 'ts':
+            ret = read_time_scan(fpath, **kwargs)
+
+        # Needed in the case of content import. Else no harm
+        ret.metadata['sp_type'] = copy.deepcopy(metadata['sp_type'])
+    # happens if read function was chosen by wrong or iritating filename.
+    # Try to read data one more time using actual shape. If this does not
+    # work as well we give up.
+    except ValueError:
+        warnings.warn("Wrong metadata for %s. Type %s was given" % (fpath, metadata['sp_type']))
+        ret = _guess_sepctrum_type_by_content(fpath)
+        if metadata['sp_type'] == 'sp':
+            ret = read_save(fpath, **kwargs)
+
+        elif metadata['sp_type'] == 'sc':
+            ret = read_scan_stack(fpath, **kwargs)
+
+        elif metadata['sp_type'] == 'ts':
+            ret = read_time_scan(fpath, **kwargs)
+            
+        else: raise IOError("Cant understand datatype of %s" % fpath)
+        
     return ret
 
         
