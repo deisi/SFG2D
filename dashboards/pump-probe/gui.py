@@ -12,20 +12,23 @@ from glob import glob
 
 class FileHandler(FileSystemEventHandler):
     ppWidget = None
-    ffiles = None
-    fnames = None
 
     def __init__(self, ffolder, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ffiles = glob(ffolder + '/*.dat')
-        self.ffiles = [ x for x in self.ffiles if "AVG" not in x ]
-        self.fnames = [os.path.split(ffile)[1] for ffile in self.ffiles]
-    
-    def on_modified(self, event):
-        #print('got event', event)
+        self.ffolder = ffolder
         self.ffiles = glob(self.ffolder + '/*.dat')
         self.ffiles = [ x for x in self.ffiles if "AVG" not in x ]
         self.fnames = [os.path.split(ffile)[1] for ffile in self.ffiles]
+    
+    def on_any_event(self, event):
+        print('got event', event)
+        self.ffiles = glob(self.ffolder + '/*.dat')
+        self.ffiles = [ x for x in self.ffiles if "AVG" not in x ]
+        self.fnames = sorted(
+            [os.path.split(ffile)[1] for ffile in self.ffiles]
+        )
+        if not self.ppWidget:
+            return
         self.ppWidget.ir_fpath.options = self.fnames
 
 class PumpProbeWidget():
@@ -74,8 +77,12 @@ class PumpProbeWidget():
             options = ["spec_0", "spec_1", "spec_2"], 
             description="probed", value="spec_1"
         )
-        self.ts0_sub_base = ipyw.ToggleButton(description='Sub Baseline', value=False)
-        self.ts0_normalize = ipyw.ToggleButton(description='Normalize', value=False)
+        self.ts0_sub_base = ipyw.ToggleButton(
+            description='Sub Baseline', value=False
+        )
+        self.ts0_normalize = ipyw.ToggleButton(
+            description='Normalize', value=False
+        )
         self.ts0_ppdelay = ipyw.SelectionSlider(continuous_update=False)
         self.ts0_ppdelay_childs = [ ipyw.SelectionSlider(continuous_update=False)
                           for i in range(4)
@@ -94,14 +101,19 @@ class PumpProbeWidget():
         # Database is for each data selector the same. Thus
         # the options can all be linked to self.ir_fpath.options
         for _name, _w in (('ir_fbase',self.ir_fbase), 
-                          ('pump_fpath',self.pump_fpath), ('pump_fbase', self.pump_fbase), 
-                          ('ts0_fpath', self.ts0_fpath), ('ts0_fbase', self.fbase)):
-             self._l_fpath[_name] = (traitlets.dlink((self.ir_fpath, 'options'), (_w, 'options')))
+                          ('pump_fpath',self.pump_fpath),
+                          ('pump_fbase', self.pump_fbase), 
+                          ('ts0_fpath', self.ts0_fpath),
+                          ('ts0_fbase', self.fbase)):
+             self._l_fpath[_name] = (
+                 traitlets.dlink((self.ir_fpath, 'options'), (_w, 'options'))
+             )
 
         # The pp_delay sliders are all the same
         for _w in self.ts0_ppdelay_childs:
             self._l_ts0_ppdelay_childs.append(
-                traitlets.dlink((self.ts0_ppdelay, 'options'),(_w, 'options'))
+                traitlets.dlink((self.ts0_ppdelay, 'options'),
+                                (_w, 'options'))
             )
 
     def unlinkTraitlets(self):
@@ -155,7 +167,7 @@ class PumpProbeWidget():
 
         
 def gen_PumpProbeWidget(ffolder):
-    ffolder = os.path.normpath(ffolder)
+    ffolder = os.path.normpath(os.path.abspath(ffolder))
     
     # Observer to monitor changes in ffolder
     observer = Observer()
@@ -168,12 +180,12 @@ def gen_PumpProbeWidget(ffolder):
     # by event_handler in case of file changes
     event_handler.ppWidget = ppWidget
 
-    # Start file observer so monitor
+    # Start file observer to monitor
     observer.schedule(event_handler, ffolder, recursive=False)
     if os.path.isdir(ffolder):
         observer.start()
 
-    # Link Traitlets to have the same files in all widgets
+    # Link Traitlets to have the same files available in all widgets
     ppWidget.linkTraitlets()
 
     # Stup individual widgets
@@ -190,7 +202,7 @@ def gen_PumpProbeWidget(ffolder):
         ppWidget.ts0_normalize, norm_widget = ppWidget.w_ir
     )
     ppWidget.load(ffolder)
-    return ppWidget, observer
+    return ppWidget, observer, event_handler
 
 def update_ffolder(ffolder, observer, ppWidget):
     """update eventhandler and widget if folder is changed 
@@ -204,11 +216,14 @@ def update_ffolder(ffolder, observer, ppWidget):
     ffolder:
 
     """
-    ffolder = os.path.normpath(ffolder)
-    
+    ffolder = os.path.normpath(os.path.abspath(ffolder))
+
+    # Because the gui should do nothing if the new file is not valid.
     if not os.path.isdir(ffolder):
         return ppWidget, observer
 
+    # The observer must be properly stoped
+    # before it can be restarted again.
     if observer.isAlive():
         observer.unschedule_all()
         observer.stop()
@@ -242,6 +257,4 @@ def update_ffolder(ffolder, observer, ppWidget):
 
     #ppWidget.load(ffolder)
 
-    return ppWidget, observer
-    
-    
+    return ppWidget, observer, event_handler
