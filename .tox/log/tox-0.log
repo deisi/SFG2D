@@ -1,0 +1,92 @@
+actionid: tox
+msg: packaging
+cmdargs: ['/usr/bin/python', local('/home/malte/Software/sfg2d/setup.py'), 'sdist', '--formats=zip', '--dist-dir', local('/home/malte/Software/sfg2d/.tox/dist')]
+env: None
+
+running sdist
+running egg_info
+writing sfg2d.egg-info/PKG-INFO
+writing dependency_links to sfg2d.egg-info/dependency_links.txt
+writing top-level names to sfg2d.egg-info/top_level.txt
+writing requirements to sfg2d.egg-info/requires.txt
+writing entry points to sfg2d.egg-info/entry_points.txt
+reading manifest file 'sfg2d.egg-info/SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+warning: no previously-included files matching '__pycache__' found under directory '*'
+warning: no previously-included files matching '*.py[co]' found under directory '*'
+warning: no files found matching '*.jpg' under directory 'docs'
+warning: no files found matching '*.png' under directory 'docs'
+warning: no files found matching '*.gif' under directory 'docs'
+writing manifest file 'sfg2d.egg-info/SOURCES.txt'
+running check
+creating sfg2d-0.3.0
+creating sfg2d-0.3.0/docs
+creating sfg2d-0.3.0/sfg2d
+creating sfg2d-0.3.0/sfg2d.egg-info
+creating sfg2d-0.3.0/tests
+copying files to sfg2d-0.3.0...
+copying AUTHORS.rst -> sfg2d-0.3.0
+copying CONTRIBUTING.rst -> sfg2d-0.3.0
+copying HISTORY.rst -> sfg2d-0.3.0
+copying LICENSE -> sfg2d-0.3.0
+copying MANIFEST.in -> sfg2d-0.3.0
+copying README.rst -> sfg2d-0.3.0
+copying setup.cfg -> sfg2d-0.3.0
+copying setup.py -> sfg2d-0.3.0
+copying docs/Makefile -> sfg2d-0.3.0/docs
+copying docs/authors.rst -> sfg2d-0.3.0/docs
+copying docs/conf.py -> sfg2d-0.3.0/docs
+copying docs/contributing.rst -> sfg2d-0.3.0/docs
+copying docs/history.rst -> sfg2d-0.3.0/docs
+copying docs/index.rst -> sfg2d-0.3.0/docs
+copying docs/installation.rst -> sfg2d-0.3.0/docs
+copying docs/make.bat -> sfg2d-0.3.0/docs
+copying docs/readme.rst -> sfg2d-0.3.0/docs
+copying docs/usage.rst -> sfg2d-0.3.0/docs
+copying sfg2d/__init__.py -> sfg2d-0.3.0/sfg2d
+copying sfg2d/cli.py -> sfg2d-0.3.0/sfg2d
+copying sfg2d/sfg2d.py -> sfg2d-0.3.0/sfg2d
+copying sfg2d.egg-info/PKG-INFO -> sfg2d-0.3.0/sfg2d.egg-info
+copying sfg2d.egg-info/SOURCES.txt -> sfg2d-0.3.0/sfg2d.egg-info
+copying sfg2d.egg-info/dependency_links.txt -> sfg2d-0.3.0/sfg2d.egg-info
+copying sfg2d.egg-info/entry_points.txt -> sfg2d-0.3.0/sfg2d.egg-info
+copying sfg2d.egg-info/not-zip-safe -> sfg2d-0.3.0/sfg2d.egg-info
+copying sfg2d.egg-info/requires.txt -> sfg2d-0.3.0/sfg2d.egg-info
+copying sfg2d.egg-info/top_level.txt -> sfg2d-0.3.0/sfg2d.egg-info
+copying tests/__init__.py -> sfg2d-0.3.0/tests
+copying tests/test_sfg2d.py -> sfg2d-0.3.0/tests
+Writing sfg2d-0.3.0/setup.cfg
+creating .tox/dist
+creating '.tox/dist/sfg2d-0.3.0.zip' and adding 'sfg2d-0.3.0' to it
+adding 'sfg2d-0.3.0/AUTHORS.rst'
+adding 'sfg2d-0.3.0/CONTRIBUTING.rst'
+adding 'sfg2d-0.3.0/HISTORY.rst'
+adding 'sfg2d-0.3.0/LICENSE'
+adding 'sfg2d-0.3.0/MANIFEST.in'
+adding 'sfg2d-0.3.0/README.rst'
+adding 'sfg2d-0.3.0/setup.cfg'
+adding 'sfg2d-0.3.0/setup.py'
+adding 'sfg2d-0.3.0/PKG-INFO'
+adding 'sfg2d-0.3.0/docs/Makefile'
+adding 'sfg2d-0.3.0/docs/authors.rst'
+adding 'sfg2d-0.3.0/docs/conf.py'
+adding 'sfg2d-0.3.0/docs/contributing.rst'
+adding 'sfg2d-0.3.0/docs/history.rst'
+adding 'sfg2d-0.3.0/docs/index.rst'
+adding 'sfg2d-0.3.0/docs/installation.rst'
+adding 'sfg2d-0.3.0/docs/make.bat'
+adding 'sfg2d-0.3.0/docs/readme.rst'
+adding 'sfg2d-0.3.0/docs/usage.rst'
+adding 'sfg2d-0.3.0/sfg2d/__init__.py'
+adding 'sfg2d-0.3.0/sfg2d/cli.py'
+adding 'sfg2d-0.3.0/sfg2d/sfg2d.py'
+adding 'sfg2d-0.3.0/sfg2d.egg-info/PKG-INFO'
+adding 'sfg2d-0.3.0/sfg2d.egg-info/SOURCES.txt'
+adding 'sfg2d-0.3.0/sfg2d.egg-info/dependency_links.txt'
+adding 'sfg2d-0.3.0/sfg2d.egg-info/entry_points.txt'
+adding 'sfg2d-0.3.0/sfg2d.egg-info/not-zip-safe'
+adding 'sfg2d-0.3.0/sfg2d.egg-info/requires.txt'
+adding 'sfg2d-0.3.0/sfg2d.egg-info/top_level.txt'
+adding 'sfg2d-0.3.0/tests/__init__.py'
+adding 'sfg2d-0.3.0/tests/test_sfg2d.py'
+removing 'sfg2d-0.3.0' (and everything under it)

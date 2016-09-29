@@ -3,7 +3,7 @@ import json
 import warnings
 import ipywidgets as ipyw
 import matplotlib.pyplot as plt
-import SFG2D
+import sfg2d
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -191,13 +191,13 @@ def gen_PumpProbeWidget(ffolder):
     ppWidget.linkTraitlets()
 
     # Stup individual widgets
-    ppWidget.w_ir = SFG2D.widgets.DataImporter(ffolder, ppWidget.ir_fpath, 
+    ppWidget.w_ir = sfg2d.widgets.DataImporter(ffolder, ppWidget.ir_fpath, 
                                ppWidget.fbase, ppWidget.ir_ppdelay, 
                                ppWidget.ir_spec, ppWidget.ir_sub_base)
-    ppWidget.w_pump = SFG2D.widgets.DataImporter(ffolder, ppWidget.pump_fpath, 
+    ppWidget.w_pump = sfg2d.widgets.DataImporter(ffolder, ppWidget.pump_fpath, 
                                ppWidget.pump_fbase, ppWidget.pump_ppdelay, 
                                ppWidget.pump_spec, ppWidget.pump_sub_base)
-    ppWidget.w_pump_probe = SFG2D.widgets.PumpProbeDataImporter(
+    ppWidget.w_pump_probe = sfg2d.widgets.PumpProbeDataImporter(
         ffolder, ppWidget.ts0_fpath, 
         ppWidget.fbase, ppWidget.ts0_ppdelay, 
         ppWidget.ts0_pumped, ppWidget.ts0_probed, ppWidget.pump_sub_base,

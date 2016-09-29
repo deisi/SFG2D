@@ -1,0 +1,3 @@
+[console_scripts]
+sfg2d = sfg2d.cli:main
+

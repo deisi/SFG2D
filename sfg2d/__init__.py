@@ -1,8 +1,8 @@
 """ Test does this show up """
 
-import SFG2D.io
-import SFG2D.utils
-import SFG2D.plotting
+import sfg2d.io
+import sfg2d.utils
+import sfg2d.plotting
 
 from . import widgets
 from .core.scan import Scan, TimeScan

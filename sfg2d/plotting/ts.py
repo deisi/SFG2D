@@ -7,7 +7,7 @@ def sum_of_spectra(ts, spec, ax=None):
 
     Parameters
     ----------
-    tds : SFG2D.core.scan.TimeScan
+    tds : sfg2d.core.scan.TimeScan
         the time scan to plot the sum of spectra from
     spec : str
         identifier of the spectra to look at. I.E. the name of the column
