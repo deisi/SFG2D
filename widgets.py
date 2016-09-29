@@ -1,12 +1,18 @@
-import SFG2D
 from IPython.display import display
 from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText
+from pandas.core.series import Series
+from pandas.core.frame import DataFrame
+import matplotlib.pyplot as plt
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider
 from traitlets import TraitError
 import json
 import warnings
 import os
 
+from .io.veronica import read_auto
+from .core.scan import Scan, TimeScan
+
+debug = 0
 
 class MyBqPlot():
     """Class for Bqolot setup. """
@@ -72,7 +78,6 @@ class MyBqPlot():
             self.fig.marks[0].y = self.data.transpose()
         else:
             self.fig.marks[0].y = self.data.rolling(self.fig.smooth_width.value).median().transpose()
-
 
 class DataImporter(MyBqPlot):
     data = None # Data presented by the widget
@@ -174,9 +179,9 @@ class DataImporter(MyBqPlot):
         fpath: path to data
 
         fbase: path to background data"""
-        data = SFG2D.io.veronica.read_auto(fpath)
+        data = read_auto(fpath)
         self.scan = data
-        if isinstance(data, SFG2D.core.scan.TimeScan):
+        if isinstance(data, TimeScan):
             self.pp_delay_slider.options = list(data.pp_delays)
             _exp_data = data.med.ix[list(data.pp_delays)[0]]
         else:
@@ -184,8 +189,8 @@ class DataImporter(MyBqPlot):
             self.pp_delay_slider.value = 0
             _exp_data = data.med
 
-        base = SFG2D.io.veronica.read_auto(fbase)
-        if isinstance(base, SFG2D.core.scan.TimeScan) and not isinstance(data,  SFG2D.core.scan.TimeScan):
+        base = read_auto(fbase)
+        if isinstance(base, TimeScan) and not isinstance(data,  TimeScan):
             if 0 in base.pp_delays:
                 base = base.med.ix[0]
             else:
@@ -244,9 +249,9 @@ class DataImporter(MyBqPlot):
 
     def update_data(self, *args):
         """ update the viewd data itself """
-        if isinstance(self.scan, SFG2D.core.scan.TimeScan):
+        if isinstance(self.scan, TimeScan):
             self.data = self.scan.med.ix[self.pp_delay_slider.value]
-        elif isinstance(self.scan, SFG2D.core.scan.Scan):
+        elif isinstance(self.scan, Scan):
             self.data = self.scan.med
         else:
             warnings.warn('No data to update in %s' % self)
@@ -398,9 +403,9 @@ class PumpProbeDataImporter(DataImporter):
     
     def update_data(self, *args):
         """ update the data viewd in the plot"""
-        if isinstance(self.scan, SFG2D.core.scan.TimeScan):
+        if isinstance(self.scan, TimeScan):
             self.data = self.scan.med.ix[self.pp_delay_slider.value]
-        elif isinstance(self.scan, SFG2D.core.scan.Scan):
+        elif isinstance(self.scan, Scan):
             self.data = self.scan.med
         # In case of invalid call we just dot to anything
         else:
@@ -430,3 +435,98 @@ class PumpProbeDataImporter(DataImporter):
         # Sub Baseline was toggeled
         else:
             super().update_scan(*args)
+
+class PPDelaySlider():
+
+    def __init__(self, pp_delays, data):
+        """Widget with slider for pp_delays and smoothing of data
+
+        Parameters
+        ----------
+        pp_delays : list
+            Iterable of pp_delays to build the slider with
+
+        data : DataFrame or Series
+            data to use for the plot that is shown"""
+        self.fig = None
+        self.ax = None
+        self.w_pp_s = SelectionSlider(
+            continuous_update=False, description="pp_delay"
+        )
+        self.w_smooth_s = IntSlider(
+            continuous_update=False, description="smooth",
+            min=1, max=100
+        )
+        self.pp_delays = pp_delays
+        self.data = data
+        self._init_widget()
+        self._init_figure()
+        self._init_observer()
+        display(HBox([self.w_pp_s, self.w_smooth_s]))
+        self.fig
+
+    def __del__(self):
+        self.w_smooth_s.close()
+        self.w_pp_s.close()
+        del self.fig
+        del self.ax
+        del self.w_pp_s
+        del self.w_smooth_s
+        del self.pp_delay
+        del self.data
+
+    def _init_widget(self):
+        self.w_pp_s.options = self.pp_delays
+        self.w_pp_s.value = self.pp_delays[0]
+
+    def _init_figure(self):
+        if not self.fig:
+            self.fig = plt.gcf()
+        
+        if not self.ax:
+            self.ax = plt.gca()
+
+        try:
+            self.data.ix[self.w_pp_s.value].rolling(
+                self.w_smooth_s.value
+            ).mean().plot(ax=self.ax)
+        # Rolling doesnt work on duplicated axes
+        except ValueError:
+            if debug:
+                print("In the init ValueError")
+            self.data.ix[self.w_pp_s.value].plot(ax=self.ax)
+
+
+    def _update_plot(self, new):
+        if isinstance(self.data, DataFrame):
+            if any(self.data.columns.duplicated()):
+                if debug:
+                    print("Running as duplicated")
+                for line, spec_line in zip(self.ax.lines, self.data.ix[self.w_pp_s.value].T.values):
+                    line.set_ydata(spec_line)        
+            else:
+                if debug:
+                    print("Running as normal df")
+                for line, spec in zip(self.ax.lines, self.data):
+                    line.set_ydata(
+                        self.data[spec].ix[self.w_pp_s.value].rolling(
+                            self.w_smooth_s.value
+                        ).mean().values
+                    )
+
+        elif isinstance(self.data, Series):
+            if debug:
+                print("Running as Series")
+            self.ax.lines[0].set_ydata(
+                self.data.ix[self.w_pp_s.value].rolling(
+                    self.w_smooth_s.value
+                ).mean().values
+            )
+        else:
+            raise NotImplementedError("Can't handle datatype of %f"
+                                      % type(self.data))
+        self.ax.figure.canvas.draw()
+
+    def _init_observer(self):
+        self.w_pp_s.observe(self._update_plot, "value")
+        self.w_smooth_s.observe(self._update_plot, "value")

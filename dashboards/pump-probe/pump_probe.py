@@ -7,8 +7,9 @@ import SFG2D
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from SFG2D.dashboards import MyWidgets
 from glob import glob
+
+debug = 0
 
 class FileHandler(FileSystemEventHandler):
     ppWidget = None
@@ -21,7 +22,8 @@ class FileHandler(FileSystemEventHandler):
         self.fnames = [os.path.split(ffile)[1] for ffile in self.ffiles]
     
     def on_any_event(self, event):
-        print('got event', event)
+        if debug:
+            print('got event', event)
         self.ffiles = glob(self.ffolder + '/*.dat')
         self.ffiles = [ x for x in self.ffiles if "AVG" not in x ]
         self.fnames = sorted(
@@ -189,13 +191,13 @@ def gen_PumpProbeWidget(ffolder):
     ppWidget.linkTraitlets()
 
     # Stup individual widgets
-    ppWidget.w_ir = MyWidgets.DataImporter(ffolder, ppWidget.ir_fpath, 
+    ppWidget.w_ir = SFG2D.widgets.DataImporter(ffolder, ppWidget.ir_fpath, 
                                ppWidget.fbase, ppWidget.ir_ppdelay, 
                                ppWidget.ir_spec, ppWidget.ir_sub_base)
-    ppWidget.w_pump = MyWidgets.DataImporter(ffolder, ppWidget.pump_fpath, 
+    ppWidget.w_pump = SFG2D.widgets.DataImporter(ffolder, ppWidget.pump_fpath, 
                                ppWidget.pump_fbase, ppWidget.pump_ppdelay, 
                                ppWidget.pump_spec, ppWidget.pump_sub_base)
-    ppWidget.w_pump_probe = MyWidgets.PumpProbeDataImporter(
+    ppWidget.w_pump_probe = SFG2D.widgets.PumpProbeDataImporter(
         ffolder, ppWidget.ts0_fpath, 
         ppWidget.fbase, ppWidget.ts0_ppdelay, 
         ppWidget.ts0_pumped, ppWidget.ts0_probed, ppWidget.pump_sub_base,

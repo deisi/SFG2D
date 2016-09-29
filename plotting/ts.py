@@ -52,7 +52,7 @@ def bleach_spec(ts, pp_delay, w_roi , ax=None):
     ts.bleach[pp_delay][w_roi].plot(ax=ax);
     ax.set_title("%i fs" % pp_delay)
     #ax.invert_xaxis()
-    ax.set_ylim(-0.05, 0.05)
+    #ax.set_ylim(-0.05, 0.05)
     ax.grid()
 
 def bleach_sum(ts, roi=slice(None, None)):
