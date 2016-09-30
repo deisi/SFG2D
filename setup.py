@@ -26,6 +26,9 @@ requirements = [
     'watchdog',
     'jupyter',
     'jupyter_dashboards',
+    'xmltodict',
+    'datetime',
+    'seaborn',
     # TODO: put package requirements here
 ]
 
@@ -35,7 +38,7 @@ test_requirements = [
 
 setup(
     name='sfg2d',
-    version='0.3.1',
+    version='0.4.0',
     description="Python Toolkit for Analsys of 2d-sfg spectra",
     long_description=readme + '\n\n' + history,
     author="Malte Deiseroth",

@@ -37,8 +37,9 @@ class PumpProbeWidget():
     w_ir = None # Widget for IR spectrum
     w_pump = None # Widget for pump Spectrum 
     w_pump_probe = None # Widget for pump_probe spectrum
+    w_bleach = None # Quick look on the bleach
     # List of attached widgets to save and load
-    _widgets = ('w_ir', 'w_pump', 'w_pump_probe')
+    _widgets = ('w_ir', 'w_pump', 'w_pump_probe', 'w_bleach')
     
     def __init__(self, fnames):
         """Init PumpProbeWidget
