@@ -26,6 +26,9 @@ requirements = [
     'watchdog',
     'jupyter',
     'jupyter_dashboards',
+    'xmltodict',
+    'datetime',
+    'seaborn',
     # TODO: put package requirements here
 ]
 

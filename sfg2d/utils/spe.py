@@ -1,6 +1,7 @@
 import struct
 import numpy as np
 import os
+from datetime import datetime, timedelta
 
 class PrincetonSPEFile3():
     """Class to import and read spe files.
@@ -81,7 +82,7 @@ class PrincetonSPEFile3():
         self._verbose = verbose
         
         if not os.path.isfile(fname) and \
-           not os.paht.islink(fname):
+           not os.path.islink(fname):
             raise IOError('%s does not exist' % fname)
 
         self._spe = open(fname, 'rb')
@@ -91,7 +92,7 @@ class PrincetonSPEFile3():
         """Read all the data into the class."""
         self._readHeader()
         self._readSize()
-        self._read_v2_wavelength()
+        self._read_v2_header()
         self._readData()
         self._readFooter()
 
@@ -118,12 +119,31 @@ class PrincetonSPEFile3():
         self.xDimDet = self._readFromHeader("H", 6)[0]
         self.yDimDet = self._readFromHeader("H", 18)[0]
 
-    def _read_v2_wavelength(self):
+    def _read_v2_header(self):
         """Read calibrations parameters and calculate wavelength as it
         was usually done in pre v3 .spe time."""
 
+        # General meta data
+        self.exposureTime = timedelta(
+            seconds = self._readFromHeader('f', 10)[0] # in seconds
+        )
+        date = self._readFromHeader('9s', 20)[0].decode('utf-8')
+        self.tempSet = self._readFromHeader('f', 36)[0]
+        timeLocal = self._readFromHeader('6s', 172)[0].decode('utf-8')
+        timeUTC = self._readFromHeader('6s', 179)[0].decode('utf-8')
+        self.date = datetime.strptime(
+            date + timeLocal, "%d%b%Y%H%M%S"
+        )
+        self.timeUTC = datetime.strptime(
+            date + timeUTC, "%d%b%Y%H%M%S"
+        ) 
+        self.gain = self._readFromHeader('f', 198)[0]
+        self.comments = self._readFromHeader('400s', 200)[0].decode('utf-8')
+        self.central_wl = self._readFromHeader('f', 72)[0] # in nm
+
         # Lets allways have a wavelength array
         # in worst case its just pixels
+        # Read calib data
         self.wavelength = np.arange(self.xdim)
         if self.headerVersion >= 3:
             return        
@@ -134,6 +154,7 @@ class PrincetonSPEFile3():
         if len(params) > 1:
             self.calib_poly = np.poly1d(params)
             self.wavelength = self.calib_poly(np.arange(self.xdim))
+        
         
 
     def _readData(self):
@@ -202,8 +223,8 @@ class PrincetonSPEFile3():
         # expusure Time in ms
         self.exposureTime = float(self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ShutterTiming']['ExposureTime']['#text'])
         temp = self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['Sensor']['Temperature']
-        self.TempSet = int(temp['SetPoint']['#text'])
-        self.TempRead = int(temp['Reading']['#text'])
+        self.tempSet = int(temp['SetPoint']['#text'])
+        self.tempRead = int(temp['Reading']['#text'])
         self.roi = self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ReadoutControl']['RegionsOfInterest']['Result']['RegionOfInterest']
             
         

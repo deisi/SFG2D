@@ -3,8 +3,9 @@ from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
 from pandas.core.series import Series
 from pandas.core.frame import DataFrame
 import matplotlib.pyplot as plt
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select
 from traitlets import TraitError
+from glob import glob
 import json
 import warnings
 import os
@@ -222,7 +223,7 @@ class DataImporter(MyBqPlot):
         if not os.path.isfile(fpath) or not os.path.isfile(fbase):
             warnings.warn('File does not exist. Skipping update\n%s\n%s'
                           % (fpath, fbase))
-            return        
+            return
         self.get(fpath, fbase )
         
     def update_scan(self, *args):
@@ -436,8 +437,13 @@ class PumpProbeDataImporter(DataImporter):
         else:
             super().update_scan(*args)
 
-class PPDelaySlider():
 
+######################################################################
+#                         A new Approach                             #
+######################################################################
+            
+
+class PPDelaySlider():
     def __init__(self, pp_delays, data):
         """Widget with slider for pp_delays and smoothing of data
 
@@ -448,22 +454,22 @@ class PPDelaySlider():
 
         data : DataFrame or Series
             data to use for the plot that is shown"""
-        self.fig = None
-        self.ax = None
-        self.w_pp_s = SelectionSlider(
-            continuous_update=False, description="pp_delay"
-        )
-        self.w_smooth_s = IntSlider(
-            continuous_update=False, description="smooth",
-            min=1, max=100
-        )
-        self.pp_delays = pp_delays
-        self.data = data
-        self._init_widget()
+        self._set_obj(pp_delays, data)
+        self._init_widgets()
+        self._init_widget_options()
         self._init_figure()
         self._init_observer()
-        display(HBox([self.w_pp_s, self.w_smooth_s]))
+
+    def __call__(self):
+        display(self._container)
         self.fig
+
+    def _set_obj(self, pp_delays, data):
+        '''Set internal obj'''
+        self.fig = None
+        self.ax = None
+        self.pp_delays = pp_delays
+        self.data = data        
 
     def __del__(self):
         self.w_smooth_s.close()
@@ -473,9 +479,24 @@ class PPDelaySlider():
         del self.w_pp_s
         del self.w_smooth_s
         del self.pp_delay
-        del self.data
+        del self.data        
 
-    def _init_widget(self):
+    def _init_widgets(self):
+        self.w_pp_s = SelectionSlider(
+            continuous_update=False, description="pp_delay"
+        )
+        self.w_smooth_s = IntSlider(
+            continuous_update=False, description="smooth",
+            min=1, max=100
+        )
+        self.w_Autoscale = ToggleButton(
+            description="Autoscale",
+            value=True,
+        )
+        # The container with all the widgets
+        self._container = HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s])
+
+    def _init_widget_options(self):
         self.w_pp_s.options = self.pp_delays
         self.w_pp_s.value = self.pp_delays[0]
 
@@ -485,6 +506,13 @@ class PPDelaySlider():
         
         if not self.ax:
             self.ax = plt.gca()
+
+        #Scan doesn't have multiindex and no pp_delays
+        if not hasattr(self.data.index, 'levshape'):
+            if debug:
+                print('Has no levelshape')
+            self.data.rolling(self.w_smooth_s.value).mean().plot(ax=self.ax)
+            return
 
         try:
             self.data.ix[self.w_pp_s.value].rolling(
@@ -496,8 +524,17 @@ class PPDelaySlider():
                 print("In the init ValueError")
             self.data.ix[self.w_pp_s.value].plot(ax=self.ax)
 
-
     def _update_plot(self, new):
+        
+        #Scan doesnt have multiindex and no pp_delays
+        if not hasattr(self.data.index, 'levshape'):
+            data = self.data.rolling(self.w_smooth_s.value).mean()
+            for line, spec in zip(self.ax.lines, self.data):
+                #data = self.data[spec]
+                line.set_ydata(data[spec].values)
+                line.set_xdata(data[spec].index)
+            return
+        
         if isinstance(self.data, DataFrame):
             if any(self.data.columns.duplicated()):
                 if debug:
@@ -527,6 +564,68 @@ class PPDelaySlider():
                                       % type(self.data))
         self.ax.figure.canvas.draw()
 
+    def _update_axes(self, new):
+        if self.w_Autoscale.value:
+            self.ax.relim()
+            self.ax.autoscale_view()
+
     def _init_observer(self):
+        """init all observers"""
         self.w_pp_s.observe(self._update_plot, "value")
+        self.w_pp_s.observe(self._update_axes, "value")
         self.w_smooth_s.observe(self._update_plot, "value")
+        self.w_smooth_s.observe(self._update_axes, "value")
+        self.w_Autoscale.observe(self._update_axes, "value")
+
+    def _unobserve(self):
+        """unobserve all observers"""
+        self.w_pp_s.unobserve_all()
+        self.w_smooth_s.unobserve_all()
+        self.w_Autoscale.unobserve_all()
+        
+
+class Importer(PPDelaySlider):
+    def __init__(self, ffolder):
+        """
+        Parameters
+        ----------
+        ffolder : str
+            Folder to list data in.
+
+        """
+        self.ffolder = ffolder
+        files = sorted(glob(ffolder + '/*.dat'))
+        files = [ x for x in files if "AVG" not in x ]
+        fnames = [os.path.split(ffile)[1] for ffile in files]
+        self.w_files = Select(
+            description='File',
+            options = fnames
+            )
+        self.w_files.value = self.w_files.options[0]
+        self.w_files.layout.width = '100%'
+        
+        pp_delays, data = self._get_data()
+        super().__init__(pp_delays, data.med)
+        self._container = VBox([self.w_files, self._container])
+        
+    def _get_data(self):
+        data = read_auto(self.ffolder + '/'  + self.w_files.value)
+        pp_delays = [0]
+        # because scans dot have pp_delays
+        if hasattr(data, 'pp_delays'):
+            pp_delays = data.pp_delays
+        return pp_delays, data
+
+    def _update_file(self, new):
+        if self.fig:
+            self.fig.clear()
+        pp_delays, data = self._get_data()
+        self._set_obj(pp_delays, data.med)
+        super()._unobserve()
+        self._init_widget_options()
+        super()._init_observer()
+        self._init_figure()
+
+    def _init_observer(self):
+        self.w_files.observe(self._update_file, 'value')
+        super()._init_observer()
