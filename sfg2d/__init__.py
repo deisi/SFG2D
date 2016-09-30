@@ -1,9 +1,5 @@
-""" Test does this show up """
+__version__ = '0.3.1'
 
-import sfg2d.io
-import sfg2d.utils
-import sfg2d.plotting
-
-from . import widgets
+from . import io, utils, plotting, widgets
 from .core.scan import Scan, TimeScan
 from .utils.metadata import MetaData

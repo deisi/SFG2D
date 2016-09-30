@@ -39,7 +39,7 @@ class MyBqPlot():
         tb_py = ToggleButton(description="Zoom-Y")
         tb_py.observe(py_update, "value")
 
-        # Smooth data here because it only effects the way the
+        # Smooth data here because it only effects the way the 
         # data is shown, it has not deeper physical meaning
         # and doesnt interfere with the data containing classes
         smooth_width = BoundedIntText(

@@ -81,13 +81,12 @@ def read_save(fpath, **kwargs):
         names = names,
         #index_col = 'pixel',
         usecols = [0, 1, 2, 3],
-        #dtype = np.int16,
         **kwargs
     )
 
     # metadata based on filename makes the calibration
     metadata = get_metadata_from_filename(fpath)
-    ret = ret.astype('int16')
+    ret = ret.astype('uint16')
 
     if metadata["central_wl"] == -1:
         ret.set_index("pixel", inplace=True)        
@@ -117,7 +116,7 @@ def read_scan_stack(fpath, **kwargs):
         header = None,
         skiprows = 1,
         skipfooter = 1,
-        engine = 'python',
+        engine="python",
         **kwargs
     )
 
@@ -146,7 +145,7 @@ def read_scan_stack(fpath, **kwargs):
     metadata = get_metadata_from_filename(fpath)
     
     # Data types are integers
-    ret = ret.astype('int16')    
+    ret = ret.astype('uint16')    
 
     # Cecause central wavelength migh be missing
     if metadata["central_wl"] == -1:
@@ -194,7 +193,7 @@ def read_time_scan(fpath, **kwargs):
     ret = ret[ret.columns[colum_inds]]
 
     # Data type is integer
-    ret = ret.astype('int16')
+    ret = ret.astype('uint16')
     
     # Set colum names
     names = ['pixel'] + _iterator(lambda i: ['spec_0', 'spec_1', 'spec_2'])

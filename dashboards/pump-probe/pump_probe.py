@@ -222,7 +222,7 @@ def update_ffolder(ffolder, observer, ppWidget):
 
     # Because the gui should do nothing if the new file is not valid.
     if not os.path.isdir(ffolder):
-        return ppWidget, observer
+        return ppWidget, observer, None
 
     # The observer must be properly stoped
     # before it can be restarted again.

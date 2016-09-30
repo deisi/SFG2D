@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -34,7 +35,7 @@ test_requirements = [
 
 setup(
     name='sfg2d',
-    version='0.3.0',
+    version='0.3.1',
     description="Python Toolkit for Analsys of 2d-sfg spectra",
     long_description=readme + '\n\n' + history,
     author="Malte Deiseroth",
