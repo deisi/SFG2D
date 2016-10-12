@@ -31,7 +31,7 @@ class FileHandler(FileSystemEventHandler):
         self.importer.w_files.options = self.fnames
 
 def setup_inspector(folder, observer, importer):
-    '''Sets up an Inspector with a filehandler  '''
+    '''Sets up an Inspector with a file handler'''
     if not path.isdir(folder):
         if debug: print('setup_inspector called with invaild fpath')
         return observer, importer, None

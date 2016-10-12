@@ -24,6 +24,7 @@ names = (
     'ratio_1'
 )
 PIXEL = 1600
+SPECS = 3 # the spectra are saved at the same time
 
 def pixel_to_nm(x, central_wl):
     """ transform pixel to nanomenter
