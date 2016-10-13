@@ -1,47 +1,73 @@
 from . import veronica #import read_save, read_scan_stack
-from . import spe
+from .spe import PrincetonSPEFile3
+from ..utils.metadata import MetaData, get_metadata_from_filename
+from ..utils.static import nm_to_ir_wavenumbers
 
 from os import path
-from numpy import genfromtxt, array, delete, zeros
-
+from numpy import genfromtxt, array, delete, zeros, arange
 
 class AllYouCanEat():
     def __init__(self, fname):
+        self.pp_delays = array([0])
+        
         if not path.isfile(fname) and \
            not path.islink(fname):
             raise IOError('%s does not exist' % fname)
 
         self._fname = path.abspath(fname)
+        self.metadata = {}
         
-        self.readData()
+        self._readData()
 
-    def readData(self):
+    @property
+    def data(self):
+        return self._data
+
+    def _readData(self):
         self._get_type()
-        self._arange_data()
-        #self._read_metadata()
+        self._arrange_data()
+        self._read_metadata()
+        self._make_calibration()
 
     def _get_type(self):
         self._get_type_by_path()
         self._check_type()
 
-    def _arange_data(self):
+    def _arrange_data(self):
         if self._type == "spe":
-            self._arange_spe()
+            self._arrange_spe()
             return
 
         if self._type == "sp":
-            self._arange_sp()
+            self._arrange_sp()
             return
 
         if self._type == "ts" or self._type == 'sc':
-            self._arange_ts()
+            self._arrange_ts()
             return
 
         raise NotImplementedError("Uuuups this should never be reached."
                                   "Bug with %s" % self._fname)
 
     def _read_metadata(self):
-        pass
+        """Read metadata of the file """
+
+        metadata = get_metadata_from_filename(self._fname)
+
+        if self._type == 'spe':
+            # At first we use the metadata entries from the file
+            # content. They are loaded during the arrange step.
+            # Here we add what we can get from the filename.
+            # file content metadata wins over
+            # filename metadata
+            #self.metadata = {**self.metadata, **metadata}
+            ret = metadata.copy()
+            ret.update(self.metadata.copy())
+            self.metadata = ret
+            return
+
+        self.metadata = metadata
+        
 
     def _get_type_by_path(self):
         """Get datatype by looking at the path.
@@ -120,18 +146,28 @@ class AllYouCanEat():
         raise NotImplementedError("Uuups this should never be reached."
                                   "Shape of %s is %s" % (self._fname, self._data.shape))
 
-    def _arange_spe(self):
-        sp = spe.PrincetonSPEFile3(self._fname)
+    def _arrange_spe(self):
+        sp = PrincetonSPEFile3(self._fname)
         self._data = sp.data.reshape(1, sp.NumFrames, sp.ydim, sp.xdim)
+        self.metadata['central_wl'] = sp.central_wl
+        self.metadata['exposure_time'] = sp.exposureTime
+        self.metadata['gain'] = sp.gain
+        self.metadata['sp_type'] = 'spe'
+        self.metadata['date'] = sp.date
+        self.metadata['tempSet'] = sp.tempSet
+        self.wavelength = sp.wavelength
+        self.calib_poly = sp.calib_poly
+        self.pixel = arange(sp.xdim)
+        
     
-    def _arange_sp(self):
+    def _arrange_sp(self):
         """Makes a scan having the same data structure as spe """
         # 3 because victor saves 3 spectra at a time
         # 1 because its only 1 spectrum no repetition
         # x axis given by the pixels
         self._data = self._data[:,1:4].reshape(1, 1, 3, veronica.PIXEL)
 
-    def _arange_ts(self):
+    def _arrange_ts(self):
         self._data
         def _iterator(elm):
             return array(
@@ -145,7 +181,7 @@ class AllYouCanEat():
         self._data = self._data[:,colum_inds]
         
         # pop pp_delays from data array and remove rows
-        pp_delays = self._data[0::1602, 0]
+        self.pp_delays = self._data[0::1602, 0]
         self._data = delete(self._data, slice(0, None, 1602), 0)
 
         # Now We know the rest is uint32
@@ -177,5 +213,18 @@ class AllYouCanEat():
                 ret[i_delay, i_rep, i_spec, i_pixel] = row[i_col]
 
         self._data = ret
-        
-        
+
+    def _make_calibration(self):
+        if self._type != 'spe':
+            self.pixel = arange(veronica.PIXEL)
+            cw = self.metadata.get('central_wl')
+            if cw and cw >= 1:
+                self.wavelength = veronica.pixel_to_nm(
+                    arange(veronica.PIXEL),
+                    self.metadata.get('central_wl')
+                )
+        # wavelength does not exist when central wl is wrong in
+        # filename in that case we will use pixel so wavenumber
+        # is not empty
+        wavelength = getattr(self, "wavelength", self.pixel)
+        self.wavenumber = nm_to_ir_wavenumbers(wavelength, self.metadata.get('vis_wl', 810))
