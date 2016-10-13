@@ -1,0 +1,36 @@
+watchdog==0.8.3
+
+#numpy>=1.11.1
+
+#pandas>=0.18.1
+
+#matplotlib==1.5.3
+
+#scipy==0.18.1
+
+seaborn==0.7.1
+
+Pillow==3.3.1
+
+ipython==5.1.0
+
+watchdog==0.8.3
+
+jupyter==1.0.0
+
+jupyter_dashboards==0.6.1
+
+xmltodict==0.10.2
+
+PyYAML==3.12
+
+# Probfit that works with python3
+-e git+https://github.com/iminuit/probfit.git#egg=probfit
+
+notebook==4.2.3
+
+widgetsnbextension==1.2.6
+
+bqplot==0.8.4
+
+ipywidgets==5.2.2

@@ -18,98 +18,167 @@ SFG2D
      :alt: Updates
 
 
-Python Toolkit for Analsys if 2d-sfg spectra
+Python Toolkit to analyze 2d-sfg spectra and more.
 
 
 * Free software: MIT license
 * Documentation: https://sfg2d.readthedocs.io.
 
+Manually install dependencies
+---------------------------
+Some dependencies must be installed manually due to some bugs
+`pip install numpy cython`
+
 Installation
 ------------
-Download package from github:
-`git clone git@github.com:deisi/SFG2D.git`
+Download package from github::
 
-Install package with:
-`pip install sfg2d`
+    git clone git@github.com:deisi/SFG2D.git
 
-If you want to use the dashboards run:
-`jupyter nbextension enable --py --sys-prefix bqplot`
-and
-`jupyter dashboards quick-setup --sys-prefix`
+Install package with::
 
+  pip install sfg2d
 
-Virtual Env
+ If you want to use the dashboards run::
+
+  jupyter nbextension enable --py --sys-prefix bqplot
+
+and::
+
+  jupyter dashboards quick-setup --sys-prefix
+
+Installation on Windows
+-----------------------
+
+Get Anaconda https://www.continuum.io/downloads#windows
+tested with Anaconda 4.2.0
+
+Install iminuit by hand.
+    Download from http://www.lfd.uci.edu/~gohlke/pythonimport sfg2d
+libs/#iminuit
+    Install with::
+
+          cd Downloads
+          pip install iminuit-*.whl
+
+To build probfit on windows one needs visual studio
+    Download from http://landinghub.visualstudio.com/visual-cpp-build-tools
+Install probfit by hand.
+    Download from https://github.com/iminuit/probfit
+    Install with::
+
+        cd probfit
+        pip install .
+    
+Install sfg2d with::
+
+    pip install -e .
+
+And install additional dependencies with::
+
+  pip install -r requirements.txt
+
+Virtualenv
 -----------
-Install python-virtualenv:
-`pacman -S python-virtualenv`
+Install python-virtualenv::
 
-Install virtualenvwrapper:
-`pacman -S python-virtualenvwrapper`
+  pacman -S python-virtualenv
 
-Setup virtualenvwrapper put:
-`source virtualenvwrapper.sh`
-in `~/.bashrc` or `~/.profile`
+Install virtualenvwrapper::
 
-Setup a virutal env:
-`mkvirtualenv --system-site-packages -a ~/SFG2D -p python3 sfg2d`
-note: change the path in `-a ~/SFG2D` to the location of sfg2d package
+  pacman -S PermissionError: [WinError 5] Access is denied: 'C:\\cygwin\\tmp\\pip-y90rzuyv-uninstall\\users\\deiseroth\\anaconda3\\lib\\site-packages\\pandas\\algos.cp35-win_amd64.pyd'
+ppython-virtualenvwrapper
 
-enter into virtualenv with:
-`workon sfg2d`
+Setup virtualenvwrapper put::
+
+  source virtualenvwrapper.sh
+
+in ``~/.bashrc`` or ``~/.profile``
+
+Setup a virutalenv::
+
+Install manual dependencies as described above.
 
 Install sfg2d in editable mode:
 `pip install -e .`
+  mkvirtualenv --system-site-packages -a ~/SFG2D -p python3 sfg2d
 
-To run jupyter/ipython kernel in the virtual env from .. _here: https://help.pythonanywhere.com/pages/IPythonNotebookVirtualenvs/
+note: change the path at ``~/SFG2D`` to the location of sfg2d package
 
-First create a new kernel with:
-`ipython3 kernelspec install-self --user`
+enter into virtualenv with::
 
-Now edit this kernel to use the sfg2d virtualenv by first moving it with:
-`mv ~/.local/share/jupyter/kernels/python3 ~/.local/share/jupyter/kernels/sfg2d`
+  workon sfg2d
 
-And then edit the `~/.local/share/jupyter/kernels/sfg2d/kernel.json`
-and adjust the content to be simiar to
-``` json
-{
- "argv": [
-  "/home/malte/.virtualenvs/sfg2d/bin/python3",
-  "-m",
-  "ipykernel",
-  "-f",
-  "{connection_file}"
- ],
- "display_name": "sfg2d",
- "language": "python"
-}
-```
-The value of the `display_name` field is what jupyter will know the kernel by. The important line is the first arguemtn of the `argv` this must be the full path to the pzthon3 binary within the virutalenv.
+Install sfg2d in editable mode::
+
+  pip install -e .
+
+To run jupyter/ipython kernel in the virtualenv I adopted the info from
+https://help.pythonanywhere.com/pages/IPythonNotebookVirtualenvs/
+
+First create a new kernel with::
+
+  ipython3 kernelspec install-self --user
+
+Now edit this kernel to use the sfg2d virtualenv by first moving it with::
+
+  mv ~/.local/share/jupyter/kernels/python3 ~/.local/share/jupyter/kernels/sfg2d
+
+And then edit the ``~/.local/share/jupyter/kernels/sfg2d/kernel.json``
+and adjust the content to be similar to::
+
+    json
+    {
+     "argv": [
+      "/home/malte/.virtualenvs/sfg2d/bin/python3",
+      "-m",
+      "ipykernel",
+      "-f",
+      "{connection_file}"
+     ],
+     "display_name": "sfg2d",
+     "language": "python"
+    }
+
+The value of the ``display_name`` field is what jupyter will know the kernel by. The important line is the first argument of the ``argv``. This must be the full path to the python3 binary within the virutalenv.
 
 
-Test setup by running a notebook server:
-`jupyter notebook`
+Test setup by running a notebook server::
 
-Create a New Notebook and choose the sfg2d kernel from the Dropdown menu and try to run:
-`import sfg2d
+    jupyter notebook
+
+Create a New Notebook and choose the sfg2d kernel from the drop-down menu and try to run::
+
+  import sfg2d
+
+If there is trouble with missing PyQt, install it system wide and then link PyQt4
+with the virtalenv. PyQt4 cant be installed via pip.
+e.g.::
+
+  ln -s /usr/lib/python3.5/site-packages/PyQt4 ~/.virtualenv/sfg2d/lib/python3.5/site-packages/
 
 
 Description
 -----------
-This is a toolkit to analyse mostly sfg2d data with python3 using jupyter
+This is a toolkit to analyze mostly sfg2d data with python3 using jupyter
 notebooks. It is not really generic, but rather specific to the problems
 and tasks I have to encounter here at the MPIP. It is nowhere near stable
 and things might change drastically at any point in time. If you want to use
-this I encurage you to create you own fork and work with your own version.
-At the time of wrtiting, there is also almost no documentation available.
-I think this will cahnge in time when things become more stable but up to now.
+this I encourage you to create you own fork and work with your own version.
+At the time of writing, there is also almost no documentation available.
+I think this will change in time when things become more stable but up to now.
 Its not worth documenting much since it might be different next time anyway.
 
 
 Features
 --------
 - Import data from Veronica, Viktor and .spe (version 2 and 3) files.
-- Datastructure based on pandas DataFrames to organize ans structure data.
-- A dashboard for the viktor lab.
+- Data-structure based on pandas DataFrames to organize ans structure data.
+- A dashboard for the Viktor lab.
+- A minimal fit gui
+- Import ``.spe`` spectra files
+- Import ``.ntb`` surface tension files
+
 
 
 Credits
@@ -118,9 +187,9 @@ Credits
 This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+.. _audreyr/cookiecutter-pypackage: https://github.com/audreyr/cookiecutter-pypackage
 
 The .spe file importer is based on the code of James Battat, Kasey Russell
 and
 
-For the strucuture of the module I was inspired by 
+For the structure of the module I was inspired by 
