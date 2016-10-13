@@ -1,11 +1,12 @@
-import copy # this really should be here? Seems like something is not right
+import copy  # this really should be here? Seems like something is not right
 import pandas as pd
+
 
 class ScanBase():
     """ABS for Scans."""
     _med = None
 
-    def __init__(self, df, base = None, norm = None, metadata=None):
+    def __init__(self, df, base=None, norm=None, metadata=None):
         self._df = df
         self._base = base
         self._norm = norm
@@ -34,7 +35,7 @@ class ScanBase():
     @df.setter
     def df(self, value):
         self._df = value
-    
+
     def sub_base(self, inplace=False, axis=0, **kwargs):
         """substract baseline from data"""
         ret = self._df.subtract(self._base, axis=axis, **kwargs)
@@ -44,7 +45,7 @@ class ScanBase():
             return
         return ret
 
-    def add_base(self, inplace=False, axis=0,**kwargs):
+    def add_base(self, inplace=False, axis=0, **kwargs):
         """add baseline to data"""
         ret = self._df.add(self._base, axis=axis, **kwargs)
         if inplace:
@@ -86,6 +87,7 @@ class ScanBase():
         if isinstance(self._med, type(None)):
             self._med = self.groupby_spec.median()
         return self._med
+
 
 class PumpProbe():
     """ABS for PumpProbe data"""
@@ -131,7 +133,7 @@ class PumpProbe():
 
     
 class Scan(ScanBase):
-    def __init__(self, df, base = None, norm = None, metadata=None):
+    def __init__(self, df, base=None, norm=None, metadata=None):
         self._df = df
         self._base = base
         self._norm = norm
@@ -139,13 +141,11 @@ class Scan(ScanBase):
 
     def model_base(self):
         raise NotImplementedError
-        left = self._df[:50].median(0)
-        right = self._df[-50:].median(0)
 
-    
+
 class TimeScan(ScanBase, PumpProbe):
     def __init__(self, df, base=None, norm=None, pump=None, metadata=None,
-                 pumped="spec_0", probed = "spec_1" ):
+                 pumped="spec_0", probed="spec_1"):
         self._df = df
         self.metadata = metadata
         self._pump = pump
@@ -229,12 +229,11 @@ class TimeScan(ScanBase, PumpProbe):
     def pp_delays(self):
         # Cast to int needed because json.dump wont work otherwise
         return [int(elm) for elm in self._df.index.levels[0]]
-        #return self._df.index.levels[0]
-    
+
     @property
     def groupby_pp_delay(self):
         return self._df.groupby(axis=0, level=0)
-    
+
     @property
     def pumped(self):
         return self.med[self._pumped]
@@ -270,7 +269,3 @@ class TimeScan(ScanBase, PumpProbe):
     @bleach.setter
     def bleach(self, value):
         self._df["bleach"] = value
-
-
-    
-        

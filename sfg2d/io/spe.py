@@ -226,6 +226,3 @@ class PrincetonSPEFile3():
         self.tempSet = int(temp['SetPoint']['#text'])
         self.tempRead = int(temp['Reading']['#text'])
         self.roi = self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ReadoutControl']['RegionsOfInterest']['Result']['RegionOfInterest']
-            
-        
-        

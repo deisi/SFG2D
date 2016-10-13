@@ -5,25 +5,26 @@ from datetime import timedelta, datetime
 
 # A skeleton for a Metadata dictionary
 MetaData = {
-    "uri" : "",
-    "sp_type" : "",
-    "material" : "",
-    "central_wl" : -1,
-    "vis_wl" : 810,
-    "gain" : -2,
-    "exposure_time" : timedelta(0), 
-    "polarisation" : "",
-    "pump" : None,
-    "probe" : None,
-    "vis" : None,
-    "galvaner" : None,
-    "chopper" : None,
-    "purge" : None,
-    "date" : None,
+    "uri": "",
+    "sp_type": "",
+    "material": "",
+    "central_wl": -1,
+    "vis_wl": 810,
+    "gain": -2,
+    "exposure_time": timedelta(0),
+    "polarisation": "",
+    "pump": None,
+    "probe": None,
+    "vis": None,
+    "galvaner": None,
+    "chopper": None,
+    "purge": None,
+    "date": None,
 }
 
+
 def get_metadata_from_filename(fpath):
-    """Function to extract metadata from filenames. 
+    """Function to extract metadata from filenames.
 
     Returns
     -------
@@ -42,7 +43,7 @@ def get_metadata_from_filename(fpath):
             metadata["material"] = fsplit[1]
     except IndexError:
         pass
-        
+
     try:
         metadata["central_wl"] = int(fsplit[3].split("w")[1])
     except IndexError:
@@ -78,7 +79,7 @@ def get_metadata_from_filename(fpath):
 
         exp_time = datetime.strptime(time, unit) - datetime(1900, 1, 1)
         metadata["exposure_time"] = exp_time
-    
+
     # find polarisation
     if "_ppp_" in ffile:
         metadata["polarisation"] = "ppp"
@@ -95,19 +96,20 @@ def get_metadata_from_filename(fpath):
     # get creation time of the file
     date = datetime.fromtimestamp(os.path.getctime(fpath))
     metadata['date'] = date
-            
+
     _match_booleans("pu", "pump")
     _match_booleans("pr", "probe")
     _match_booleans("vis", "vis")
     _match_booleans("gal", "galvaner")
     _match_booleans("chop", "chopper")
     _match_booleans("purge", "purge")
-    
+
     return metadata
+
 
 def time_scan_time(pp_delays, exp_time, reps):
     """Return time, when the measurment is done.
-    
+
     Parameters
     ----------
     pp_delays : int
@@ -123,4 +125,6 @@ def time_scan_time(pp_delays, exp_time, reps):
     -------
     datetime obj showing when the scan is done."""
     import datetime
-    return datetime.datetime.now() + datetime.timedelta(minutes=pp_delays*exp_time*reps)
+    ret = datetime.datetime.now()
+    ret += datetime.timedelta(minutes=pp_delays*exp_time*reps)
+    return ret

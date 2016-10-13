@@ -1,22 +1,23 @@
-from . import veronica #import read_save, read_scan_stack
+from . import veronica
 from .spe import PrincetonSPEFile3
-from ..utils.metadata import MetaData, get_metadata_from_filename
+from ..utils.metadata import get_metadata_from_filename
 from ..utils.static import nm_to_ir_wavenumbers
 
 from os import path
 from numpy import genfromtxt, array, delete, zeros, arange
 
+
 class AllYouCanEat():
     def __init__(self, fname):
         self.pp_delays = array([0])
-        
+
         if not path.isfile(fname) and \
            not path.islink(fname):
             raise IOError('%s does not exist' % fname)
 
         self._fname = path.abspath(fname)
         self.metadata = {}
-        
+
         self._readData()
 
     @property
@@ -67,21 +68,20 @@ class AllYouCanEat():
             return
 
         self.metadata = metadata
-        
 
     def _get_type_by_path(self):
         """Get datatype by looking at the path.
 
         Sets self._type to a string describing the data. And returns true
-        at the first success. Returns False if type could not be deduced 
+        at the first success. Returns False if type could not be deduced
         by name."""
         # First check the name. Maybe it follows my naming convention.
         fhead, ftail = path.split(self._fname)
-        
+
         if path.splitext(ftail)[1] == '.spe':
             self._type = 'spe'
             return
-        
+
         if ftail.find('_sp_') != -1:
             self._type = 'sp'
             return True
@@ -112,7 +112,7 @@ class AllYouCanEat():
         if typeByName == typeByShape:
             return True
 
-        print("type by name and type by shape don't match for %s" %self._fname)
+        print("type by name and type by shape don't match in %s" % self._fname)
         print("typeByName : " + typeByName + " typeByShape: " + typeByShape)
         print("Fallback to type by shape.")
         return False
@@ -143,8 +143,10 @@ class AllYouCanEat():
         if self.NumPp_delays > 1:
             return 'ts'
 
-        raise NotImplementedError("Uuups this should never be reached."
-                                  "Shape of %s is %s" % (self._fname, self._data.shape))
+        raise NotImplementedError(
+            "Uuups this should never be reached."
+            "Shape of %s is %s" % (self._fname, self._data.shape)
+        )
 
     def _arrange_spe(self):
         sp = PrincetonSPEFile3(self._fname)
@@ -158,17 +160,17 @@ class AllYouCanEat():
         self.wavelength = sp.wavelength
         self.calib_poly = sp.calib_poly
         self.pixel = arange(sp.xdim)
-        
-    
+
     def _arrange_sp(self):
         """Makes a scan having the same data structure as spe """
         # 3 because victor saves 3 spectra at a time
         # 1 because its only 1 spectrum no repetition
         # x axis given by the pixels
-        self._data = self._data[:,1:4].reshape(1, 1, 3, veronica.PIXEL)
+        self._data = self._data[:, 1:4].reshape(1, 1, 3, veronica.PIXEL)
 
     def _arrange_ts(self):
         self._data
+
         def _iterator(elm):
             return array(
                 # ditch first iteration because it the AVG
@@ -178,7 +180,7 @@ class AllYouCanEat():
 
         # Remove unneeded columns
         colum_inds = [0] + _iterator(lambda i: [6*i+2, 6*i+3, 6*i+4])
-        self._data = self._data[:,colum_inds]
+        self._data = self._data[:, colum_inds]
         
         # pop pp_delays from data array and remove rows
         self.pp_delays = self._data[0::1602, 0]
@@ -193,14 +195,16 @@ class AllYouCanEat():
 
         # Currently numpy ignores the [-1, ...] in the empty_rows, but we want
         # the last line to be deleted as well, because it is empty
-        if self._data.shape[0]%1600 == 1:
+        if self._data.shape[0] % 1600 == 1:
             self._data = delete(self._data, -1, 0)
 
         # Remove the 0 (pixel) column it is redundant
         self._data = self._data[:, 1:]
 
         # We want data to fit in the same structure as all the other scans
-        ret = zeros((self.NumPp_delays, self.NumReps, veronica.SPECS, veronica.PIXEL))
+        ret = zeros(
+            (self.NumPp_delays, self.NumReps, veronica.SPECS, veronica.PIXEL)
+        )
         for i_row in range(len(self._data)):
             row = self._data[i_row]
             # The index of the current delay
@@ -209,7 +213,7 @@ class AllYouCanEat():
             for i_col in range(len(row)):
                 # The index of the current repetition
                 i_rep = i_col // self.NumReps
-                i_spec = i_col % veronica.SPECS # 3 is the number of specs
+                i_spec = i_col % veronica.SPECS  # 3 is the number of specs
                 ret[i_delay, i_rep, i_spec, i_pixel] = row[i_col]
 
         self._data = ret
@@ -227,4 +231,6 @@ class AllYouCanEat():
         # filename in that case we will use pixel so wavenumber
         # is not empty
         wavelength = getattr(self, "wavelength", self.pixel)
-        self.wavenumber = nm_to_ir_wavenumbers(wavelength, self.metadata.get('vis_wl', 810))
+        self.wavenumber = nm_to_ir_wavenumbers(
+            wavelength, self.metadata.get('vis_wl', 810)
+        )
