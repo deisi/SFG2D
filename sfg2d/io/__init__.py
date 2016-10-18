@@ -4,7 +4,7 @@ from ..utils.metadata import get_metadata_from_filename
 from ..utils.static import nm_to_ir_wavenumbers
 
 from os import path
-from numpy import genfromtxt, array, delete, zeros, arange
+from numpy import genfromtxt, array, delete, zeros, arange, ndarray
 
 
 class AllYouCanEat():
@@ -23,6 +23,32 @@ class AllYouCanEat():
     @property
     def data(self):
         return self._data
+
+    @data.setter
+    def data(self, value):
+        if not isinstance(value, ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._data = value
+
+    @property
+    def dates(self):
+        ret = []
+        for i in range(self.data.shape[1]):
+            ret.append(
+                self.metadata['date'] + i * self.metadata['exposure_time']
+            )
+        return ret
+
+    @property
+    def times(self):
+        ret = []
+        for i in range(self.data.shape[1]):
+            ret.append(
+                i * self.metadata['exposure_time']
+            )
+        return ret        
 
     def _readData(self):
         self._get_type()
