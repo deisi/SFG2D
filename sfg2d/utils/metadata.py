@@ -3,6 +3,8 @@ import re
 import copy
 from datetime import timedelta, datetime
 
+debug = 0
+
 # A skeleton for a Metadata dictionary
 MetaData = {
     "uri": "",
@@ -76,7 +78,8 @@ def get_metadata_from_filename(fpath):
             time = str(int(time)*10**3)
         elif unit == 'h':
             unit = '%H'
-
+        if debug:
+            print(time, unit)
         exp_time = datetime.strptime(time, unit) - datetime(1900, 1, 1)
         metadata["exposure_time"] = exp_time
 

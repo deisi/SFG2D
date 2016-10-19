@@ -19,6 +19,7 @@ class AllYouCanEat():
         self.metadata = {}
 
         self._readData()
+        self._dates = None
 
     @property
     def data(self):
@@ -34,12 +35,17 @@ class AllYouCanEat():
 
     @property
     def dates(self):
-        ret = []
-        for i in range(self.data.shape[1]):
-            ret.append(
-                self.metadata['date'] + i * self.metadata['exposure_time']
-            )
-        return ret
+        if isinstance(self._dates, type(None)):
+            self._dates = []
+            for i in range(self.data.shape[1]):
+                self._dates.append(
+                    self.metadata['date'] + i * self.metadata['exposure_time']
+                )
+        return self._dates
+
+    @dates.setter
+    def dates(self, value):
+        self._dates = value
 
     @property
     def times(self):

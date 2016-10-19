@@ -28,6 +28,7 @@ requirements = [
     'xmltodict',
     'datetime',
     'seaborn',
+    'yaml'
     # TODO: put package requirements here
 ]
 
