@@ -1,4 +1,3 @@
-import copy  # this really should be here? Seems like something is not right
 import pandas as pd
 
 
@@ -163,12 +162,14 @@ class TimeScan(ScanBase, PumpProbe):
             return self._df[k]
 
     def __deepcopy__(self, memodict={}):
+
+        from copy import deepcopy
         return TimeScan(
             self._df.copy(),
             self._base,
             self._norm,
             self._pump,
-            copy.deepcopy(self.metadata),
+            deepcopy(self.metadata),
             self._pumped,
             self._probed)
 
