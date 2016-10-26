@@ -28,7 +28,7 @@ requirements = [
     'xmltodict',
     'datetime',
     'seaborn',
-    'yaml'
+    'pyyaml'
     # TODO: put package requirements here
 ]
 

@@ -95,7 +95,7 @@ def read_save(fpath, **kwargs):
         pixel = np.arange(PIXEL)
         nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
         wavenumber = np.round(nm_to_ir_wavenumbers(
-            nm, up_wl=metadata['vis_wl']
+            nm, up_wl=metadata.get('vis_wl', 800)
         ), decimals=1)
         ret.drop("pixel", inplace=True, axis=1)
         ret.set_index(wavenumber, inplace=True)
@@ -155,7 +155,7 @@ def read_scan_stack(fpath, **kwargs):
         pixel = np.arange(PIXEL)
         nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
         wavenumber = np.round(nm_to_ir_wavenumbers(
-            nm, up_wl=metadata['vis_wl']
+            nm, up_wl=metadata.get('vis_wl', 800)
         ), decimals=1)
         ret.drop('pixel', axis=1, inplace=True)
         ret.set_index(wavenumber, inplace=True)
@@ -225,7 +225,7 @@ def read_time_scan(fpath, **kwargs):
     else:
         nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
         wavenumber = np.round(nm_to_ir_wavenumbers(
-            nm, up_wl=metadata['vis_wl']
+            nm, up_wl=metadata.get('vis_wl', 800)
         ), decimals=1)
 
         # make indeces
