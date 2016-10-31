@@ -1,12 +1,10 @@
 """IO Module to handle data from the veronica labview programm """
 
-import os 
-import re
+import os
 import copy
-#import logging
 import warnings
 
-from pandas import read_csv, MultiIndex, Series
+from pandas import read_csv, MultiIndex
 import numpy as np
 
 
@@ -24,15 +22,17 @@ names = (
     'ratio_1'
 )
 PIXEL = 1600
+SPECS = 3  # the spectra are saved at the same time
+
 
 def pixel_to_nm(x, central_wl):
-    """ transform pixel to nanomenter
+    """ transform pixel to nanometer
 
     Parameters
     ----------
     central_wl : int
         central wavelength of the camera in nm"""
-    
+
     params_file_path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "../data/calib/params_Ne_670.npy"
@@ -42,8 +42,9 @@ def pixel_to_nm(x, central_wl):
     pixel_to_nm = np.poly1d(params) + central_wl - calib_cw
     return pixel_to_nm(x)
 
+
 def nm_to_pixel(x, central_wl):
-    """ transform nm to pixel koordinates for central wavelength 
+    """ transform nm to pixel koordinates for central wavelength
 
     Parameters
     ----------
@@ -51,7 +52,7 @@ def nm_to_pixel(x, central_wl):
         nm to transform in pixel
     central_wl : int
         central wavelength of the camera
-    
+
     Returns
     -------
     num or array of x in pixel coordinates
@@ -69,18 +70,18 @@ def nm_to_pixel(x, central_wl):
         warnings.Warn("Can't use constant calibration")
     nm_to_pixel = lambda x: (x - params[1] - central_wl + calib_cw)/params[0]
 
-    return nm_to_pixel(x)   
+    return nm_to_pixel(x)
+
 
 def read_save(fpath, **kwargs):
     """read files saved with veronica save button """
 
     ret = read_csv(
         fpath,
-        sep = '\t',
-        header = None,
-        names = names,
-        #index_col = 'pixel',
-        usecols = [0, 1, 2, 3],
+        sep='\t',
+        header=None,
+        names=names,
+        usecols=[0, 1, 2, 3],
         **kwargs
     )
 
@@ -89,40 +90,39 @@ def read_save(fpath, **kwargs):
     ret = ret.astype('uint32')
 
     if metadata["central_wl"] == -1:
-        ret.set_index("pixel", inplace=True)        
+        ret.set_index("pixel", inplace=True)
     else:
         pixel = np.arange(PIXEL)
         nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
         wavenumber = np.round(nm_to_ir_wavenumbers(
-            nm, up_wl=metadata['vis_wl']
-        ), decimals = 1)
+            nm, up_wl=metadata.get('vis_wl', 800)
+        ), decimals=1)
         ret.drop("pixel", inplace=True, axis=1)
         ret.set_index(wavenumber, inplace=True)
-        #ret.index = ret.index.sort_values()
         ret.index.name = 'wavenumber'
         ret.sort_index(inplace=True)
-
 
     ret = Scan(ret, metadata=copy.deepcopy(metadata))
 
     return ret
+
 
 def read_scan_stack(fpath, **kwargs):
     """import veronica scan files containing only repetition """
     
     ret = read_csv(
         fpath,
-        sep = '\t',
-        header = None,
-        skiprows = 1,
-        skipfooter = 1,
+        sep='\t',
+        header=None,
+        skiprows=1,
+        skipfooter=1,
         engine="python",
         **kwargs
     )
 
     # Check for correct data shape
-    if ret.shape[1]%6 is not 0:  #and ret.shape[0] is not 1602:
-        raise IOError("Cant understand shape of data in %s"%fpath)
+    if ret.shape[1] % 6 is not 0:
+        raise IOError("Cant understand shape of data in %s" % fpath)
 
     # number of spectrum repetition
     reps = ret.shape[1]//6
@@ -132,9 +132,9 @@ def read_scan_stack(fpath, **kwargs):
             # ditch first repetition because it is the AVG
             [elm(i) for i in range(1, reps)]
         ).flatten().tolist()
-        
+
     # Keep only interesting columns
-    colum_inds = [0] +  _iterator(lambda i: [6*i+2, 6*i+3, 6*i+4])
+    colum_inds = [0] + _iterator(lambda i: [6*i+2, 6*i+3, 6*i+4])
     ret = ret[ret.columns[colum_inds]]
 
     # Set colum names
@@ -143,51 +143,50 @@ def read_scan_stack(fpath, **kwargs):
 
     # metadata based on filename makes the calibration
     metadata = get_metadata_from_filename(fpath)
-    
+
     # Data types are integers
-    ret = ret.astype('uint32')    
+    ret = ret.astype('uint32')
 
     # Cecause central wavelength migh be missing
     if metadata["central_wl"] == -1:
         # Use pixel as index
-        ret.set_index("pixel", inplace=True)        
+        ret.set_index("pixel", inplace=True)
     else:
         pixel = np.arange(PIXEL)
         nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
         wavenumber = np.round(nm_to_ir_wavenumbers(
-            nm, up_wl=metadata['vis_wl']
-        ), decimals = 1)
+            nm, up_wl=metadata.get('vis_wl', 800)
+        ), decimals=1)
         ret.drop('pixel', axis=1, inplace=True)
         ret.set_index(wavenumber, inplace=True)
         ret.index.name = 'wavenumber'
         ret.sort_index(inplace=True)
-    
+
     return Scan(ret, metadata=copy.deepcopy(metadata))
+
 
 def read_time_scan(fpath, **kwargs):
     """ """
     ret = read_csv(
         fpath,
-        sep = '\t',
-        header = None,
+        sep='\t',
+        header=None,
         **kwargs
     )
 
     # Check for correct data shape
-    if ret.shape[1] % 6 is not 0  and ret.shape[1] % 1602 is not 0:
-        raise IOError("Cant understand shape of data in %s"%fpath)
+    if ret.shape[1] % 6 is not 0 and ret.shape[1] % 1602 is not 0:
+        raise IOError("Cant understand shape of data in %s" % fpath)
 
     # number of spectrum repetition
     reps = ret.shape[1]//6
-    # number of times
-    times = ret.shape[0]//1602
 
     def _iterator(elm):
         return np.array(
             # ditch first iteration because it the AVG
             [elm(i) for i in range(1, reps)]
         ).flatten().tolist()
-        
+
     # Remove uninteresting columns
     colum_inds = [0] + _iterator(lambda i: [6*i+2, 6*i+3, 6*i+4])
     ret = ret[ret.columns[colum_inds]]
@@ -197,11 +196,10 @@ def read_time_scan(fpath, **kwargs):
 
     # Data type is integer
     ret = ret.astype('uint32')
-    
+
     # Set colum names
     names = ['pixel'] + _iterator(lambda i: ['spec_0', 'spec_1', 'spec_2'])
     ret.columns = names
-
 
     # drop lines with pp_delays
     ret.drop(pp_delays.index, inplace=True)
@@ -223,12 +221,12 @@ def read_time_scan(fpath, **kwargs):
         index = MultiIndex.from_product(
             (pp_delays, pixel),
             names=('pp_delay', 'pixel')
-        )    
+        )
     else:
         nm = pixel_to_nm(pixel, central_wl=metadata['central_wl'])
         wavenumber = np.round(nm_to_ir_wavenumbers(
-            nm, up_wl=metadata['vis_wl']
-        ), decimals = 1)
+            nm, up_wl=metadata.get('vis_wl', 800)
+        ), decimals=1)
 
         # make indeces
         pp_delays = pp_delays.as_matrix()
@@ -239,11 +237,9 @@ def read_time_scan(fpath, **kwargs):
     ret.index = index
     ret.sort_index(inplace=True)
 
-    #ret = ret.set_index([nm, wavenumber], append=True)
-    #ret.index.names = ['pp_delays', 'pixel', 'nm', 'wavenumber']
-
     # Link Repeated Columns together
     return TimeScan(ret, metadata=copy.deepcopy(metadata))
+
 
 def read_auto(fpath, **kwargs):
     """ use fpath and datashape to automatically determine data type
@@ -257,20 +253,20 @@ def read_auto(fpath, **kwargs):
                       'This is much slower.')
         ret = read_csv(
             fpath,
-            sep = '\t',
-            header = None,
+            sep='\t',
+            header=None,
         )
         if ret.shape == (1600, 6):
-            #print("%s is of type Spectrum" % fpath)
             metadata['sp_type'] = 'sp'
-        elif ret.shape[0] == 1602 and ret.shape[1]%6 is 0:
-            #print("%s is of type Scan" % fpath)
+        elif ret.shape[0] == 1602 and ret.shape[1] % 6 is 0:
             metadata['sp_type'] = 'sc'
-        elif ret.shape[0]%1602 is 0 and ret.shape[1]%6 is 0:
-            #print("%s is of type TimeScan" % fpath)
+        elif ret.shape[0] % 1602 is 0 and ret.shape[1] % 6 is 0:
             metadata['sp_type'] = 'ts'
         else:
-            raise IOError("Can't determine spectrum type of %s\nshape is %s" % (fpath, ret.shape))
+            raise IOError(
+                "Can't determine spectrum type of %s\nshape is %s" %
+                (fpath, ret.shape)
+            )
         return ret
 
     # check if name determines spectrum type
@@ -298,7 +294,10 @@ def read_auto(fpath, **kwargs):
     # Try to read data one more time using actual shape. If this does not
     # work as well we give up.
     except ValueError:
-        warnings.warn("Wrong metadata for %s. Type %s was given" % (fpath, metadata['sp_type']))
+        warnings.warn(
+            "Wrong metadata for %s. Type %s was given" %
+            (fpath, metadata['sp_type'])
+        )
         ret = _guess_sepctrum_type_by_content(fpath)
         if metadata['sp_type'] == 'sp':
             ret = read_save(fpath, **kwargs)
@@ -308,12 +307,13 @@ def read_auto(fpath, **kwargs):
 
         elif metadata['sp_type'] == 'ts':
             ret = read_time_scan(fpath, **kwargs)
-            
-        else: raise IOError("Cant understand datatype of %s" % fpath)
-        
+
+        else:
+            raise IOError("Cant understand datatype of %s" % fpath)
+
     return ret
 
-        
+
 def get_scan(fpath, fbase=None, fnorm=None, sub_base=True, div_norm=True):
     ret = read_auto(fpath)
 
@@ -329,7 +329,8 @@ def get_scan(fpath, fbase=None, fnorm=None, sub_base=True, div_norm=True):
 
     return ret
 
-def get_time_scan(fpath, base = None, norm = None):
+
+def get_time_scan(fpath, base=None, norm=None):
     ret = read_time_scan(fpath)
     ret.df.drop("pixel", axis=1, inplace=True)
     if getattr(base):

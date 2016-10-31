@@ -1,16 +1,14 @@
-__version__ = '0.4.0'
+__version__ = '0.5.0'
 
 from . import io, utils, plotting, widgets
-from .core.scan import Scan, TimeScan
-from .utils.metadata import MetaData
 
-from .io.spe import PrincetonSPEFile3
+from .core.scan import Scan, TimeScan
+
+from .io import AllYouCanEat, PrincetonSPEFile3, NtbFile
 from .io.veronica import read_auto, read_time_scan, read_scan_stack, read_save
 
+from .utils import detect_peaks
+from .utils.metadata import MetaData, time_scan_time, get_metadata_from_filename
+from .utils.static import wavenumbers_to_nm, nm_to_wavenumbers, nm_to_ir_wavenumbers, ir_wavenumbers_to_nm, savefig
 
-def savefig(filename, **kwargs):
-    import matplotlib.pyplot as plt
-    '''save figure as pgf, pdf and png'''
-    plt.savefig('{}.pgf'.format(filename), **kwargs)
-    plt.savefig('{}.pdf'.format(filename), **kwargs)
-    plt.savefig('{}.png'.format(filename), **kwargs)
+from .plotting import plot, plot_time

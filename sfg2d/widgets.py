@@ -441,7 +441,7 @@ class PumpProbeDataImporter(DataImporter):
 ######################################################################
 #                         A new Approach                             #
 ######################################################################
-            
+
 
 class PPDelaySlider():
     def __init__(self, pp_delays, data):
@@ -526,11 +526,11 @@ class PPDelaySlider():
 
     def _update_plot(self, new):
         
-        #Scan doesnt have multiindex and no pp_delays
+        # Scan doesnt have multiindex and no pp_delays
         if not hasattr(self.data.index, 'levshape'):
             data = self.data.rolling(self.w_smooth_s.value).mean()
             for line, spec in zip(self.ax.lines, self.data):
-                #data = self.data[spec]
+                # data = self.data[spec]
                 line.set_ydata(data[spec].values)
                 line.set_xdata(data[spec].index)
             return

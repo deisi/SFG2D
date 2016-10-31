@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -27,6 +26,7 @@ requirements = [
     'jupyter==1.0.0',
     'jupyter_dashboards==0.6.1',
     'xmltodict==0.10.2',
+    'pyyaml'
     #'datetime==',
 ]
 
@@ -36,7 +36,7 @@ test_requirements = [
 
 setup(
     name='sfg2d',
-    version='0.4.0',
+    version='0.5.0',
     description="Python Toolkit for Analsys of 2d-sfg spectra",
     long_description=readme + '\n\n' + history,
     author="Malte Deiseroth",
