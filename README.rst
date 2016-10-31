@@ -37,7 +37,63 @@ If you want to use the dashboards run:
 and
 `jupyter dashboards quick-setup --sys-prefix`
 
-Dexcription
+
+Virtual Env
+-----------
+Install python-virtualenv:
+`pacman -S python-virtualenv`
+
+Install virtualenvwrapper:
+`pacman -S python-virtualenvwrapper`
+
+Setup virtualenvwrapper put:
+`source virtualenvwrapper.sh`
+in `~/.bashrc` or `~/.profile`
+
+Setup a virutal env:
+`mkvirtualenv --system-site-packages -a ~/SFG2D -p python3 sfg2d`
+note: change the path in `-a ~/SFG2D` to the location of sfg2d package
+
+enter into virtualenv with:
+`workon sfg2d`
+
+Install sfg2d in editable mode:
+`pip install -e .`
+
+To run jupyter/ipython kernel in the virtual env from .. _here: https://help.pythonanywhere.com/pages/IPythonNotebookVirtualenvs/
+
+First create a new kernel with:
+`ipython3 kernelspec install-self --user`
+
+Now edit this kernel to use the sfg2d virtualenv by first moving it with:
+`mv ~/.local/share/jupyter/kernels/python3 ~/.local/share/jupyter/kernels/sfg2d`
+
+And then edit the `~/.local/share/jupyter/kernels/sfg2d/kernel.json`
+and adjust the content to be simiar to
+``` json
+{
+ "argv": [
+  "/home/malte/.virtualenvs/sfg2d/bin/python3",
+  "-m",
+  "ipykernel",
+  "-f",
+  "{connection_file}"
+ ],
+ "display_name": "sfg2d",
+ "language": "python"
+}
+```
+The value of the `display_name` field is what jupyter will know the kernel by. The important line is the first arguemtn of the `argv` this must be the full path to the pzthon3 binary within the virutalenv.
+
+
+Test setup by running a notebook server:
+`jupyter notebook`
+
+Create a New Notebook and choose the sfg2d kernel from the Dropdown menu and try to run:
+`import sfg2d
+
+
+Description
 -----------
 This is a toolkit to analyse mostly sfg2d data with python3 using jupyter
 notebooks. It is not really generic, but rather specific to the problems

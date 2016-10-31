@@ -1,6 +1,5 @@
 """static functions go here """
 
-
 def wavenumbers_to_nm(wavenumbers):
     """wavenumbers from given nm"""
     return 10**7/wavenumbers
@@ -41,3 +40,10 @@ def ir_wavenumbers_to_nm(x, up_wl):
     """
     #return (wavenumbers_to_nm(x)*up_wl)/( wavenumbers_to_nm(x)+up_wl)
     return (1/(1/wavenumbers_to_nm(x) + 1/up_wl))
+
+def savefig(filename, **kwargs):
+    import matplotlib.pyplot as plt
+    '''save figure as pgf, pdf and png'''
+    plt.savefig('{}.pgf'.format(filename), **kwargs)
+    plt.savefig('{}.pdf'.format(filename), **kwargs)
+    plt.savefig('{}.png'.format(filename), **kwargs)
