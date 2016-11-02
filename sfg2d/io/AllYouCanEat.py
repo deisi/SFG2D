@@ -1,29 +1,31 @@
 from os import path
 from numpy import genfromtxt, array, delete, zeros, arange,\
-    ndarray, concatenate
+    ndarray, concatenate, savez
 from copy import deepcopy
 from .veronica import PIXEL, SPECS, pixel_to_nm
+import warnings
 
 
-def get_AllYouCanEat_scan(fname, baseline, norm):
+def get_AllYouCanEat_scan(fname, baseline, norm, wavenumber=arange(1600)):
     '''The usual procedure of importing, substracting the baseline
     and normalizing the data.'''
 
     ret = AllYouCanEat(fname)
     ret.baseline = baseline
     ret = normalization(ret, baseline, norm)
+    ret.wavenumber = wavenumber
 
     return ret
 
 
-def normalization(DataContainer, background, norm):
+def normalization(DataContainer, baseline, norm):
     '''Function to add baseline substraction and normalization
 
     The DataContainer get added a base_sub property, that
-    holds the background substracted data. Secondly a
+    holds the baseline substracted data. Secondly a
     norm property is added, that encapsulates the data after
     normalization'''
-    DataContainer.back_sub = DataContainer.data - background
+    DataContainer.back_sub = DataContainer.data - baseline
     DataContainer.norm = DataContainer.back_sub / norm
     return DataContainer
 
@@ -39,7 +41,7 @@ def concatenate_data_sets(
             - data
               The raw data
             - back_sub
-              The data after background substraaction
+              The data after baseline substraaction
             - norm
               The data after normalization
             - dates
@@ -75,6 +77,18 @@ def concatenate_data_sets(
 
     return ret
 
+def save_data_set(fname, data_container):
+    """Save a data set as .npz binary file.
+    Keyword Arguments:
+    data_container --
+    """
+    savez(fname,
+             wavenumber = data_container.wavenumber,
+             intensity = data_container.norm,
+             l_dates = data_container.l_dates,
+             times = data_container.times,
+             l_times = data_container.l_times
+    )
 
 class AllYouCanEat():
     """Class to quickly import data.
@@ -176,7 +190,11 @@ class AllYouCanEat():
 
         from ..utils.metadata import get_metadata_from_filename
 
-        metadata = get_metadata_from_filename(self._fname)
+        try:
+            metadata = get_metadata_from_filename(self._fname)
+        except ValueError:
+            warnings.warn('ValueError while trying to extract metadata from filepath./nSkipping')
+            return
 
         if self._type == 'spe':
             # At first we use the metadata entries from the file
