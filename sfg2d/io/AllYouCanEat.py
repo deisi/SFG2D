@@ -1,6 +1,6 @@
 from os import path
 from numpy import genfromtxt, array, delete, zeros, arange,\
-    ndarray, concatenate, savez
+    ndarray, concatenate, savez, sqrt
 from copy import deepcopy
 from .veronica import PIXEL, SPECS, pixel_to_nm
 import warnings
@@ -82,13 +82,36 @@ def save_data_set(fname, data_container):
     Keyword Arguments:
     data_container --
     """
-    savez(fname,
-             wavenumber = data_container.wavenumber,
-             intensity = data_container.norm,
-             l_dates = data_container.l_dates,
-             times = data_container.times,
-             l_times = data_container.l_times
+    if '~' in fname:
+        fname = path.expanduser(fname)
+    savez(
+        fname,
+        wavenumber=data_container.wavenumber,
+        intensity=data_container.norm,
+        l_dates=data_container.l_dates,
+        times=data_container.times,
+        l_times=data_container.l_times,
     )
+
+def save_avg(fname, data_container):
+    if '~' in fname:
+        fname = path.expanduser(fname)
+
+    # uncertaincy of the mean intensity under the assumption
+    # all measurements are uncorrelated and normal distributed
+    dintensity = data_container.norm.std(-3) /\
+                 sqrt(data_container.norm.shape[-3])
+
+    savez(
+        fname,
+        wavenumber=data_container.wavenumber,
+        intensity=data_container.norm.mean(-3),
+        dintensity=dintensity,
+        l_dates=data_container.l_dates,
+        times=data_container.times,
+        l_times=data_container.l_times,
+    )
+
 
 class AllYouCanEat():
     """Class to quickly import data.
@@ -113,16 +136,12 @@ class AllYouCanEat():
     """
     def __init__(self, fname):
         self.pp_delays = array([0])
-
-        if not path.isfile(fname) and \
-           not path.islink(fname):
-            raise IOError('%s does not exist' % fname)
-
+        if '~' in fname:
+            fname = path.expanduser(fname)
         self._fname = path.abspath(fname)
         self.metadata = {}
-
-        self._readData()
         self._dates = None
+        self._readData()
 
     @property
     def data(self):

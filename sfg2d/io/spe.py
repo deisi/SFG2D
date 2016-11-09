@@ -81,9 +81,9 @@ class PrincetonSPEFile3():
     def __init__(self, fname, verbose=False):
         self._verbose = verbose
         
-        if not os.path.isfile(fname) and \
-           not os.path.islink(fname):
-            raise IOError('%s does not exist' % fname)
+        # if not os.path.isfile(fname) and \
+        #    not os.path.islink(fname):
+        #     raise IOError('%s does not exist' % fname)
 
         self._spe = open(fname, 'rb')
         self.readData()
