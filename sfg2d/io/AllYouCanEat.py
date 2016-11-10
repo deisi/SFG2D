@@ -1,39 +1,110 @@
 from os import path
 from numpy import genfromtxt, array, delete, zeros, arange,\
-    ndarray, concatenate, savez, sqrt
+    ndarray, concatenate, savez, sqrt, load, ones
+from pandas import DataFrame, Series
 from copy import deepcopy
 from .veronica import PIXEL, SPECS, pixel_to_nm
 import warnings
+from ..core.scan import Scan
 
+# The meaning of the Indices in the data array
+x_pixel_index = -1
+y_pixel_index = -2
+frame_axis_index = -3
+pp_index = -4
 
-def get_AllYouCanEat_scan(fname, baseline, norm, wavenumber=arange(1600)):
+def get_AllYouCanEat_scan(fname, baseline, ir_profile,
+                          wavenumber=arange(1600), dir_profile=None, dbaseline=None):
     '''The usual procedure of importing, substracting the baseline
-    and normalizing the data.'''
+    and normalizing the data.
+    fname: str
+        file to load
+    baseline: array
+        baseline data
+    ir_profile: array
+        normalization data
+    wavenumber: array
+        wavenumbers of this scan. Must be same as for baseline and ir_profile
+    dir_profile: array
+        uncertainty of  the normalization
+    dbaseline: array
+        uvertainty of the baseline
 
+    '''
     ret = AllYouCanEat(fname)
     ret.baseline = baseline
-    ret = normalization(ret, baseline, norm)
+    ret = normalization(ret, baseline, ir_profile, dbaseline, dir_profile)
     ret.wavenumber = wavenumber
 
     return ret
 
+def get_frame_mean(fname, fbaseline):
+    ret = AllYouCanEat(fname)
+    baseline = AllYouCanEat(fbaseline).data
+    baseline_frames = baseline.data.shape[frame_axis_index]
+    data_frames = ret.data.shape[frame_axis_index]
 
-def normalization(DataContainer, baseline, norm):
+    ret.baseline = baseline.mean(frame_axis_index).squeeze()
+    if baseline_frames > 1:
+        ret.dbaseline = baseline.std(frame_axis_index).squeeze() / sqrt(baseline_frames-1)
+
+    ret.back_sub = ret.data - ret.baseline
+    ret.frame_mean = ret.back_sub.mean(frame_axis_index).squeeze()
+
+    # uncertainly of the norm depends of the measurement itself and on
+    # the uncertainly of the Baseline as well.
+    if data_frames > 1:
+        ddata = ret.data.std(frame_axis_index).squeeze() / sqrt(data_frames-1)
+        ret.dframe_mean = sqrt(
+            (ddata)**2 + (ret.dbaseline)**2
+        )
+    return ret
+
+def normalization(DataContainer, baseline, ir_profile, dbaseline=None, dir_profile=None):
     '''Function to add baseline substraction and normalization
 
     The DataContainer get added a base_sub property, that
     holds the baseline substracted data. Secondly a
     norm property is added, that encapsulates the data after
     normalization'''
+
+    data_shape = DataContainer.data.shape
+
+    if isinstance(dir_profile, type(None)):
+        dir_profile = zeros(data_shape)
+    if isinstance(baseline, type(None)):
+        dbaseline = zeros(data_shape)
+
+
     DataContainer.back_sub = DataContainer.data - baseline
-    DataContainer.norm = DataContainer.back_sub / norm
+    # Up to now the uncertainty of the data is only given by the
+    # uncertainty of the baseline, because data is in general
+    # not averaged at this point.
+    DataContainer.dback_sub = dbaseline * ones(data_shape)
+
+    # Add the normalization spectra
+    DataContainer.norm = ir_profile * ones(data_shape)
+    DataContainer.dnorm = dir_profile * ones(data_shape)
+
+    DataContainer.normalized = DataContainer.back_sub / ir_profile
+    # This uncertainty is given by the
+    # ir_profile and the baseline subtracted spectrum
+    DataContainer.dnormalized = sqrt(
+        (DataContainer.back_sub / (ir_profile)**2 * dir_profile)**2 +\
+        (DataContainer.dback_sub / ir_profile)**2
+    )
+
+    # add the baseline
+    DataContainer.base = baseline * ones(data_shape)
+    # They are the same but for sake of completeness I add them here
+    DataContainer.dbase = DataContainer.dback_sub
     return DataContainer
 
 
 def concatenate_data_sets(
         list_of_data_sets,
         sum_sl=slice(None, None)):
-    '''Concatenate different measurments
+    '''Concatenate different measurements
 
     list_of_data_sets: array type
         list fo the different data sets. Each element must have
@@ -55,20 +126,33 @@ def concatenate_data_sets(
 
     ret = deepcopy(list_of_data_sets[0])
     ret.data = concatenate(
-        [elm.data for elm in list_of_data_sets], 1
+        [elm.data for elm in list_of_data_sets], frame_axis_index
     )
     ret.back_sub = concatenate(
-        [elm.back_sub for elm in list_of_data_sets], 1
+        [elm.back_sub for elm in list_of_data_sets], frame_axis_index
+    )
+    ret.dback_sub = concatenate(
+        [elm.dback_sub for elm in list_of_data_sets], frame_axis_index
+    )
+    ret.normalized = concatenate(
+        [elm.normalized for elm in list_of_data_sets], frame_axis_index
+    )
+    ret.dnormalized = concatenate(
+        [elm.dnormalized for elm in list_of_data_sets], frame_axis_index
     )
     ret.norm = concatenate(
-        [elm.norm for elm in list_of_data_sets], 1
+        [elm.norm for elm in list_of_data_sets], frame_axis_index
+    )
+    ret.dnorm = concatenate(
+        [elm.dnorm for elm in list_of_data_sets], frame_axis_index
     )
     ret.dates = concatenate(
         [elm.dates for elm in list_of_data_sets]
     )
     ret.sums = ret.norm.reshape(
-        ret.norm.shape[1], ret.norm.shape[-1]
+        ret.norm.shape[frame_axis_index], ret.norm.shape[x_pixel_index]
     )[:, sum_sl].sum(1)
+
 
     # add readable dates that can be used as labels
     ret.l_dates = [elm.strftime("%H:%M") for elm in ret.dates]
@@ -84,34 +168,110 @@ def save_data_set(fname, data_container):
     """
     if '~' in fname:
         fname = path.expanduser(fname)
+
+    # Optional attributes
+    l_dates = getattr(data_container, "l_dates", None)
+    times = getattr(data_container, "times", None)
+    l_times = getattr(data_container, "l_times", None)
+    dnormalized = getattr(data_container, "dnormalized", None)
+    normalized = getattr(data_container, 'normalized', None)
+
     savez(
         fname,
+        wavelength=data_container.wavelength,
         wavenumber=data_container.wavenumber,
-        intensity=data_container.norm,
-        l_dates=data_container.l_dates,
-        times=data_container.times,
-        l_times=data_container.l_times,
+        back_sub=data_container.back_sub,
+        normalized=normalized,
+        dnormalized=dnormalized,
+        metadata=data_container.metadata,
+        l_dates=l_dates,
+        times=times,
+        l_times=l_times,
     )
 
-def save_avg(fname, data_container):
+def save_frame_mean(fname, data_container):
+    '''Saves a version with only the mean results.
+
+    Also calculates std. errors for the averaged spectra if possible
+    '''
     if '~' in fname:
         fname = path.expanduser(fname)
 
-    # uncertaincy of the mean intensity under the assumption
-    # all measurements are uncorrelated and normal distributed
-    dintensity = data_container.norm.std(-3) /\
-                 sqrt(data_container.norm.shape[-3])
+    # number of frames (usually = number of repetitions)
+    frames = data_container.data.shape[frame_axis_index]
+
+    data = data_container.data.mean(frame_axis_index)
+    back_sub = data_container.back_sub.mean(frame_axis_index)
+    ddata = None
+    dback_sub = None
+    dnormalized = None
+
+    if frames > 1:
+        ddata = data_container.data.std(frame_axis_index) / sqrt(frames - 1)
+        dback_sub = data_container.back_sub.std(frame_axis_index) / sqrt(frames - 1)
+
+    normalized = getattr(data_container, 'normalized', None).mean(frame_axis_index)
+    norm = getattr(data_container, 'norm', None).mean(frame_axis_index)
+    base = getattr(data_container, 'base', None).mean(frame_axis_index)
+
+    if not isinstance(normalized, type(None)) and frames > 1:
+        # This is only the statistical fluctuation of the normalized data itself
+        dnormalized = data_container.normalized.std(frame_axis_index) / sqrt(frames - 1)
+        # we must also add the fluctuations due to the substraction of the baseline
+        # and the normalization with the ir profile. These fluctuations
+        # Themselves are stored in the dnormalized property of the data_container.
+        # If I'm not mistaken we can just add them, because Gaussian error propagation
+        # for the a+b is da+db
+        dnormalized += data_container.dnormalized.mean(frame_axis_index)
+
+    if not isinstance(norm, type(None)) and frames > 1:
+        dnorm = data_container.norm.std(frame_axis_index) / sqrt(frames - 1)
+        dnorm =+ data_container.dnorm.mean(frame_axis_index)
+
+    if not isinstance(base, type(None)) and frames >1:
+        dbase = data_container.base.std(frame_axis_index) / sqrt(frames - 1)
+        dbase += data_container.dbase.mean(frame_axis_index)
 
     savez(
         fname,
-        wavenumber=data_container.wavenumber,
-        intensity=data_container.norm.mean(-3),
-        dintensity=dintensity,
-        l_dates=data_container.l_dates,
+        wavenumber=data_container.wavenumber, # Wavenumbers
+        data=data, # raw data
+        ddata=ddata, # uncertaincy of the raw data
+        back_sub=back_sub, # baseline substracted data
+        dback_sub=dback_sub, # uncertaincy of the bsaelinesubstracted data
+        normalized=normalized, # normalized data
+        dnormalized=dnormalized,  # uncertaincy of the normalized data
+        norm=norm, # ir profile
+        dnorm=dnorm, # unvertaincy of the ir profile
+        base=base, # baseline
+        dbase=dbase,
         times=data_container.times,
-        l_times=data_container.l_times,
+        metadata=data_container.metadata
     )
 
+def load_npz_to_Scan(fname, **kwargs):
+    """Translates an AllYouCanEat obj into a Scan obj."""
+    if '~' in fname:
+        fname = path.expanduser(fname)
+
+    imp = load(fname)
+
+    ret = Scan()
+    ret.base = imp['base'].squeeze()
+    ret.dbase = imp['dbase'].squeeze()
+    ret.norm = imp['norm'].squeeze()
+    ret.dnorm = imp['dnorm'].squeeze()
+    ret.metadata = imp['metadata'].squeeze()[()]
+    # This works only for data that is squeezable in to a 2d shape.
+    # For pump Probe data, this will not work
+    ret.df = DataFrame(
+        imp['data'].squeeze().T,
+        index=imp['wavenumber'].squeeze(),
+        **kwargs
+    )
+    ret.normalized = imp['normalized'].squeeze()
+    ret.dnormalized = imp['dnormalized'].squeeze()
+    return ret
 
 class AllYouCanEat():
     """Class to quickly import data.
@@ -134,12 +294,17 @@ class AllYouCanEat():
         - axis 2: y-pixels
         - axis 3: x-pixels
     """
-    def __init__(self, fname):
+    def __init__(self, fname=None):
         self.pp_delays = array([0])
+        self.metadata = {}
+        self._fname  = fname
+
+        if isinstance(fname, type(None)):
+            return
+
         if '~' in fname:
             fname = path.expanduser(fname)
         self._fname = path.abspath(fname)
-        self.metadata = {}
         self._dates = None
         self._readData()
 

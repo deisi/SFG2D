@@ -5,10 +5,16 @@ class ScanBase():
     """ABS for Scans."""
     _med = None
 
-    def __init__(self, df, base=None, norm=None, metadata=None):
+    def __init__(self,
+                 df=None, base=None, norm=None, metadata=None,
+                 dbase=None, dnorm=None, normalized=None, dnormalized=None):
         self._df = df
         self._base = base
+        self._dbase = dbase
         self._norm = norm
+        self._dnorm = dnorm
+        self._normalized = normalized
+        self._dnormalized = dnormalized
         self.metadata = metadata
 
     @property
@@ -20,12 +26,28 @@ class ScanBase():
         self._norm = value
 
     @property
+    def dnorm(self):
+        return self._dnorm
+
+    @dnorm.setter
+    def dnorm(self, value):
+        self._dnorm = value
+
+    @property
     def base(self):
         return self._base
 
     @base.setter
     def base(self, value):
         self._base = value
+
+    @property
+    def dbase(self):
+        return self._dbase
+
+    @dbase.setter
+    def dbase(self, value):
+       self._dbase = value
 
     @property
     def df(self):
@@ -70,6 +92,27 @@ class ScanBase():
             self._med = None
             return
         return ret
+
+    @property
+    def normalized(self):
+        if isinstance(self._normalized, type(None)):
+            self._normalized = self._df.divide(self._norm, axis=0)
+        return self._normalized
+
+    @normalized.setter
+    def normalized(self, value):
+        self._normalized = value
+
+    @property
+    def dnormalized(self):
+        if isinstance(self._dnormalized, type(None)):
+            raise NotImplementedError
+            #self._dnormalized =
+        return self._dnormalized
+
+    @dnormalized.setter
+    def dnormalized(self, value):
+        self._dnormalized = value
 
     def __str__(self):
         return self._df.__str__()
@@ -132,7 +175,7 @@ class PumpProbe():
 
     
 class Scan(ScanBase):
-    def __init__(self, df, base=None, norm=None, metadata=None):
+    def __init__(self, df=None, base=None, norm=None, metadata=None):
         self._df = df
         self._base = base
         self._norm = norm
@@ -143,7 +186,7 @@ class Scan(ScanBase):
 
 
 class TimeScan(ScanBase, PumpProbe):
-    def __init__(self, df, base=None, norm=None, pump=None, metadata=None,
+    def __init__(self, df=None, base=None, norm=None, pump=None, metadata=None,
                  pumped="spec_0", probed="spec_1"):
         self._df = df
         self.metadata = metadata
