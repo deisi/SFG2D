@@ -27,6 +27,8 @@ requirements = [
     'jupyter_dashboards',
     'xmltodict',
     'pyyaml',
+    'iminuit',
+    'probfit >= 1.1'
 ]
 
 test_requirements = [

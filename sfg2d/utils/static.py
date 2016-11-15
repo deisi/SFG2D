@@ -1,5 +1,5 @@
 """static functions go here """
-from numpy import sqrt, power, cos, sin, arcsin
+from numpy import sqrt, power, cos, sin, arcsin, square
 
 
 def wavenumbers_to_nm(wavenumbers):
@@ -139,3 +139,42 @@ def Rs_CaF(wavelength, alpha):
     Rs_CaF = Rs(ca, cb, n1, n2)
 
     return Rs_CaF
+
+def sfgn1(x, nr, phase, amplitude, pos, width):
+    '''One resonance sfg responde with NR background
+
+    Parameters
+    ---------- 
+    x : array
+        wavenumbers
+    nr : Non Resonant background (amplitude)
+    phase : Phase of the non resonant background
+    amplitude : number
+        Amplitude
+    pos : number
+    width : width of the lorenzian (FWHM)
+
+    Returns
+    -------
+    array with the same shape as x of results
+    '''
+
+    # Non resonant part
+    ChiNR = nr * (cos(phase) + 1j * sin(phase))
+
+    # Resonent part
+    A = amplitude
+    delta = pos - x
+    gamma = width / 2
+    # probfit uses a precompiled c backend and is thus faster
+    # ChiR_r = A * probfit.pdf.cauchy(x, pos, gamma)
+    # ChiR_i = A * gamma * probfit.pdf.cauchy(x, pos, gamma)
+    ChiR_i = A * gamma / (delta**2 + gamma**2)
+    ChiR_r = A * delta / (delta**2 + gamma**2)
+    ChiR = ChiR_r + 1j * ChiR_i
+
+    # The physical Chi
+    Chi = ChiR + ChiNR
+
+    # Doing it this way seems to be the fastest
+    return square(Chi.real) + square(Chi.imag)

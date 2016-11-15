@@ -10,12 +10,14 @@ from ..core.scan import Scan
 # The meaning of the Indices in the data array
 x_pixel_index = -1
 y_pixel_index = -2
+spec_index = y_pixel_index
 frame_axis_index = -3
-pp_index = -4
+pp_index = -4 # pump-probe delay
 
 def get_AllYouCanEat_scan(fname, baseline, ir_profile,
                           wavenumber=arange(1600), dir_profile=None, dbaseline=None):
-    '''The usual procedure of importing, substracting the baseline
+    '''The usu    # ChiR_i = A * gamma * probfit.pdf.cauchy(x, pos, gamma)
+al procedure of importing, substracting the baseline
     and normalizing the data.
     fname: str
         file to load
@@ -47,7 +49,7 @@ def get_frame_mean(fname, fbaseline):
     ret.baseline = baseline.mean(frame_axis_index).squeeze()
     if baseline_frames > 1:
         ret.dbaseline = baseline.std(frame_axis_index).squeeze() / sqrt(baseline_frames-1)
-
+        
     ret.back_sub = ret.data - ret.baseline
     ret.frame_mean = ret.back_sub.mean(frame_axis_index).squeeze()
 
@@ -249,8 +251,11 @@ def save_frame_mean(fname, data_container):
         metadata=data_container.metadata
     )
 
+
 def load_npz_to_Scan(fname, **kwargs):
-    """Translates an AllYouCanEat obj into a Scan obj."""
+    """Translates an AllYouCanEat obj into a Scan obj.
+
+    Works only for 2d squeezable data."""
     if '~' in fname:
         fname = path.expanduser(fname)
 
@@ -264,13 +269,43 @@ def load_npz_to_Scan(fname, **kwargs):
     ret.metadata = imp['metadata'].squeeze()[()]
     # This works only for data that is squeezable in to a 2d shape.
     # For pump Probe data, this will not work
+    column_names = ['spec_%i' % i for i in range(imp['data'].shape[spec_index])]
     ret.df = DataFrame(
         imp['data'].squeeze().T,
         index=imp['wavenumber'].squeeze(),
+        columns = column_names,
         **kwargs
     )
+    # TODO make this ready for 2d input
+    ret.df['dspec_0'] = imp['ddata'].squeeze()
+    ret.df.index.name = 'wavenumber'
     ret.normalized = imp['normalized'].squeeze()
     ret.dnormalized = imp['dnormalized'].squeeze()
+
+    # if all arrays are 2d squeezable and have the same shape,
+    # combine them all in df, so all data is in the same pandas
+    # data frame
+    for elm in (ret.base, ret.dbase, ret.norm, ret.dnorm):
+        test_shapes = elm.shape[0] == ret.df.shape[0]
+        if not test_shapes:
+            return ret
+
+    # must flip everything if sorted wrongly
+    if imp['wavenumber'][0] - imp['wavenumber'][-1] > 0:
+        ret.df.sort_index(inplace=True)
+        ret.norm = ret.norm[::-1]
+        ret.dnorm = ret.dnorm[::-1]
+        ret.base = ret.base[::-1]
+        ret.dbase = ret.dbase[::-1]
+        ret.normalized = ret.normalized[::-1]
+        ret.dnormalized = ret.dnormalized[::-1]
+
+    ret.df['norm'] = ret.norm
+    ret.df['dnorm'] = ret.dnorm
+    ret.df['base'] = ret.base
+    ret.df['dbase'] = ret.dbase
+    ret.df['normalized'] = ret.normalized
+    ret.df['dnormalized'] = ret.dnormalized
     return ret
 
 class AllYouCanEat():

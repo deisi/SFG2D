@@ -17,7 +17,7 @@ debug = 0
 
 class MyBqPlot():
     """Class for Bqolot setup. """
-    
+
     def fig_init(self, title='',x_label='', y_label=''):
         """Init an empty bqplot figure"""
         x_sc = LinearScale()
@@ -469,7 +469,7 @@ class PPDelaySlider():
         self.fig = None
         self.ax = None
         self.pp_delays = pp_delays
-        self.data = data        
+        self.data = data
 
     def __del__(self):
         self.w_smooth_s.close()
@@ -479,7 +479,7 @@ class PPDelaySlider():
         del self.w_pp_s
         del self.w_smooth_s
         del self.pp_delay
-        del self.data        
+        del self.data
 
     def _init_widgets(self):
         self.w_pp_s = SelectionSlider(
@@ -540,7 +540,7 @@ class PPDelaySlider():
                 if debug:
                     print("Running as duplicated")
                 for line, spec_line in zip(self.ax.lines, self.data.ix[self.w_pp_s.value].T.values):
-                    line.set_ydata(spec_line)        
+                    line.set_ydata(spec_line)
             else:
                 if debug:
                     print("Running as normal df")

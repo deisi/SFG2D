@@ -4,7 +4,7 @@ from . import io, utils, plotting, widgets
 
 from .core.scan import Scan, TimeScan
 
-from .io import AllYouCanEat, PrincetonSPEFile3, NtbFile
+#from .io import AllYouCanEat, PrincetonSPEFile3, NtbFile
 from .io.veronica import read_auto, read_time_scan, read_scan_stack, read_save
 
 from .utils import detect_peaks
