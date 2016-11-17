@@ -212,9 +212,18 @@ def save_frame_mean(fname, data_container):
         ddata = data_container.data.std(frame_axis_index) / sqrt(frames - 1)
         dback_sub = data_container.back_sub.std(frame_axis_index) / sqrt(frames - 1)
 
-    normalized = getattr(data_container, 'normalized', None).mean(frame_axis_index)
-    norm = getattr(data_container, 'norm', None).mean(frame_axis_index)
-    base = getattr(data_container, 'base', None).mean(frame_axis_index)
+    normalized = getattr(data_container, 'normalized', None)
+    if not isinstance(normalized, type(None)):
+        normalized = normalized.mean(frame_axis_index)
+
+    norm = getattr(data_container, 'norm', None)
+    if not isinstance(norm, type(None)):
+        norm = norm.mean(frame_axis_index)
+
+    base = getattr(data_container, 'base', None)
+    if not isinstance(base, type(None)):
+        base = base.mean(frame_axis_index)
+
 
     if not isinstance(normalized, type(None)) and frames > 1:
         # This is only the statistical fluctuation of the normalized data itself
@@ -226,11 +235,13 @@ def save_frame_mean(fname, data_container):
         # for the a+b is da+db
         dnormalized += data_container.dnormalized.mean(frame_axis_index)
 
+    dnorm = None
     if not isinstance(norm, type(None)) and frames > 1:
         dnorm = data_container.norm.std(frame_axis_index) / sqrt(frames - 1)
         dnorm =+ data_container.dnorm.mean(frame_axis_index)
 
-    if not isinstance(base, type(None)) and frames >1:
+    dbase = None
+    if not isinstance(base, type(None)) and frames > 1:
         dbase = data_container.base.std(frame_axis_index) / sqrt(frames - 1)
         dbase += data_container.dbase.mean(frame_axis_index)
 

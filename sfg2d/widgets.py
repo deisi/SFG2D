@@ -582,7 +582,6 @@ class PPDelaySlider():
         self.w_pp_s.unobserve_all()
         self.w_smooth_s.unobserve_all()
         self.w_Autoscale.unobserve_all()
-        
 
 class Importer(PPDelaySlider):
     def __init__(self, ffolder):
@@ -603,11 +602,11 @@ class Importer(PPDelaySlider):
             )
         self.w_files.value = self.w_files.options[0]
         self.w_files.layout.width = '100%'
-        
+
         pp_delays, data = self._get_data()
         super().__init__(pp_delays, data.med)
         self._container = VBox([self.w_files, self._container])
-        
+
     def _get_data(self):
         data = read_auto(self.ffolder + '/'  + self.w_files.value)
         pp_delays = [0]
