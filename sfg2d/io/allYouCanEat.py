@@ -165,6 +165,8 @@ def concatenate_data_sets(
 
 def save_data_set(fname, data_container):
     """Save a data set as .npz binary file.
+
+    All attributes are save optionally. If missing, None is saved
     Keyword Arguments:
     data_container --
     """
@@ -172,23 +174,29 @@ def save_data_set(fname, data_container):
         fname = path.expanduser(fname)
 
     # Optional attributes
+    wavelength = getattr(data_container, "wavelength", None)
+    wavenumber = getattr(data_container, 'wavenumber', None)
+    back_sub = getattr(data_container, 'back_sub', None)
     l_dates = getattr(data_container, "l_dates", None)
     times = getattr(data_container, "times", None)
     l_times = getattr(data_container, "l_times", None)
     dnormalized = getattr(data_container, "dnormalized", None)
     normalized = getattr(data_container, 'normalized', None)
+    vis_wl = getattr(data_container, 'vis_wl', None)
+    metadata = getattr(data_container, 'metadata', None)
 
     savez(
         fname,
-        wavelength=data_container.wavelength,
-        wavenumber=data_container.wavenumber,
-        back_sub=data_container.back_sub,
+        wavelength=wavelength,
+        wavenumber=wavenumber,
+        back_sub=back_sub,
         normalized=normalized,
         dnormalized=dnormalized,
-        metadata=data_container.metadata,
+        metadata=metadata,
         l_dates=l_dates,
         times=times,
         l_times=l_times,
+        vis_wl = vis_wl,
     )
 
 def save_frame_mean(fname, data_container):
@@ -199,9 +207,13 @@ def save_frame_mean(fname, data_container):
     if '~' in fname:
         fname = path.expanduser(fname)
 
+    # load attributes if available
+    wavelength = getattr(data_container, "wavelength", None)
+    wavenumber = getattr(data_container, 'wavenumber', None)
+    times = getattr(data_container, "times", None)
+    metadata = getattr(data_container, 'metadata', None)
     # number of frames (usually = number of repetitions)
     frames = data_container.data.shape[frame_axis_index]
-
     data = data_container.data.mean(frame_axis_index)
     back_sub = data_container.back_sub.mean(frame_axis_index)
     ddata = None
@@ -247,7 +259,8 @@ def save_frame_mean(fname, data_container):
 
     savez(
         fname,
-        wavenumber=data_container.wavenumber, # Wavenumbers
+        wavelength=wavelength,
+        wavenumber=wavenumber, # Wavenumbers
         data=data, # raw data
         ddata=ddata, # uncertaincy of the raw data
         back_sub=back_sub, # baseline substracted data
@@ -258,8 +271,8 @@ def save_frame_mean(fname, data_container):
         dnorm=dnorm, # unvertaincy of the ir profile
         base=base, # baseline
         dbase=dbase,
-        times=data_container.times,
-        metadata=data_container.metadata
+        times=times,
+        metadata=metadata,
     )
 
 

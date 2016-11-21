@@ -1,8 +1,10 @@
 __version__ = '0.5.0'
 
-from . import io, utils, plotting, widgets
+from . import io, utils, plotting, widgets, fit
 
 from .core.scan import Scan, TimeScan
+
+#import .fit
 
 #from .io import AllYouCanEat, PrincetonSPEFile3, NtbFile
 from .io.veronica import read_auto, read_time_scan, read_scan_stack, read_save
