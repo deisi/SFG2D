@@ -74,7 +74,7 @@ def normalization(DataContainer, baseline, ir_profile, dbaseline=None, dir_profi
 
     if isinstance(dir_profile, type(None)):
         dir_profile = zeros(data_shape)
-    if isinstance(baseline, type(None)):
+    if isinstance(dbaseline, type(None)):
         dbaseline = zeros(data_shape)
 
 
