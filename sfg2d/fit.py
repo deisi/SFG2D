@@ -86,3 +86,44 @@ def load_fitarg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
         minuit.migrad()
 
     return fitarg, minuit, chi2
+
+def make_chi2_fit(x, y, fit_func, fitarg={}, migrad=True, **kwargs):
+    """Make a chi2 fit using probfit and iminuit
+
+    Parameters
+    ----------
+    x : array
+        x-data of the fit
+    y : array
+        y-data of the fit
+    fit_func : The function of the fitarg
+    fit_arg : dictionary
+        Parameter dictionary for the fit
+    migrad : Boolean
+        If true the fit will be performed again to offer additional properties
+
+    **kwargs
+    --------
+    Most important is
+    error: array
+        The y-error of the data to fit
+
+    Returns
+    -------
+    minuit : Minuit obj with the fit
+    chi2 : The probfit chi2 obj
+    """
+    from iminuit import Minuit
+    from probfit import Chi2Regression
+
+    chi2 = Chi2Regression(
+        fit_func,
+        x,
+        y,
+        **kwargs
+    )
+
+    minuit = Minuit(chi2, **fitarg, pedantic=False)
+    if migrad:
+        minuit.migrad()
+    return minuit, chi2

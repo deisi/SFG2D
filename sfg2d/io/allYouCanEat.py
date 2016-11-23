@@ -285,14 +285,8 @@ def load_npz_to_Scan(fname, **kwargs):
 
     imp = load(fname)
 
+    # TODO make this ready for 2d input
     ret = Scan()
-    ret.base = imp['base'].squeeze()
-    ret.dbase = imp['dbase'].squeeze()
-    ret.norm = imp['norm'].squeeze()
-    ret.dnorm = imp['dnorm'].squeeze()
-    ret.metadata = imp['metadata'].squeeze()[()]
-    # This works only for data that is squeezable in to a 2d shape.
-    # For pump Probe data, this will not work
     column_names = ['spec_%i' % i for i in range(imp['data'].shape[spec_index])]
     ret.df = DataFrame(
         imp['data'].squeeze().T,
@@ -300,7 +294,11 @@ def load_npz_to_Scan(fname, **kwargs):
         columns = column_names,
         **kwargs
     )
-    # TODO make this ready for 2d input
+    ret.base = imp['base'].squeeze()
+    ret.dbase = imp['dbase'].squeeze()
+    ret.norm = imp['norm'].squeeze()
+    ret.dnorm = imp['dnorm'].squeeze()
+    ret.metadata = imp['metadata'].squeeze()[()]
     ret.df['dspec_0'] = imp['ddata'].squeeze()
     ret.df.index.name = 'wavenumber'
     ret.normalized = imp['normalized'].squeeze()
