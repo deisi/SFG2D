@@ -12,21 +12,14 @@ with open('HISTORY.rst') as history_file:
 requirements = [
     'Click>=6.0',
     'numpy',
-    'pandas',
     'matplotlib',
     'scipy',
-    'seaborn',
-    'Pillow',
-    'ipython',
+    'pandas',
     #'notebook', # must be installed in the system virtualenv is not enouth
     #'bqplot', # system ...
     #'widgetsnbextension',
     #'ipywidgets',
-    'watchdog',
     #'jupyter',
-    'jupyter_dashboards',
-    'xmltodict',
-    'pyyaml',
 ]
 
 test_requirements = [

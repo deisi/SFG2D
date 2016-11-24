@@ -2,8 +2,6 @@ from numpy import loadtxt
 from pandas import DataFrame, to_timedelta
 from datetime import datetime, timedelta
 import io
-import yaml
-
 
 class NtbFile():
     def __init__(self, fname):
@@ -32,6 +30,8 @@ class NtbFile():
         self._processData()
 
     def _readFile(self):
+        import yaml
+
         with self._filedesc:
             line = ''
             self.header = []

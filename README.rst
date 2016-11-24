@@ -24,6 +24,13 @@ Python Toolkit for Analsys if 2d-sfg spectra
 * Free software: MIT license
 * Documentation: https://sfg2d.readthedocs.io.
 
+Manual install dependencues
+---------------------------
+Some dependencies must be installed manually due to some bugs
+`pip install numpy cython`
+and you will need pyqt4 but it doesn't install from pip so:
+`pacman -S python-pyqt4`
+
 Installation
 ------------
 Download package from github:
@@ -56,6 +63,8 @@ note: change the path in `-a ~/SFG2D` to the location of sfg2d package
 
 enter into virtualenv with:
 `workon sfg2d`
+
+Install manual dependencies as described above.
 
 Install sfg2d in editable mode:
 `pip install -e .`

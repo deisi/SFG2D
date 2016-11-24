@@ -1,6 +1,6 @@
 __version__ = '0.5.0'
 
-from . import io, utils, plotting, widgets
+from . import io, utils, plotting
 
 from .core.scan import Scan, TimeScan
 

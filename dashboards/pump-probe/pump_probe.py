@@ -4,6 +4,7 @@ import warnings
 import ipywidgets as ipyw
 import matplotlib.pyplot as plt
 import sfg2d
+import sfg2d.widgets
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler

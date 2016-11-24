@@ -6,6 +6,7 @@ from watchdog.events import FileSystemEventHandler
 from glob import glob
 
 import sfg2d
+import sfg2d.widgets
 import pandas as pd
 
 debug = 0
