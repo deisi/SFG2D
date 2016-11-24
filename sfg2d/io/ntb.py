@@ -20,8 +20,8 @@ class NtbFile():
             Creation time of the file in seconds relative to 00:00 of the day of creation
 
         Date : str
-            Date of the programstart, not the date of the file creation.
-            As you might think, haha this would have been to smart wouldt it....
+            Date of the program start, not the date of the file creation.
+            As you might think, haha this would have been to smart wouldn't it....
             WHAT THE FUCK, WHO DID THIS.
         """
         self._fname = fname
@@ -43,7 +43,7 @@ class NtbFile():
                 if line is '\n':
                     continue
 
-                # Correct for the not yaml comform lines
+                # Correct for the not yaml conform lines
                 if 'Lipid(s) Details' in line:
                     lipid = yaml.load(line)
                     lipid['Lipid(s) Details'] = yaml.load(

@@ -31,7 +31,7 @@ def sum_of_spectra(ts, spec, ax=None):
         x = np.arange(l_ppdelays)*exp
         ax.plot(x, g, label='run %i' % 0)
 
-    ax.set_xlabel('$\Delta$t/%s' % exp_unit)
+    ax.set_xlabel(r'$\Delta$t/%s' % exp_unit)
     ax.set_title('Sum of Spectra for %s' % spec)
 
 
@@ -45,7 +45,7 @@ def bleach_spec(ts, pp_delay, w_roi, ax=None):
         pump_probe_delay
     w_roi : slice
         region of interest in wavenumbers"""
-    if isinstance(ax,  type(None)):
+    if isinstance(ax, type(None)):
         ax = plt.gca()
     ts.bleach[pp_delay][w_roi].plot(ax=ax)
     ax.set_title("%i fs" % pp_delay)
@@ -53,5 +53,5 @@ def bleach_spec(ts, pp_delay, w_roi, ax=None):
 
 
 def bleach_sum(ts, roi=slice(None, None)):
-    """plot the bleach by looking at the summation of the roi"""
+    """plot the bleach by looking at the summation of the roi."""
     raise NotImplementedError

@@ -18,16 +18,17 @@ SFG2D
      :alt: Updates
 
 
-Python Toolkit for Analsys if 2d-sfg spectra
+Python Toolkit to analyze 2d-sfg spectra and more.
 
 
 * Free software: MIT license
 * Documentation: https://sfg2d.readthedocs.io.
 
-Manual install dependencues
+Manually install dependencies
 ---------------------------
 Some dependencies must be installed manually due to some bugs
 `pip install numpy cython`
+
 and you will need pyqt4 but it doesn't install from pip so:
 `pacman -S python-pyqt4`
 
@@ -41,7 +42,7 @@ Install package with::
 
   pip install sfg2d
 
-If you want to use the dashboards run::
+ If you want to use the dashboards run::
 
   jupyter nbextension enable --py --sys-prefix bqplot
 
@@ -68,7 +69,7 @@ Install probfit by hand.
     
 
 
-Virtual Env
+Virtualenv
 -----------
 Install python-virtualenv::
 
@@ -84,7 +85,7 @@ Setup virtualenvwrapper put::
 
 in ``~/.bashrc`` or ``~/.profile``
 
-Setup a virutal env::
+Setup a virutalenv::
 
  mkvirtualenv --system-site-packages -a ~/SFG2D -p python3 sfg2d
 
@@ -115,7 +116,7 @@ Now edit this kernel to use the sfg2d virtualenv by first moving it with::
   mv ~/.local/share/jupyter/kernels/python3 ~/.local/share/jupyter/kernels/sfg2d
 
 And then edit the ``~/.local/share/jupyter/kernels/sfg2d/kernel.json``
-and adjust the content to be simiar to::
+and adjust the content to be similar to::
 
     json
     {
@@ -130,14 +131,14 @@ and adjust the content to be simiar to::
      "language": "python"
     }
 
-The value of the ``display_name`` field is what jupyter will know the kernel by. The important line is the first arguemtn of the ``argv``. This must be the full path to the python3 binary within the virutalenv.
+The value of the ``display_name`` field is what jupyter will know the kernel by. The important line is the first argument of the ``argv``. This must be the full path to the python3 binary within the virutalenv.
 
 
 Test setup by running a notebook server::
 
     jupyter notebook
 
-Create a New Notebook and choose the sfg2d kernel from the Dropdown menu and try to run::
+Create a New Notebook and choose the sfg2d kernel from the drop-down menu and try to run::
 
   import sfg2d
 
@@ -150,21 +151,21 @@ e.g.::
 
 Description
 -----------
-This is a toolkit to analyse mostly sfg2d data with python3 using jupyter
+This is a toolkit to analyze mostly sfg2d data with python3 using jupyter
 notebooks. It is not really generic, but rather specific to the problems
 and tasks I have to encounter here at the MPIP. It is nowhere near stable
 and things might change drastically at any point in time. If you want to use
-this I encurage you to create you own fork and work with your own version.
-At the time of wrtiting, there is also almost no documentation available.
-I think this will cahnge in time when things become more stable but up to now.
+this I encourage you to create you own fork and work with your own version.
+At the time of writing, there is also almost no documentation available.
+I think this will change in time when things become more stable but up to now.
 Its not worth documenting much since it might be different next time anyway.
 
 
 Features
 --------
 - Import data from Veronica, Viktor and .spe (version 2 and 3) files.
-- Datastructure based on pandas DataFrames to organize ans structure data.
-- A dashboard for the viktor lab.
+- Data-structure based on pandas DataFrames to organize ans structure data.
+- A dashboard for the Viktor lab.
 - A minimal fit gui
 - Import ``.spe`` spectra files
 - Import ``.ntb`` surface tension files
@@ -182,4 +183,4 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 The .spe file importer is based on the code of James Battat, Kasey Russell
 and
 
-For the strucuture of the module I was inspired by 
+For the structure of the module I was inspired by 

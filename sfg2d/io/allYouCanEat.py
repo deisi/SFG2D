@@ -16,9 +16,9 @@ pp_index = -4 # pump-probe delay
 
 def get_AllYouCanEat_scan(fname, baseline, ir_profile,
                           wavenumber=arange(1600), dir_profile=None, dbaseline=None):
-    '''The usu    # ChiR_i = A * gamma * probfit.pdf.cauchy(x, pos, gamma)
-al procedure of importing, substracting the baseline
-    and normalizing the data.
+    '''Function to unify usual data processing pipeline.
+
+    This function imports data, subtracts the baseline and normalizes the data.
     fname: str
         file to load
     baseline: array
@@ -30,7 +30,7 @@ al procedure of importing, substracting the baseline
     dir_profile: array
         uncertainty of  the normalization
     dbaseline: array
-        uvertainty of the baseline
+        uncertainty of the baseline
 
     '''
     ret = AllYouCanEat(fname)
@@ -106,15 +106,15 @@ def normalization(DataContainer, baseline, ir_profile, dbaseline=None, dir_profi
 def concatenate_data_sets(
         list_of_data_sets,
         sum_sl=slice(None, None)):
-    '''Concatenate different measurements
+    '''Concatenate different measurements.
 
     list_of_data_sets: array type
-        list fo the different data sets. Each element must have
+        list for the different data sets. Each element must have
         Members as
             - data
               The raw data
             - back_sub
-              The data after baseline substraaction
+              The data after baseline subtraction
             - norm
               The data after normalization
             - dates
@@ -122,7 +122,7 @@ def concatenate_data_sets(
 
     sum_sl : slice
         The slice that is used to calculate the sums of the
-        inidivual spectra of. Default is to sum the whole
+        individual spectra of. Default is to sum the whole
         spectra.
     '''
 
@@ -260,15 +260,15 @@ def save_frame_mean(fname, data_container):
     savez(
         fname,
         wavelength=wavelength,
-        wavenumber=wavenumber, # Wavenumbers
+        wavenumber=wavenumber, # wavenumbers
         data=data, # raw data
         ddata=ddata, # uncertaincy of the raw data
         back_sub=back_sub, # baseline substracted data
-        dback_sub=dback_sub, # uncertaincy of the bsaelinesubstracted data
+        dback_sub=dback_sub, # uncertaincy of the baseline substracted data
         normalized=normalized, # normalized data
         dnormalized=dnormalized,  # uncertaincy of the normalized data
         norm=norm, # ir profile
-        dnorm=dnorm, # unvertaincy of the ir profile
+        dnorm=dnorm, # uncertainly of the ir profile
         base=base, # baseline
         dbase=dbase,
         times=times,

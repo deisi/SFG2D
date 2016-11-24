@@ -1,5 +1,5 @@
-"""Remove double occurence of AVG in folder given by first argument.
-Second arg must be do to actualy perform the renaming."""
+"""Remove double occurrences of AVG in folder given by first argument.
+Second arg must be do to actually perform the renaming."""
 
 import os
 import sys

@@ -44,7 +44,7 @@ def pixel_to_nm(x, central_wl):
 
 
 def nm_to_pixel(x, central_wl):
-    """ transform nm to pixel koordinates for central wavelength
+    """ transform nm to pixel coordinates for central wavelength
 
     Parameters
     ----------

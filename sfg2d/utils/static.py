@@ -15,7 +15,7 @@ def nm_to_wavenumbers(nm):
 def nm_to_ir_wavenumbers(x, up_wl):
     """nm to vibrational wavenumbers
 
-    The wavelength of the upconvertion photon is subtrackted so that only
+    The wavelength of the upconvertion photon is subtracted so that only
     the vibrational part of the signal in kept.
 
     Parameters
@@ -33,10 +33,10 @@ def ir_wavenumbers_to_nm(x, up_wl):
 
     Parameters
     ----------
-    x : array linke
+    x : array like
         ir wavenumbers to convert to nm wavelength
     up_wl : int
-        wavelength of the upconversion photon in nm.
+        wavelength of the up-conversion photon in nm.
 
     Returns
     -------
@@ -96,7 +96,7 @@ def Ts(ca, cb, n1, n2):
 def n_caf2(x):
     '''Refractive index of CaF2.
 
-    This is a nummerical expresion for the dispersion relation of CaF2
+    This is a numerical expression for the dispersion relation of CaF2
 
     taken from: http://refractiveindex.info/?shelf=main&book=CaF2&page=Malitson
 
@@ -141,7 +141,7 @@ def Rs_CaF(wavelength, alpha):
     return Rs_CaF
 
 def sfgn1(x, nr, phase, amplitude, pos, width):
-    '''One resonance sfg responde with NR background
+    '''One resonance sfg response with NR background
 
     Parameters
     ---------- 
@@ -162,7 +162,7 @@ def sfgn1(x, nr, phase, amplitude, pos, width):
     # Non resonant part
     ChiNR = nr * (cos(phase) + 1j * sin(phase))
 
-    # Resonent part
+    # Resonant part
     A = amplitude
     delta = pos - x
     gamma = width / 2

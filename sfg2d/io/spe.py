@@ -59,7 +59,7 @@ class PrincetonSPEFile3():
         The set temperature of the camera
 
     TempRead : int
-        The read temeperture of the camera
+        The read temperature of the camera
 
     roi : dict
         Region of interest 

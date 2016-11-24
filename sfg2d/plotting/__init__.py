@@ -13,7 +13,7 @@ def plot(*args, **kwargs):
 def plot_time(time, data, **kwargs):
     """ Wrapper function to plot formatted time on the x-axis
     and data on the y axis. If time is datetime obj, the time is
-    plottet in HH:MM, if time is timedelta it is plotted as minuits
+    plotted in HH:MM, if time is timedelta it is plotted as minuits
 
     Parameters
     ----------
@@ -48,7 +48,7 @@ def plot_time(time, data, **kwargs):
 
 def errorshadow(x, y, dy, ax=None, color="b", **kwargs):
     """
-    Plot errorbar as shadow around the data
+    Plot error-bar as shadow around the data
 
     Parameters
     ----------
@@ -57,7 +57,7 @@ def errorshadow(x, y, dy, ax=None, color="b", **kwargs):
     y : array
         y-data
     dy : array
-        uncertaincy of the y data
+        uncertainty of the y data
     ax : Optional [matplotlib.axes obj]
         the aces to plot on to.
     **kwargs :
