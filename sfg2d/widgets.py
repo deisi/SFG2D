@@ -17,7 +17,7 @@ debug = 0
 
 class MyBqPlot():
     """Class for Bqolot setup. """
-    
+
     def fig_init(self, title='',x_label='', y_label=''):
         """Init an empty bqplot figure"""
         x_sc = LinearScale()
@@ -469,7 +469,7 @@ class PPDelaySlider():
         self.fig = None
         self.ax = None
         self.pp_delays = pp_delays
-        self.data = data        
+        self.data = data
 
     def __del__(self):
         self.w_smooth_s.close()
@@ -479,7 +479,7 @@ class PPDelaySlider():
         del self.w_pp_s
         del self.w_smooth_s
         del self.pp_delay
-        del self.data        
+        del self.data
 
     def _init_widgets(self):
         self.w_pp_s = SelectionSlider(
@@ -540,7 +540,7 @@ class PPDelaySlider():
                 if debug:
                     print("Running as duplicated")
                 for line, spec_line in zip(self.ax.lines, self.data.ix[self.w_pp_s.value].T.values):
-                    line.set_ydata(spec_line)        
+                    line.set_ydata(spec_line)
             else:
                 if debug:
                     print("Running as normal df")
@@ -582,7 +582,6 @@ class PPDelaySlider():
         self.w_pp_s.unobserve_all()
         self.w_smooth_s.unobserve_all()
         self.w_Autoscale.unobserve_all()
-        
 
 class Importer(PPDelaySlider):
     def __init__(self, ffolder):
@@ -603,11 +602,11 @@ class Importer(PPDelaySlider):
             )
         self.w_files.value = self.w_files.options[0]
         self.w_files.layout.width = '100%'
-        
+
         pp_delays, data = self._get_data()
         super().__init__(pp_delays, data.med)
         self._container = VBox([self.w_files, self._container])
-        
+
     def _get_data(self):
         data = read_auto(self.ffolder + '/'  + self.w_files.value)
         pp_delays = [0]

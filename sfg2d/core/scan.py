@@ -1,5 +1,6 @@
 import pandas as pd
-
+import numpy as np
+from .. import fit
 
 class ScanBase():
     """ABS for Scans."""
@@ -39,6 +40,11 @@ class ScanBase():
 
     @base.setter
     def base(self, value):
+        if isinstance(value, np.ndarray):
+            if len(np.shape(value.squeeze())) == 1:
+                self.df['base'] = value.squeeze()
+        if isinstance(value, pd.DataFrame) or isinstance(value, pd.Series):
+            self.df['base'] = value
         self._base = value
 
     @property
@@ -130,6 +136,47 @@ class ScanBase():
             self._med = self.groupby_spec.median()
         return self._med
 
+    def make_chi2_fit(self, fit_func,
+                      fitarg = {}, y='normalized', x=None, error='dnormalized',
+                      fit_roi = slice(None, None), **kwargs):
+        """add the results of a fit to the scan.
+
+        Parameters
+        ----------
+        fit_func : function
+        fitarg : dictionary
+        x : string
+            if none index of DataFrame is used
+        y : string
+        error : string
+        fit_roi: selection of the data relecant for the fit
+            if x, y or error is given as array, this is ignored.
+
+        kwargs
+        -------
+        Are passed to sfg2d.fit.make_chi2_fit
+        """
+        if not x:
+            x = self.df[y][fit_roi].index.get_values()
+        if isinstance(x, str):
+            x = self.df[x][fit_roi].get_values()
+        if isinstance(y, str):
+            y = self.df[y][fit_roi].get_values()
+        if isinstance(error, str):
+            error = self.df[error][fit_roi].get_values()
+
+        self.migrad, self.chi2 = fit.make_chi2_fit(
+            x, y, fit_func, fitarg, **kwargs
+        )
+
+    def load_chi2_fit(self, fp, fit_func, **kwargs):
+        """"""
+        self.fitarg = fit.load_fitarg(fp)
+        self.make_chi2_fit(
+            fit_func,
+            self.fitarg,
+            **kwargs,
+        )
 
 class PumpProbe():
     """ABS for PumpProbe data"""
@@ -313,3 +360,5 @@ class TimeScan(ScanBase, PumpProbe):
     @bleach.setter
     def bleach(self, value):
         self._df["bleach"] = value
+
+

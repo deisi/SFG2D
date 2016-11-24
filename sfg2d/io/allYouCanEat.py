@@ -10,12 +10,14 @@ from ..core.scan import Scan
 # The meaning of the Indices in the data array
 x_pixel_index = -1
 y_pixel_index = -2
+spec_index = y_pixel_index
 frame_axis_index = -3
-pp_index = -4
+pp_index = -4 # pump-probe delay
 
 def get_AllYouCanEat_scan(fname, baseline, ir_profile,
                           wavenumber=arange(1600), dir_profile=None, dbaseline=None):
-    '''The usual procedure of importing, substracting the baseline
+    '''The usu    # ChiR_i = A * gamma * probfit.pdf.cauchy(x, pos, gamma)
+al procedure of importing, substracting the baseline
     and normalizing the data.
     fname: str
         file to load
@@ -47,7 +49,7 @@ def get_frame_mean(fname, fbaseline):
     ret.baseline = baseline.mean(frame_axis_index).squeeze()
     if baseline_frames > 1:
         ret.dbaseline = baseline.std(frame_axis_index).squeeze() / sqrt(baseline_frames-1)
-
+        
     ret.back_sub = ret.data - ret.baseline
     ret.frame_mean = ret.back_sub.mean(frame_axis_index).squeeze()
 
@@ -72,7 +74,7 @@ def normalization(DataContainer, baseline, ir_profile, dbaseline=None, dir_profi
 
     if isinstance(dir_profile, type(None)):
         dir_profile = zeros(data_shape)
-    if isinstance(baseline, type(None)):
+    if isinstance(dbaseline, type(None)):
         dbaseline = zeros(data_shape)
 
 
@@ -163,6 +165,8 @@ def concatenate_data_sets(
 
 def save_data_set(fname, data_container):
     """Save a data set as .npz binary file.
+
+    All attributes are save optionally. If missing, None is saved
     Keyword Arguments:
     data_container --
     """
@@ -170,23 +174,29 @@ def save_data_set(fname, data_container):
         fname = path.expanduser(fname)
 
     # Optional attributes
+    wavelength = getattr(data_container, "wavelength", None)
+    wavenumber = getattr(data_container, 'wavenumber', None)
+    back_sub = getattr(data_container, 'back_sub', None)
     l_dates = getattr(data_container, "l_dates", None)
     times = getattr(data_container, "times", None)
     l_times = getattr(data_container, "l_times", None)
     dnormalized = getattr(data_container, "dnormalized", None)
     normalized = getattr(data_container, 'normalized', None)
+    vis_wl = getattr(data_container, 'vis_wl', None)
+    metadata = getattr(data_container, 'metadata', None)
 
     savez(
         fname,
-        wavelength=data_container.wavelength,
-        wavenumber=data_container.wavenumber,
-        back_sub=data_container.back_sub,
+        wavelength=wavelength,
+        wavenumber=wavenumber,
+        back_sub=back_sub,
         normalized=normalized,
         dnormalized=dnormalized,
-        metadata=data_container.metadata,
+        metadata=metadata,
         l_dates=l_dates,
         times=times,
         l_times=l_times,
+        vis_wl = vis_wl,
     )
 
 def save_frame_mean(fname, data_container):
@@ -197,9 +207,13 @@ def save_frame_mean(fname, data_container):
     if '~' in fname:
         fname = path.expanduser(fname)
 
+    # load attributes if available
+    wavelength = getattr(data_container, "wavelength", None)
+    wavenumber = getattr(data_container, 'wavenumber', None)
+    times = getattr(data_container, "times", None)
+    metadata = getattr(data_container, 'metadata', None)
     # number of frames (usually = number of repetitions)
     frames = data_container.data.shape[frame_axis_index]
-
     data = data_container.data.mean(frame_axis_index)
     back_sub = data_container.back_sub.mean(frame_axis_index)
     ddata = None
@@ -210,9 +224,18 @@ def save_frame_mean(fname, data_container):
         ddata = data_container.data.std(frame_axis_index) / sqrt(frames - 1)
         dback_sub = data_container.back_sub.std(frame_axis_index) / sqrt(frames - 1)
 
-    normalized = getattr(data_container, 'normalized', None).mean(frame_axis_index)
-    norm = getattr(data_container, 'norm', None).mean(frame_axis_index)
-    base = getattr(data_container, 'base', None).mean(frame_axis_index)
+    normalized = getattr(data_container, 'normalized', None)
+    if not isinstance(normalized, type(None)):
+        normalized = normalized.mean(frame_axis_index)
+
+    norm = getattr(data_container, 'norm', None)
+    if not isinstance(norm, type(None)):
+        norm = norm.mean(frame_axis_index)
+
+    base = getattr(data_container, 'base', None)
+    if not isinstance(base, type(None)):
+        base = base.mean(frame_axis_index)
+
 
     if not isinstance(normalized, type(None)) and frames > 1:
         # This is only the statistical fluctuation of the normalized data itself
@@ -224,17 +247,20 @@ def save_frame_mean(fname, data_container):
         # for the a+b is da+db
         dnormalized += data_container.dnormalized.mean(frame_axis_index)
 
+    dnorm = None
     if not isinstance(norm, type(None)) and frames > 1:
         dnorm = data_container.norm.std(frame_axis_index) / sqrt(frames - 1)
         dnorm =+ data_container.dnorm.mean(frame_axis_index)
 
-    if not isinstance(base, type(None)) and frames >1:
+    dbase = None
+    if not isinstance(base, type(None)) and frames > 1:
         dbase = data_container.base.std(frame_axis_index) / sqrt(frames - 1)
         dbase += data_container.dbase.mean(frame_axis_index)
 
     savez(
         fname,
-        wavenumber=data_container.wavenumber, # Wavenumbers
+        wavelength=wavelength,
+        wavenumber=wavenumber, # Wavenumbers
         data=data, # raw data
         ddata=ddata, # uncertaincy of the raw data
         back_sub=back_sub, # baseline substracted data
@@ -245,32 +271,63 @@ def save_frame_mean(fname, data_container):
         dnorm=dnorm, # unvertaincy of the ir profile
         base=base, # baseline
         dbase=dbase,
-        times=data_container.times,
-        metadata=data_container.metadata
+        times=times,
+        metadata=metadata,
     )
 
+
 def load_npz_to_Scan(fname, **kwargs):
-    """Translates an AllYouCanEat obj into a Scan obj."""
+    """Translates an AllYouCanEat obj into a Scan obj.
+
+    Works only for 2d squeezable data."""
     if '~' in fname:
         fname = path.expanduser(fname)
 
     imp = load(fname)
 
+    # TODO make this ready for 2d input
     ret = Scan()
+    column_names = ['spec_%i' % i for i in range(imp['data'].shape[spec_index])]
+    ret.df = DataFrame(
+        imp['data'].squeeze().T,
+        index=imp['wavenumber'].squeeze(),
+        columns = column_names,
+        **kwargs
+    )
     ret.base = imp['base'].squeeze()
     ret.dbase = imp['dbase'].squeeze()
     ret.norm = imp['norm'].squeeze()
     ret.dnorm = imp['dnorm'].squeeze()
     ret.metadata = imp['metadata'].squeeze()[()]
-    # This works only for data that is squeezable in to a 2d shape.
-    # For pump Probe data, this will not work
-    ret.df = DataFrame(
-        imp['data'].squeeze().T,
-        index=imp['wavenumber'].squeeze(),
-        **kwargs
-    )
+    ret.df['dspec_0'] = imp['ddata'].squeeze()
+    ret.df.index.name = 'wavenumber'
     ret.normalized = imp['normalized'].squeeze()
     ret.dnormalized = imp['dnormalized'].squeeze()
+
+    # if all arrays are 2d squeezable and have the same shape,
+    # combine them all in df, so all data is in the same pandas
+    # data frame
+    for elm in (ret.base, ret.dbase, ret.norm, ret.dnorm):
+        test_shapes = elm.shape[0] == ret.df.shape[0]
+        if not test_shapes:
+            return ret
+
+    # must flip everything if sorted wrongly
+    if imp['wavenumber'][0] - imp['wavenumber'][-1] > 0:
+        ret.df.sort_index(inplace=True)
+        ret.norm = ret.norm[::-1]
+        ret.dnorm = ret.dnorm[::-1]
+        ret.base = ret.base[::-1]
+        ret.dbase = ret.dbase[::-1]
+        ret.normalized = ret.normalized[::-1]
+        ret.dnormalized = ret.dnormalized[::-1]
+
+    ret.df['norm'] = ret.norm
+    ret.df['dnorm'] = ret.dnorm
+    ret.df['base'] = ret.base
+    ret.df['dbase'] = ret.dbase
+    ret.df['normalized'] = ret.normalized
+    ret.df['dnormalized'] = ret.dnormalized
     return ret
 
 class AllYouCanEat():

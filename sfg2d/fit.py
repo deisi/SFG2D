@@ -1,23 +1,8 @@
-from . import veronica 
-from .spe import PrincetonSPEFile3
-from .allYouCanEat import AllYouCanEat, normalization,\
-    concatenate_data_sets, get_AllYouCanEat_scan, save_data_set,\
-    save_frame_mean, get_frame_mean, load_npz_to_Scan
-from .ntb import NtbFile
-from ..core.scan import Scan, ScanBase
+"""Fitting module based on probfit and iminuit"""
 
-def read_dpt(fname, **kwargs):
-    """Wrapper for pandas read_csv, to read .dpt spectra files"""
-    from pandas import read_csv
-    ret = read_csv(fname, sep=",", names=['absorption'], **kwargs)
-    ret.index.name = 'wavenumber'
-    ret = Scan(df=ret)
-    ret.metadata = {'uri' : fname}
-
-    return ret
 
 def load_fitarg(fp):
-    """load the fit results from fp"""
+    """load the fit results from file"""
     from json import load
 
     with open(fp) as json_data:
@@ -43,7 +28,7 @@ def load_fitarg_and_minuit(fp, fit_func, migrad=True):
     from iminuit import Minuit
 
     fitarg = load_fitarg(fp)
-    minuit = Minuit(fit_func, **fitarg, pedantic=False)
+    minuit = Minuit(fit_func, **fitarg, pedantir=False)
     if not migrad:
         return fitarg, minuit
     print('**********************************************************************')
@@ -72,7 +57,7 @@ def load_fitarg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
         The fit is directly performed
     Other kwargs are passed to the Chi2Regression.
     Most important one is
-    **y_err : The y_err of the fit
+    **error : The y_err of the fit
     For the rest see probfit.Chi2Regression
 
     Returns
@@ -86,20 +71,59 @@ def load_fitarg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
         a useless thing
     """
     from probfit import Chi2Regression
+    from iminuit import Minuit
 
-    fitarg, minuit = load_fitarg_and_minuit(fp, fit_func, migrad)
+    #fitarg, minuit = load_fitarg_and_minuit(fp, fit_func, migrad)
     chi2 = Chi2Regression(
         fit_func,
         x,
         y,
         **kwargs
     )
+    fitarg = load_fitarg(fp)
+    minuit = Minuit(chi2, **fitarg)
+    if migrad:
+        minuit.migrad()
+
     return fitarg, minuit, chi2
 
-def save_scan(fname, scan):
-    """Save a scan to fname"""
-    if not isinstance(scan, ScanBase):
-        raise ValueError(
-            'Cannot save %s to %s' % (scan, fname))
+def make_chi2_fit(x, y, fit_func, fitarg={}, migrad=True, **kwargs):
+    """Make a chi2 fit using probfit and iminuit
 
-    scan.df.to_pickle(fname)
+    Parameters
+    ----------
+    x : array
+        x-data of the fit
+    y : array
+        y-data of the fit
+    fit_func : The function of the fitarg
+    fit_arg : dictionary
+        Parameter dictionary for the fit
+    migrad : Boolean
+        If true the fit will be performed again to offer additional properties
+
+    **kwargs
+    --------
+    Most important is
+    error: array
+        The y-error of the data to fit
+
+    Returns
+    -------
+    minuit : Minuit obj with the fit
+    chi2 : The probfit chi2 obj
+    """
+    from iminuit import Minuit
+    from probfit import Chi2Regression
+
+    chi2 = Chi2Regression(
+        fit_func,
+        x,
+        y,
+        **kwargs
+    )
+
+    minuit = Minuit(chi2, **fitarg, pedantic=False)
+    if migrad:
+        minuit.migrad()
+    return minuit, chi2
