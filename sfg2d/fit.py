@@ -1,7 +1,7 @@
 """Fitting module based on probfit and iminuit"""
 
 
-def load_fitarg(fp):
+def load_savearg(fp):
     """load the fit results from file"""
     from json import load
 
@@ -9,7 +9,15 @@ def load_fitarg(fp):
         ret = load(json_data)
     return ret
 
-def load_fitarg_and_minuit(fp, fit_func, migrad=True):
+def get_fitarg_from_savearg(savearg):
+    """Helper function to extract infromation correcty from disk."""
+    roi = slice(None, None)
+    if savearg.get('roi'):
+        roi = savearg.pop('roi')
+    return savearg, roi
+
+
+def load_savearg_and_minuit(fp, fit_func, migrad=True):
     """Load fit results from fp and add to scan.
 
     Parameters
@@ -27,7 +35,8 @@ def load_fitarg_and_minuit(fp, fit_func, migrad=True):
     """
     from iminuit import Minuit
 
-    fitarg = load_fitarg(fp)
+    savearg = load_savearg(fp)
+    fitarg, roi = get_fitarg_from_savearg(savearg)
     minuit = Minuit(fit_func, **fitarg, pedantir=False)
     if not migrad:
         return fitarg, minuit
@@ -36,7 +45,7 @@ def load_fitarg_and_minuit(fp, fit_func, migrad=True):
     minuit.migrad()
     return fitarg, minuit
 
-def load_fitarg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
+def load_savearg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
     """Load fitresult and construct minuit and chi2 from it.
 
     Parameters
@@ -73,14 +82,15 @@ def load_fitarg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
     from probfit import Chi2Regression
     from iminuit import Minuit
 
-    #fitarg, minuit = load_fitarg_and_minuit(fp, fit_func, migrad)
+    #fitarg, minuit = load_savearg_and_minuit(fp, fit_func, migrad)
     chi2 = Chi2Regression(
         fit_func,
         x,
         y,
         **kwargs
     )
-    fitarg = load_fitarg(fp)
+    savearg = load_savearg(fp)
+    fitarg, roi = get_fitarg_from_savearg(savearg)
     minuit = Minuit(chi2, **fitarg)
     if migrad:
         minuit.migrad()

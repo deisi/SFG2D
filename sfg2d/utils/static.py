@@ -1,5 +1,5 @@
 """static functions go here """
-from numpy import sqrt, power, cos, sin, arcsin, square
+from numpy import sqrt, power, cos, sin, arcsin, square, array, ones, shape, sum
 
 
 def wavenumbers_to_nm(wavenumbers):
@@ -26,7 +26,7 @@ def nm_to_ir_wavenumbers(x, up_wl):
 
 
 def ir_wavenumbers_to_nm(x, up_wl):
-    """ir wavenumbers to upconverted nm 
+    """Translate ir wavenumbers to upconverted nm.
 
     The wavelength of the vibrational ir signal is upconverted, so that
     the real detected wavelength in nm is returned
@@ -74,8 +74,7 @@ def Rs(ca, cb, n1, n2):
 
 
 def Ts(ca, cb, n1, n2):
-    """
-    Transmission coefficient
+    """Transmission coefficient.
 
     Neglects absorption.
 
@@ -140,11 +139,71 @@ def Rs_CaF(wavelength, alpha):
 
     return Rs_CaF
 
+def chi_non_resonant(amplitude, phase):
+    """Non Resonant Chi2 response.
+
+    Parameters
+    ----------
+    amplitude: float
+        The amplitude of the non resonant background
+
+    phase: float
+        The phase of the non resonant background
+
+    Returns
+    -------
+    float: The non resonant background
+    """
+    ChiNR = amplitude * (cos(phase) + 1j * sin(phase))
+    return ChiNR
+
+def chi_resonant(x, amplitude, pos, width):
+    """lorenzian chi resonance.
+
+    Parameters
+    ----------
+    x : np.array
+        The x axis, wavenumbers of frequencies
+    amplitude:
+        The amplitude of the resonance
+    pos:
+        The position of the resonance
+    width:
+        The FWHM of the resonance
+    """
+    A = amplitude
+    delta = pos - x
+    gamma = width / 2
+    ChiR_i = A * gamma / (delta**2 + gamma**2)
+    ChiR_r = A * delta / (delta**2 + gamma**2)
+    ChiR = ChiR_r + 1j * ChiR_i
+    return ChiR
+
+def chi_resonant_multi(x, res_args):
+    """Multiple resonances.
+
+    Parameters
+    ---------
+    res_args : array
+        The length of thre res_args array determines the number of resonances.
+        For each 3 values a new resonance is created.
+    """
+    #print(x)
+    number_of_resonances = len(res_args)//3
+    # List of Results per resonance
+    ChiRs = []
+    for i in range(len(res_args)//3):
+        amplitude, pos, width = [ res_args[3*i+j] for j in range(3)]
+        ChiRs.append(chi_resonant(x, amplitude, pos, width))
+    # The sum makes the superposition of the resonances
+    return sum(ChiRs, 0)
+
+
 def sfgn1(x, nr, phase, amplitude, pos, width):
     '''One resonance sfg response with NR background
 
     Parameters
-    ---------- 
+    ----------
     x : array
         wavenumbers
     nr : Non Resonant background (amplitude)
@@ -160,21 +219,42 @@ def sfgn1(x, nr, phase, amplitude, pos, width):
     '''
 
     # Non resonant part
-    ChiNR = nr * (cos(phase) + 1j * sin(phase))
+    ChiNR = chi_non_resonant(nr, phase)
 
     # Resonant part
-    A = amplitude
-    delta = pos - x
-    gamma = width / 2
-    # probfit uses a precompiled c backend and is thus faster
-    # ChiR_r = A * probfit.pdf.cauchy(x, pos, gamma)
-    # ChiR_i = A * gamma * probfit.pdf.cauchy(x, pos, gamma)
-    ChiR_i = A * gamma / (delta**2 + gamma**2)
-    ChiR_r = A * delta / (delta**2 + gamma**2)
-    ChiR = ChiR_r + 1j * ChiR_i
+    ChiR = chi_resonant_multi(x, [amplitude, pos, width])
 
     # The physical Chi
     Chi = ChiR + ChiNR
 
     # Doing it this way seems to be the fastest
+    return square(Chi.real) + square(Chi.imag)
+
+def sfgn(x, nr, phase, *res_args):
+    """
+    Parameters
+    ----------
+    x : np.array
+        x-data
+    nr:
+        Non resonant amplitude
+    phase:
+        Non resonant phase
+    res_args: n*3 arguments
+        Must have n*3 elements. If longer tailing elements are dropped
+        List of args for the resonant peaks. The number of args
+        determines the number of resonances. It is given by number of
+        args divided by 3.
+
+    """
+
+    # Non resonant part
+    ChiNR = nr * (cos(phase) + 1j * sin(phase))
+
+    # Resonant part
+    ChiR = chi_resonant_multi(x, res_args)
+
+    #The physical Chi2
+    # All resonant Chis are superpositioned, thus .sum(0)
+    Chi = ChiR + ChiNR
     return square(Chi.real) + square(Chi.imag)

@@ -29,9 +29,6 @@ Manually install dependencies
 Some dependencies must be installed manually due to some bugs
 `pip install numpy cython`
 
-and you will need pyqt4 but it doesn't install from pip so:
-`pacman -S python-pyqt4`
-
 Installation
 ------------
 Download package from github::
@@ -53,10 +50,15 @@ and::
 Installation on Windows
 -----------------------
 
+Get Anaconda https://www.continuum.io/downloads#windows
+tested with Anaconda 4.2.0
+
 Install iminuit by hand.
-    Download from http://www.lfd.uci.edu/~gohlke/pythonlibs/#iminuit
+    Download from http://www.lfd.uci.edu/~gohlke/pythonimport sfg2d
+libs/#iminuit
     Install with::
 
+          cd Downloads
           pip install iminuit-*.whl
 
 To build probfit on windows one needs visual studio
@@ -65,9 +67,16 @@ Install probfit by hand.
     Download from https://github.com/iminuit/probfit
     Install with::
 
+        cd probfit
         pip install .
     
+Install sfg2d with::
 
+    pip install -e .
+
+And install additional dependencies with::
+
+  pip install -r requirements.txt
 
 Virtualenv
 -----------
@@ -77,7 +86,8 @@ Install python-virtualenv::
 
 Install virtualenvwrapper::
 
-  pacman -S python-virtualenvwrapper
+  pacman -S PermissionError: [WinError 5] Access is denied: 'C:\\cygwin\\tmp\\pip-y90rzuyv-uninstall\\users\\deiseroth\\anaconda3\\lib\\site-packages\\pandas\\algos.cp35-win_amd64.pyd'
+ppython-virtualenvwrapper
 
 Setup virtualenvwrapper put::
 

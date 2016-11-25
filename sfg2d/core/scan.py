@@ -157,13 +157,13 @@ class ScanBase():
         Are passed to sfg2d.fit.make_chi2_fit
         """
         if not x:
-            x = self.df[y][fit_roi].index.get_values()
+            x = self.df[y].ix[fit_roi].index.get_values()
         if isinstance(x, str):
-            x = self.df[x][fit_roi].get_values()
+            x = self.df[x].ix[fit_roi].get_values()
         if isinstance(y, str):
-            y = self.df[y][fit_roi].get_values()
+            y = self.df[y].ix[fit_roi].get_values()
         if isinstance(error, str):
-            error = self.df[error][fit_roi].get_values()
+            error = self.df[error].ix[fit_roi].get_values()
 
         self.migrad, self.chi2 = fit.make_chi2_fit(
             x, y, fit_func, fitarg, **kwargs

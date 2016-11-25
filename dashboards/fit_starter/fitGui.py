@@ -1,12 +1,15 @@
 import os
+import warnings
 import probfit
 import iminuit
 import json
 from IPython.display import display
-from ipywidgets import Text, FloatText, VBox, Button, HBox, Checkbox, FloatRangeSlider, Tab
+from ipywidgets import Text, FloatText, VBox, Button, HBox, Checkbox, FloatRangeSlider, Tab, IntRangeSlider
 from glob import glob
+from pandas import DataFrame
 import matplotlib.pyplot as plt
 
+# Helper functions
 def _limit_description_to_key(description):
     """Translate between the description of the Text widget and the corresonding
     key and value pos in the fitarg dictionary.
@@ -52,14 +55,21 @@ def _key_to_limit_description(key, attr):
         ret += '_max'
     return ret
 
-    
+# This is the important class. All the magic happens here.
 class FitGui:
     _debug = 0
 
-    def __init__(self, x, y, y_err, fit_func,
-                 selection=slice(None, None), fig=None, ax=None, fitarg={}
+    def __init__(self, x, y, fit_func, y_err=None,
+                 selection = slice(None, None), fig=None, ax=None, fitarg={}
     ):
-        '''Gui to help finding starting parameters in an sfg fit
+        '''Gui to help finding starting parameters in an sfg fit.
+
+        To use the gui you must provide it with data and a fit_function.
+        For each parameter of the fit func, the gui will have an input box
+        to insert starting values and to display the result of the fit.
+
+        You can further save/load starting values and results with the save
+        and the load button.
 
         Parameters
         ----------
@@ -67,14 +77,34 @@ class FitGui:
             x data
         y : array
 
+        fit_func : function
+            The function the fit is performed with
+
         y_err : y error data
 
         selection : slice
-            subregion of the dataset to fit.
+            subregion of the dataset to fit. The slice is in the coordinates
+            of the x data.
+
+        fig: maptlotlib.figure
+            The figure the result is drawn in.
+
+        ax: matplotlib.axes
+            The axes the result is drawn with.
+
+        fitarg: dictionary
+            A dictionary of starting values and configuration information for
+            the fit. This dicionary is the same one as in minuit.fitarg, that
+            is used to init and describe the fit. See minuit.fitarg for further
+            inromation.
         '''
+        self.data = DataFrame(y, index=x, columns=["y"])
+        self.data.index.name = "x"
         self.x_data = x
         self.y_data = y
         self.y_err = y_err
+        if not isinstance(y_err, type(None)):
+            self.data['y_err'] = y_err
         self.fit_func = fit_func
         self.sl = selection
         self.ax = ax
@@ -82,7 +112,23 @@ class FitGui:
         self.m = None
         self.fitarg = fitarg # dictionary for minuit starting parameters
 
+    @property
+    def _error(self):
+        # Needed to make errors optional and allow for slicing
+        error = self.y_err
+        if not isinstance(self.y_err, type(None)):
+            error = self.data.y_err.ix[self.sl].get_values()
+        return error
+
+    @property
+    def savearg(self):
+        """A dictionary with all the important information to save."""
+        ret = self.fitarg
+        ret['roi'] = self.sl.start, self.sl.stop
+        return ret
+
     def __call__(self):
+        """To render the fit_gui, call this class."""
         self._init_widgets()
         self._init_observer()
         self._on_clicks()
@@ -90,7 +136,9 @@ class FitGui:
         self._init_figure()
 
     def _set_minuit(self, *args, **kwargs):
-        '''here we set the minuit starting parameters and boundary condition'''
+        '''Set the minuit starting parameters and boundary conditions.
+
+        See **minuit.Minuit**.'''
         self.m = iminuit.Minuit(
             *args,
             **kwargs
@@ -99,20 +147,25 @@ class FitGui:
         self.fitarg = self.m.fitarg
 
     def _set_chi2(self):
-        """Chi2 is the property we minimize"""
+        """Chi2 Regression fit."""
+
         self.chi2 = probfit.Chi2Regression(
             self.fit_func,
-            self.x_data[self.sl],
-            self.y_data[self.sl],
-            self.y_err[self.sl],
+            self.data.y.ix[self.sl].index.get_values(),
+            self.data.y.ix[self.sl].get_values(),
+            error=self._error,
         )
 
     def _init_widgets(self):
-        """Dynamically create boxes to enter fit parameters"""
+        """Init gui elements.
+
+        This, dynamically creates boxes to enter fit parameters.
+        For each argument of the fit function, one input box is created.
+        """
         self._set_chi2()
         self._set_minuit(self.chi2, pedantic=False, **self.fitarg)
 
-        # we want one widget per fit value
+        #one widget per fit value
         self._w_values = []
         for key in self.m.parameters:
             value = self.m.fitarg[key]
@@ -121,7 +174,14 @@ class FitGui:
             )
         self.w_value_box = VBox(self._w_values)
 
-        # one 2 FloatText widgets per fit value limit
+        # Selection slider to select fit region
+        self.w_roi = IntRangeSlider(
+            min = self.x_data.min(), max=self.x_data.max(),
+            description = "Fit ROI",
+            continuous_update=False,
+        )
+
+        #2 FloatText widgets per fit value limit
         self._w_limits = []
         for key in self.m.parameters:
             limit_key = 'limit_' + key
@@ -161,7 +221,7 @@ class FitGui:
         )
 
         # Test box for save/load file
-        self.w_fitargs_path = Text(
+        self.w_saveargs_path = Text(
             description='path',
             tooltip='path to save/load fit settings/nTipp: you can copy past from explorer',
             value='./starting_values.txt',
@@ -170,7 +230,7 @@ class FitGui:
         # The part above the tabs, that is always visible
         self.w_header_box = HBox([
             self.w_fit_button,
-            self.w_fitargs_path,
+            self.w_saveargs_path,
             self.w_load_button,
             self.w_save_button,
         ])
@@ -179,6 +239,7 @@ class FitGui:
         self.w_box = HBox([
             self.w_value_box,
             self.w_fix_box,
+            self.w_roi,
             #self.w_limit_box,
             #self.w_fit_button
         ])
@@ -190,12 +251,13 @@ class FitGui:
         ])
 
     def _on_clicks(self):
+        """Set the on_click callbacks for all buttons."""
         self.w_fit_button.on_click(self._run_fit)
         self.w_save_button.on_click(self._save_button_clicked)
         self.w_load_button.on_click(self._load_button_clicked)
 
-
     def _init_observer(self):
+        """Set the observer callbacks for all widgets."""
         for child in self.w_value_box.children:
             child.observe(self._starting_values_observer, 'value')
             child.observe(self._start_fit_line_observer, 'value')
@@ -207,7 +269,10 @@ class FitGui:
             for child in box.children:
                 child.observe(self._parameter_range_observer, 'value')
 
+        self.w_roi.observe(self._roi_observer, 'value')
+
     def _unobserve(self):
+        """Unobserve all widgets."""
         for child in self.w_value_box.children:
             child.unobserve_all()
 
@@ -218,11 +283,17 @@ class FitGui:
             for child in box.children:
                 child.unobserve_all()
 
+        self.w_roi.unobserve_all()
+
     def _init_figure(self):
+        """Init the figure to display the result."""
         if not self.ax:
             self.ax = plt.gca()
 
-        plt.plot(self.x_data, self.y_data)
+        # self.x_data because we want the full plot by default.
+        plt.errorbar(self.x_data, self.y_data, self.y_err)
+        # self.chi2.x is set during setting of chi2. So this is already sliced
+        # to the selected subsection.
         self._fit_line = plt.plot(self.chi2.x, self.chi2.f(self.chi2.x, *self.m.args))
 
     #########################################
@@ -231,20 +302,34 @@ class FitGui:
     # TODO remove the new args and make observer callback function
 
     def _update_gui(self):
-        """Take changes in self.fitargs and refelct in the gui"""
+        """Update all gui elements by setting them to internally stored values.
+
+        Take changes in self.fitargs and refelct them in the gui."""
         self._unobserve()
         for child in self.w_value_box.children:
-            new_value = self.fitarg[child.description]
-            child.value =  new_value
+            new_value = self.fitarg.get(child.description)
+            if new_value:
+                child.value =  new_value
+            else:
+                text = "Tried to set %s with value from fitarg, "
+                text += "but there was none in fitarg"
+                text = text % child.description
+                warnings.warn(text)
 
         for child in self.w_fix_box.children:
-            new_value = self.fitarg[child.description]
-            child.value = new_value
+            new_value = self.fitarg.get(child.description)
+            if new_value:
+                child.value = new_value
+            elif self._debug:
+                text = "Tried to set %s with value from fitarg, "
+                text += "but there was none in fitarg"
+                text = text % child.description
+                warnings.warn(text)
 
         for box in self.w_limit_box.children:
             for child in box.children:
                 fitargs_key, attr = _limit_description_to_key(child.description)
-                new_value = self.fitarg[fitargs_key]
+                new_value = self.fitarg.get(fitargs_key)
                 if isinstance(new_value, type(None)):
                     continue
                 child.value = new_value[attr]
@@ -254,17 +339,22 @@ class FitGui:
         self._update_start_fit_line()
 
     def _update_minuit(self):
-        """Use self.fitarg to update minuit"""
+        """Set minuit according to self.fitarg"""
         self._set_minuit(self.chi2, pedantic=False, **self.fitarg)
 
-
     def _update_starting_values(self):
+        """Update self.fitarg with starting values from the gui."""
         for child in self.w_value_box.children:
             key = child.description
             self.fitarg[key] = child.value
         self._set_minuit(self.chi2, pedantic=False, **self.fitarg)
 
+    def _update_roi(self):
+        """Update self.sl according to self.w_roi"""
+        self.sl = slice(*self.w_roi.value)
+
     def _run_fit(self, new):
+        """Perform the fit."""
         if self._debug:
             print("_run_fit was called")
         self.fres = self.m.migrad()
@@ -280,12 +370,15 @@ class FitGui:
 
         for child in self.w_value_box.children:
             key = child.description
+            if self._debug > 1:
+                print('key is: ', key)
             child.value = new_parameter_values[key]
             if self._debug > 1:
-                print('updating %s with %s' % (key, child.value))
+                print('updating %s' % child.value)
 
     def _update_start_fit_line(self):
-        '''update the initial fit value representation'''
+        '''Update the fit line in the gui.
+        '''
         if self._debug:
             print('Update_start_fit_line called')
         y_fit_start = self.chi2.f(self.chi2.x, *self.m.args)
@@ -301,17 +394,28 @@ class FitGui:
     ###################################################
 
     def _start_fit_line_observer(self, new):
+        """Observer callback function to update the fit line in the plot."""
         self._update_start_fit_line()
 
     def _starting_values_observer(self, new):
+        """Observer callback to update starting values."""
         self._update_starting_values()
 
+    def _roi_observer(self, new):
+        """Observer callback to set fir roi via gui."""
+        self._update_roi()
+        self._set_chi2()
+        self._update_minuit()
+        self._update_start_fit_line()
+
     def _parameter_range_observer(self, new):
-        """This got a bit more complecated, because the Ranges depend on each other"""
+        """Observer callback to set fit parameter boundaries.
+
+        This got a bit more complecated, because the Ranges depend on each other"""
         widget = new["owner"]
         key, attr = _limit_description_to_key(widget.description)
 
-        # update value 
+        # update value
         value = self.fitarg[key]
         if isinstance(value, type(None)):
             value = (0, 1)
@@ -326,6 +430,7 @@ class FitGui:
             self._set_minuit(self.chi2, pedantic=False, **self.fitarg)
 
     def _fix_box_observer(self, new):
+        """Observer callback to set fit parameters to fix values."""
         if self._debug:
             print('update_parameter_fix called')
         if self._debug > 1:
@@ -337,14 +442,16 @@ class FitGui:
         self._set_minuit(self.chi2, pedantic=False, **self.fitarg)
 
     def _save_button_clicked(self, new):
-        fp = self.w_fitargs_path.value
+        """button callback to save fit results."""
+        fp = self.w_saveargs_path.value
         self.save(fp)
 
     def _load_button_clicked(self, new):
+        """button callback to load fit results from hdd."""
         if self._debug > 0:
             print("load button clicked")
-        fp = self.w_fitargs_path.value
-        self.fitarg = self.load(fp)
+        fp = self.w_saveargs_path.value
+        self.load(fp)
         self._update_gui() # show changes in the gui
         #self._update_starting_values()
         #self._fix_box_observer(None)
@@ -352,14 +459,18 @@ class FitGui:
     def save(self, fp):
         """Save the result of the fit into a text file"""
         with open(fp, "w") as outfile:
-            json.dump(self.fitarg, outfile, indent=4, separators=(',', ': '), sort_keys=True)
+            json.dump(
+                self.savearg, outfile,
+                indent=4, separators=(',', ': '), sort_keys=True
+            )
 
     def load(self, fp):
-        """Load fitargs from the text file fp"""
+        """Load saveargs from the text file fp"""
         with open(fp) as json_data:
             ret = json.load(json_data)
             if self._debug > 2:
                 print('Read %s from %s' % (ret, fp))
-        return ret
-
-
+        self.fitarg = ret
+        if ret.get('roi'):
+            roi = ret.pop('roi')
+            self.sl = slice(roi[0], roi[1])

@@ -1,12 +1,12 @@
 watchdog==0.8.3
 
-numpy==1.11.2
+#numpy>=1.11.1
 
-pandas==0.18.1
+#pandas>=0.18.1
 
-matplotlib==1.5.3
+#matplotlib==1.5.3
 
-scipy==0.18.1
+#scipy==0.18.1
 
 seaborn==0.7.1
 
@@ -32,3 +32,5 @@ notebook==4.2.3
 widgetsnbextension==1.2.6
 
 bqplot==0.8.4
+
+ipywidgets==5.2.2
