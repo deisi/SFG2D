@@ -114,7 +114,7 @@ class FitGui:
 
     @property
     def _error(self):
-        # Needed to make errors optional and allow for slicing
+        # Needed to make errors optional and allows for slicing
         error = self.y_err
         if not isinstance(self.y_err, type(None)):
             error = self.data.y_err.ix[self.sl].get_values()
@@ -334,6 +334,10 @@ class FitGui:
                     continue
                 child.value = new_value[attr]
 
+        if self.sl.start and self.sl.stop:
+            self.w_roi.value = self.sl.start, self.sl.stop
+
+        self._set_chi2()
         self._update_minuit()
         self._init_observer()
         self._update_start_fit_line()
@@ -402,7 +406,7 @@ class FitGui:
         self._update_starting_values()
 
     def _roi_observer(self, new):
-        """Observer callback to set fir roi via gui."""
+        """Observer callback to set fit roi via gui."""
         self._update_roi()
         self._set_chi2()
         self._update_minuit()
