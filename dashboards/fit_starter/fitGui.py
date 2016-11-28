@@ -111,6 +111,7 @@ class FitGui:
         self.chi2 = None
         self.m = None
         self.fitarg = fitarg # dictionary for minuit starting parameters
+        self._fit_result_box = None # Text box to display additional info
 
     @property
     def _error(self):
@@ -126,6 +127,18 @@ class FitGui:
         ret = self.fitarg
         ret['roi'] = self.sl.start, self.sl.stop
         return ret
+
+    @property
+    def fitarg(self):
+        return self._fitarg
+
+    @fitarg.setter
+    def fitarg(self, value):
+        roi = value.get('roi')
+        if roi:
+            roi = value.pop('roi')
+            self.sl = slice(roi[0], roi[1])
+        self._fitarg = value
 
     def __call__(self):
         """To render the fit_gui, call this class."""
@@ -206,18 +219,21 @@ class FitGui:
         self.w_fit_button = Button(
             description='Fit',
             tooltip='Run the fitting routine',
+            width='60px',
         )
 
         # A button to save the fit results
         self.w_save_button = Button(
             description='save',
             tooltip='Save fit settings to file',
+            width='80px',
         )
 
         # A button to load the fit results
         self.w_load_button = Button(
             description='load',
             tooltip='Load fit settings from file',
+            width='80px',
         )
 
         # Test box for save/load file
@@ -233,13 +249,13 @@ class FitGui:
             self.w_saveargs_path,
             self.w_load_button,
             self.w_save_button,
+            self.w_roi,
         ])
 
         # The content of the first tab page
         self.w_box = HBox([
             self.w_value_box,
             self.w_fix_box,
-            self.w_roi,
             #self.w_limit_box,
             #self.w_fit_button
         ])
@@ -260,7 +276,7 @@ class FitGui:
         """Set the observer callbacks for all widgets."""
         for child in self.w_value_box.children:
             child.observe(self._starting_values_observer, 'value')
-            child.observe(self._start_fit_line_observer, 'value')
+            child.observe(self._fit_line_observer, 'value')
 
         for child in self.w_fix_box.children:
             child.observe(self._fix_box_observer, 'value')
@@ -291,10 +307,13 @@ class FitGui:
             self.ax = plt.gca()
 
         # self.x_data because we want the full plot by default.
-        plt.errorbar(self.x_data, self.y_data, self.y_err)
+        plt.errorbar(self.x_data, self.y_data, self.y_err, fmt="o")
         # self.chi2.x is set during setting of chi2. So this is already sliced
         # to the selected subsection.
-        self._fit_line = plt.plot(self.chi2.x, self.chi2.f(self.chi2.x, *self.m.args))
+        self._fit_line = plt.plot(
+            self.chi2.x, self.chi2.f(self.chi2.x, *self.m.args),
+            color='r', linewidth=2
+        )
 
     #########################################
     # _update functions
@@ -340,7 +359,7 @@ class FitGui:
         self._set_chi2()
         self._update_minuit()
         self._init_observer()
-        self._update_start_fit_line()
+        self._update_fit_line()
 
     def _update_minuit(self):
         """Set minuit according to self.fitarg"""
@@ -380,7 +399,30 @@ class FitGui:
             if self._debug > 1:
                 print('updating %s' % child.value)
 
-    def _update_start_fit_line(self):
+    def _update_fit_result_box(self, x=0.05, y=0.95):
+        """Update a box with info about the fit.
+
+        Parameters
+        ----------
+        x : number
+            x coordinate of the text box in axis coordinates
+        y : number
+            y coordinates of the text box in axis coordinates
+        """
+        # show chi2/ndof if available
+        chi = self.chi2(*self.m.args) / self.chi2.ndof
+        textstr = "chi2/ndof = %.2g" % chi
+        if not self._fit_result_box:
+            self._fit_result_box = self.ax.text(
+                0.05, 0.95, textstr, transform=self.ax.transAxes,
+                verticalalignment='top',
+            )
+        else:
+            self._fit_result_box.set_text(textstr)
+        self.ax.figure.canvas.draw()
+
+
+    def _update_fit_line(self):
         '''Update the fit line in the gui.
         '''
         if self._debug:
@@ -390,6 +432,8 @@ class FitGui:
             self.chi2.x,
             y_fit_start
         )
+
+        self._update_fit_result_box()
         self.ax.figure.canvas.draw()
 
 
@@ -397,9 +441,9 @@ class FitGui:
     # observer callback function
     ###################################################
 
-    def _start_fit_line_observer(self, new):
+    def _fit_line_observer(self, new):
         """Observer callback function to update the fit line in the plot."""
-        self._update_start_fit_line()
+        self._update_fit_line()
 
     def _starting_values_observer(self, new):
         """Observer callback to update starting values."""
@@ -410,7 +454,7 @@ class FitGui:
         self._update_roi()
         self._set_chi2()
         self._update_minuit()
-        self._update_start_fit_line()
+        self._update_fit_line()
 
     def _parameter_range_observer(self, new):
         """Observer callback to set fit parameter boundaries.

@@ -17,6 +17,8 @@ class ScanBase():
         self._normalized = normalized
         self._dnormalized = dnormalized
         self.metadata = metadata
+        self.fitarg = {}
+        self.fit_roi = slice(None, None)
 
     @property
     def norm(self):
@@ -137,26 +139,32 @@ class ScanBase():
         return self._med
 
     def make_chi2_fit(self, fit_func,
-                      fitarg = {}, y='normalized', x=None, error='dnormalized',
-                      fit_roi = slice(None, None), **kwargs):
+                      fitarg = None, y='normalized', x=None, error='dnormalized',
+                      fit_roi = None, **kwargs):
         """add the results of a fit to the scan.
 
         Parameters
         ----------
         fit_func : function
         fitarg : dictionary
-        x : string
+        x : string or array
             if none index of DataFrame is used
-        y : string
-        error : string
-        fit_roi: selection of the data relecant for the fit
+        y : string or array
+        error : string or array
+        fit_roi: slice
+            selection of the data relecant for the fit
             if x, y or error is given as array, this is ignored.
 
         kwargs
         -------
         Are passed to sfg2d.fit.make_chi2_fit
         """
-        if not x:
+        if isinstance(fitarg, type(None)):
+            fitarg = self.fitarg
+        if isinstance(fit_roi, type(None)):
+            fit_roi = self.fit_roi
+        self.fit_roi = fit_roi
+        if isinstance(x, type(None)):
             x = self.df[y].ix[fit_roi].index.get_values()
         if isinstance(x, str):
             x = self.df[x].ix[fit_roi].get_values()
@@ -165,13 +173,15 @@ class ScanBase():
         if isinstance(error, str):
             error = self.df[error].ix[fit_roi].get_values()
 
-        self.migrad, self.chi2 = fit.make_chi2_fit(
-            x, y, fit_func, fitarg, **kwargs
+        self.minuit, self.chi2 = fit.make_chi2_fit(
+            x, y, fit_func, fitarg, error=error, **kwargs
         )
 
     def load_chi2_fit(self, fp, fit_func, **kwargs):
         """"""
-        self.fitarg = fit.load_fitarg(fp)
+        self.fitarg, self.fit_roi = fit.get_fitarg_from_savearg(
+            fit.load_savearg(fp)
+        )
         self.make_chi2_fit(
             fit_func,
             self.fitarg,

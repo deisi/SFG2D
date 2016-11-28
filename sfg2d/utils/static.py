@@ -258,3 +258,13 @@ def sfgn(x, nr, phase, *res_args):
     # All resonant Chis are superpositioned, thus .sum(0)
     Chi = ChiR + ChiNR
     return square(Chi.real) + square(Chi.imag)
+
+def sfg2r(x, nr, phase,
+         amplitude, pos, width,
+         amplitude1, pos1, width1):
+    ret = sfgn(
+            x, nr, phase,
+            amplitude, pos, width,
+            amplitude1, pos1, width1
+          )
+    return ret

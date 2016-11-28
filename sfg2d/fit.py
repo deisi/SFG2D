@@ -1,12 +1,19 @@
 """Fitting module based on probfit and iminuit"""
 
 
-def load_savearg(fp):
-    """load the fit results from file"""
+def load_savearg(fp, roi=False):
+    """load the fit results from file
+
+    If roi is given, return roi and fitarg."""
+
+
     from json import load
 
     with open(fp) as json_data:
         ret = load(json_data)
+    if roi:
+        ret, roi = get_fitarg_from_savearg(ret)
+        return ret, roi
     return ret
 
 def get_fitarg_from_savearg(savearg):
@@ -14,8 +21,17 @@ def get_fitarg_from_savearg(savearg):
     roi = slice(None, None)
     if savearg.get('roi'):
         roi = savearg.pop('roi')
+        roi = slice(*roi)
     return savearg, roi
 
+def load_fitarg(fp):
+    """ Kept for backwards compatibility.
+
+    Return only the fitarg part of the savearg fit result save.
+    """
+    ret = load_savearg(fp)
+    ret, roi = get_fitarg_from_savearg(ret)
+    return ret
 
 def load_savearg_and_minuit(fp, fit_func, migrad=True):
     """Load fit results from fp and add to scan.

@@ -48,15 +48,15 @@ def get_frame_mean(fname, fbaseline):
 
     ret.baseline = baseline.mean(frame_axis_index).squeeze()
     if baseline_frames > 1:
-        ret.dbaseline = baseline.std(frame_axis_index).squeeze() / sqrt(baseline_frames-1)
+        ret.dbaseline = baseline.std(frame_axis_index).squeeze() / sqrt(baseline_frames)
         
     ret.back_sub = ret.data - ret.baseline
     ret.frame_mean = ret.back_sub.mean(frame_axis_index).squeeze()
 
     # uncertainly of the norm depends of the measurement itself and on
     # the uncertainly of the Baseline as well.
-    if data_frames > 1:
-        ddata = ret.data.std(frame_axis_index).squeeze() / sqrt(data_frames-1)
+    if data_frames >= 1:
+        ddata = ret.data.std(frame_axis_index).squeeze() / sqrt(data_frames)
         ret.dframe_mean = sqrt(
             (ddata)**2 + (ret.dbaseline)**2
         )
@@ -220,9 +220,9 @@ def save_frame_mean(fname, data_container):
     dback_sub = None
     dnormalized = None
 
-    if frames > 1:
-        ddata = data_container.data.std(frame_axis_index) / sqrt(frames - 1)
-        dback_sub = data_container.back_sub.std(frame_axis_index) / sqrt(frames - 1)
+    if frames >= 1:
+        ddata = data_container.data.std(frame_axis_index) / sqrt(frames)
+        dback_sub = data_container.back_sub.std(frame_axis_index) / sqrt(frames)
 
     normalized = getattr(data_container, 'normalized', None)
     if not isinstance(normalized, type(None)):
@@ -239,7 +239,7 @@ def save_frame_mean(fname, data_container):
 
     if not isinstance(normalized, type(None)) and frames > 1:
         # This is only the statistical fluctuation of the normalized data itself
-        dnormalized = data_container.normalized.std(frame_axis_index) / sqrt(frames - 1)
+        dnormalized = data_container.normalized.std(frame_axis_index) / sqrt(frames)
         # we must also add the fluctuations due to the substraction of the baseline
         # and the normalization with the ir profile. These fluctuations
         # Themselves are stored in the dnormalized property of the data_container.
@@ -248,13 +248,13 @@ def save_frame_mean(fname, data_container):
         dnormalized += data_container.dnormalized.mean(frame_axis_index)
 
     dnorm = None
-    if not isinstance(norm, type(None)) and frames > 1:
-        dnorm = data_container.norm.std(frame_axis_index) / sqrt(frames - 1)
+    if not isinstance(norm, type(None)) and frames >= 1:
+        dnorm = data_container.norm.std(frame_axis_index) / sqrt(frames)
         dnorm =+ data_container.dnorm.mean(frame_axis_index)
 
     dbase = None
-    if not isinstance(base, type(None)) and frames > 1:
-        dbase = data_container.base.std(frame_axis_index) / sqrt(frames - 1)
+    if not isinstance(base, type(None)) and frames >= 1:
+        dbase = data_container.base.std(frame_axis_index) / sqrt(frames)
         dbase += data_container.dbase.mean(frame_axis_index)
 
     savez(
