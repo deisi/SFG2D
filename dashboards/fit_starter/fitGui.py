@@ -3,11 +3,13 @@ import warnings
 import probfit
 import iminuit
 import json
+from numpy import vectorize
 from IPython.display import display
 from ipywidgets import Text, FloatText, VBox, Button, HBox, Checkbox, FloatRangeSlider, Tab, IntRangeSlider
 from glob import glob
 from pandas import DataFrame
 import matplotlib.pyplot as plt
+from copy import deepcopy
 
 # Helper functions
 def _limit_description_to_key(description):
@@ -124,9 +126,19 @@ class FitGui:
     @property
     def savearg(self):
         """A dictionary with all the important information to save."""
-        ret = self.fitarg
+        # deepcopy is needed, because othersie roi ends up in self.fitarg
+        ret = deepcopy(self.fitarg)
         ret['roi'] = self.sl.start, self.sl.stop
         return ret
+
+    @property
+    def fit_func(self):
+        return self._fit_func
+
+    @fit_func.setter
+    def fit_func(self, value):
+        self._fit_func = value
+        self._fit_func_v = vectorize(value)
 
     @property
     def fitarg(self):
@@ -310,8 +322,9 @@ class FitGui:
         plt.errorbar(self.x_data, self.y_data, self.y_err, fmt="o")
         # self.chi2.x is set during setting of chi2. So this is already sliced
         # to the selected subsection.
+
         self._fit_line = plt.plot(
-            self.chi2.x, self.chi2.f(self.chi2.x, *self.m.args),
+            self.chi2.x, self._fit_func_v(self.chi2.x, *self.m.args),
             color='r', linewidth=2
         )
 
@@ -391,6 +404,7 @@ class FitGui:
             value = parameter_result_dict['value']
             new_parameter_values[key] = value
 
+        self._unobserve()
         for child in self.w_value_box.children:
             key = child.description
             if self._debug > 1:
@@ -398,6 +412,8 @@ class FitGui:
             child.value = new_parameter_values[key]
             if self._debug > 1:
                 print('updating %s' % child.value)
+        self._update_gui()
+        self._init_observer()
 
     def _update_fit_result_box(self, x=0.05, y=0.95):
         """Update a box with info about the fit.
@@ -427,7 +443,7 @@ class FitGui:
         '''
         if self._debug:
             print('Update_start_fit_line called')
-        y_fit_start = self.chi2.f(self.chi2.x, *self.m.args)
+        y_fit_start = self._fit_func_v(self.chi2.x, *self.m.args)
         self._fit_line[0].set_data(
             self.chi2.x,
             y_fit_start
@@ -486,6 +502,8 @@ class FitGui:
         # Select correct widget and update fitargs accordingly
         owner = new['owner']
         key = owner.description
+        if self._debug > 1:
+            print('new key is %s' % key)
         self.fitarg[key] = owner.value
         self._set_minuit(self.chi2, pedantic=False, **self.fitarg)
 

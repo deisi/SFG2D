@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup
+from Cython.Build import cythonize
+
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -15,6 +17,7 @@ requirements = [
     'matplotlib',
     'scipy',
     'pandas',
+    'cython',
     #'notebook', # must be installed in the system virtualenv is not enouth
     #'bqplot', # system ...
     #'widgetsnbextension',
@@ -57,5 +60,6 @@ setup(
         'Programming Language :: Python :: 3.5',
     ],
     test_suite='tests',
-    tests_require=test_requirements
+    tests_require=test_requirements,
+    ext_modules=cythonize('./sfg2d/utils/static_c.pyx')
 )
