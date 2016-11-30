@@ -1,6 +1,6 @@
 from os import path
 from numpy import genfromtxt, array, delete, zeros, arange,\
-    ndarray, concatenate, savez, sqrt, load, ones
+    ndarray, concatenate, savez, sqrt, load, ones, empty
 from pandas import DataFrame, Series
 from copy import deepcopy
 from .veronica import PIXEL, SPECS, pixel_to_nm
@@ -355,6 +355,7 @@ class AllYouCanEat():
         self.pp_delays = array([0])
         self.metadata = {}
         self._fname  = fname
+        self._data = zeros(4)
 
         if isinstance(fname, type(None)):
             return

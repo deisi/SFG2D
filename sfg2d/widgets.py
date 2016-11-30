@@ -11,9 +11,10 @@ import warnings
 import os
 
 from .io.veronica import read_auto
+from .io.allYouCanEat import AllYouCanEat
 from .core.scan import Scan, TimeScan
 
-debug = 0
+debug = 1
 
 class MyBqPlot():
     """Class for Bqolot setup. """
@@ -441,10 +442,91 @@ class PumpProbeDataImporter(DataImporter):
 ######################################################################
 #                         A new Approach                             #
 ######################################################################
+class GuiABS():
+    def __init__(self, data=AllYouCanEat(), fig=None, ax=None):
+        self.data = data
+        self.fig = fig
+        self.ax = ax
+        self.widget_container = [] # List of widgets to display
 
+    def __call__(self):
+        display(self.widget_container)
+        self.fig
+
+    def __init__widgets(self):
+        """Init all widgets."""
+        pass
+
+    def _set_widget_options(self):
+        """Set all widget options."""
+        pass
+
+    def _init_figure(self):
+        """Init initial figure."""
+        if not self.fig:
+            self.fig = plt.gcf()
+
+        if not self.ax:
+            self.ax = plt.gca()
+
+
+    def _update_figure(self):
+        """Update figure with changes"""
+        pass
+
+    def _init_observer(self):
+        pass
+
+    def _unobserve(self):
+        pass
+
+class AllYouCanPlot(GuiABS):
+    def __init__(self, central_wl=None, vis_wl=None, **kwargs):
+        super().__init__(**kwargs)
+        self.central_wl = central_wl
+        self.vis_wl = vis_wl
+        self._view_data = self.data.data[:2]
+
+    def __init__widgets(self):
+        """Init all widgets."""
+        self.w_pp_s = SelectionSlider(
+            continuous_update=False, description="pp_delay"
+        )
+        self.w_smooth_s = IntSlider(
+            continuous_update=False, description="smooth",
+            min=1, max=100
+        )
+        self.w_Autoscale = ToggleButton(
+            description="Autoscale",
+            value=True,
+        )
+        # The container with all the widgets
+        self.widget_container = [HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s])]
+
+    def _set_widget_options(self):
+        """Set all widget options."""
+        self.w_pp_s.options = self.data.pp_delays
+        self.w_pp_s.value = self.data.pp_delays[0]
+
+    def _update_figure(self):
+        """Init initial figure."""
+        super()._init_figure()
+        self._lines = plt.plot(self._view_data[0], self._view_data[1])
+
+    def _update_lines():
+        """Update figure with changes"""
+        for line in self.ax.get_lines():
+            pass
+
+    def _init_observer():
+        pass
+
+    def _unobserve():
+        pass
+        #TODO find out if I can use the widget_container for this
 
 class PPDelaySlider():
-    def __init__(self, pp_delays, data):
+    def __init__(self, pp_delays=[0], data=None):
         """Widget with slider for pp_delays and smoothing of data
 
         Parameters
@@ -503,10 +585,14 @@ class PPDelaySlider():
     def _init_figure(self):
         if not self.fig:
             self.fig = plt.gcf()
-        
+
         if not self.ax:
             self.ax = plt.gca()
 
+        if isinstance(self.data, type(None)):
+            if debug:
+                print('Init empty Figure')
+            return
         #Scan doesn't have multiindex and no pp_delays
         if not hasattr(self.data.index, 'levshape'):
             if debug:
@@ -525,7 +611,11 @@ class PPDelaySlider():
             self.data.ix[self.w_pp_s.value].plot(ax=self.ax)
 
     def _update_plot(self, new):
-        
+        if isinstance(self.data, type(None)):
+            if debug:
+                print("Updating figure with None data, Skipping ...")
+            return
+
         # Scan doesnt have multiindex and no pp_delays
         if not hasattr(self.data.index, 'levshape'):
             data = self.data.rolling(self.w_smooth_s.value).mean()
@@ -534,7 +624,7 @@ class PPDelaySlider():
                 line.set_ydata(data[spec].values)
                 line.set_xdata(data[spec].index)
             return
-        
+
         if isinstance(self.data, DataFrame):
             if any(self.data.columns.duplicated()):
                 if debug:
@@ -584,7 +674,7 @@ class PPDelaySlider():
         self.w_Autoscale.unobserve_all()
 
 class Importer(PPDelaySlider):
-    def __init__(self, ffolder):
+    def __init__(self, ffolder='/'):
         """
         Parameters
         ----------
@@ -600,7 +690,8 @@ class Importer(PPDelaySlider):
             description='File',
             options = fnames
             )
-        self.w_files.value = self.w_files.options[0]
+        if self.w_files.options != []:
+            self.w_files.value = self.w_files.options[0]
         self.w_files.layout.width = '100%'
 
         pp_delays, data = self._get_data()
@@ -608,6 +699,9 @@ class Importer(PPDelaySlider):
         self._container = VBox([self.w_files, self._container])
 
     def _get_data(self):
+        if not self.w_files.value:
+            # open default dummy file
+            return [0], 
         data = read_auto(self.ffolder + '/'  + self.w_files.value)
         pp_delays = [0]
         # because scans dot have pp_delays
