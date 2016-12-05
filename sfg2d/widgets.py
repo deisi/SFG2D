@@ -3,12 +3,13 @@ from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
 from pandas.core.series import Series
 from pandas.core.frame import DataFrame
 import matplotlib.pyplot as plt
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown
 from traitlets import TraitError
 from glob import glob
 import json
 import warnings
 import os
+import numpy as np
 
 from .io.veronica import read_auto
 from .io.allYouCanEat import AllYouCanEat, x_pixel_index, y_pixel_index, spec_index, frame_axis_index, pp_index
@@ -59,7 +60,7 @@ class MyBqPlot():
         fig.pyplot = tb
         fig.tb_py = tb_py
         fig.smooth_width = smooth_width
-        
+
         return fig
 
     def fig_update(self, *args, **kwargs):
@@ -68,13 +69,13 @@ class MyBqPlot():
         if isinstance(self.data, type(None)):
             warnings.warn("No data to update figure with in %s" % self)
             return
-        
+
         x_label = self.data.index.name
         if x_label == 'wavenumber':
             x_label += ' in 1/cm'
-        
+
         self.fig.axes[0].label = x_label
-        
+
         self.fig.marks[0].x = self.data.index
         if self.fig.smooth_width.value == 0:
             self.fig.marks[0].y = self.data.transpose()
@@ -481,7 +482,7 @@ class GuiABS():
         pass
 
 class AllYouCanPlot(GuiABS):
-    def __init__(self, central_wl=None, vis_wl=None, **kwargs):
+    def __init__(self, central_wl=None, vis_wl=810, **kwargs):
         super().__init__(**kwargs)
         self._central_wl = central_wl
         self.vis_wl = vis_wl
@@ -509,18 +510,21 @@ class AllYouCanPlot(GuiABS):
             continuous_update=False, description="x_pixels"
         )
 
-        if self.central_wl = None:
-            pass #TODO Here weiter
-
-
-        #self.w_central_wl = FloatText(
-        #
-        #)
+        self.w_central_wl = FloatText(
+            description='Central Wl', value=self.central_wl, width='60px'
+        )
+        self.w_calib = Dropdown(
+            description='Calibration', options=['pixel', 'nm', 'wavenumber'], width='80px'
+        )
+        self.w_vis_wl = FloatText(
+            description = 'Vis Wl', value = self.vis_wl, width = '60px'
+        )
 
         # The container with all the widgets
         self.widget_container = VBox([
                 HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s]),
                 HBox([self.w_frame, self.w_y_pixel_range, self.w_x_pixel_range]),
+                self.w_vis_wl, self.w_central_wl, self.w_calib
             ])
 
     def _set_widget_options(self):
@@ -534,6 +538,16 @@ class AllYouCanPlot(GuiABS):
         self.w_x_pixel_range.value = self.w_x_pixel_range.min, self.w_x_pixel_range.max
 
     @property
+    def central_wl(self):
+        central_wl = 674
+        if self._central_wl == None:
+            if self.data.metadata.get('central_wl') != 0:
+                central_wl = self.data.metadata.get('central_wl')
+        else:
+            central_wl = self._central_wl
+        return central_wl
+
+    @property
     def view_data(self):
         """prepare view data."""
         view_data = self.data.data[
@@ -541,7 +555,13 @@ class AllYouCanPlot(GuiABS):
             self.w_frame.value,
             slice(*self.w_y_pixel_range.value),
             slice(*self.w_x_pixel_range.value)
-        ]
+        ].squeeze()
+        if self.w_calib.value=='pixel':
+            view_data = np.vstack([np.arange(self.data.data.shape[x_pixel_index]), view_data])
+        if self.w_calib.value=='nm':
+            view_data = np.vstack([self.data.wavelength, view_data])
+        if self.w_calib.value=='wavenumber':
+            view_data= np.vstack([self.data.wavenumber, view_data])
         return view_data
 
     def _update_figure(self):
@@ -549,14 +569,26 @@ class AllYouCanPlot(GuiABS):
         super()._init_figure()
         #self.fig.clf
         self.ax.clear()
-        self._lines = plt.plot(self.view_data.T)
+        self._lines = plt.plot(*self.view_data)
+        self.ax.set_xlabel(self.w_calib.value)
 
-    def _init_observer():
-        pass
+    def _init_observer(self):
+        self.w_calib.observe(self._calib_observer, 'value')
+        self.w_frame.observe(self._frame_observer, 'value')
+        self.w_pp_s.observe(self._pp_delay_observer, 'value')
 
-    def _unobserve():
+    def _unobserve(self):
         pass
         #TODO find out if I can use the widget_container for this
+
+    def _calib_observer(self, new):
+        self._update_figure()
+
+    def _frame_observer(self, new):
+        self._update_figure()
+
+    def _pp_delay_observer(self, new):
+        self._update_figure()
 
 class PPDelaySlider():
     def __init__(self, pp_delays=[0], data=None):
