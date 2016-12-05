@@ -3,7 +3,7 @@ from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
 from pandas.core.series import Series
 from pandas.core.frame import DataFrame
 import matplotlib.pyplot as plt
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText
 from traitlets import TraitError
 from glob import glob
 import json
@@ -11,7 +11,7 @@ import warnings
 import os
 
 from .io.veronica import read_auto
-from .io.allYouCanEat import AllYouCanEat
+from .io.allYouCanEat import AllYouCanEat, x_pixel_index, y_pixel_index, spec_index, frame_axis_index, pp_index
 from .core.scan import Scan, TimeScan
 
 debug = 1
@@ -453,7 +453,7 @@ class GuiABS():
         display(self.widget_container)
         self.fig
 
-    def __init__widgets(self):
+    def _init__widgets(self):
         """Init all widgets."""
         pass
 
@@ -483,11 +483,10 @@ class GuiABS():
 class AllYouCanPlot(GuiABS):
     def __init__(self, central_wl=None, vis_wl=None, **kwargs):
         super().__init__(**kwargs)
-        self.central_wl = central_wl
+        self._central_wl = central_wl
         self.vis_wl = vis_wl
-        self._view_data = self.data.data[:2]
 
-    def __init__widgets(self):
+    def _init__widgets(self):
         """Init all widgets."""
         self.w_pp_s = SelectionSlider(
             continuous_update=False, description="pp_delay"
@@ -500,23 +499,57 @@ class AllYouCanPlot(GuiABS):
             description="Autoscale",
             value=True,
         )
+        self.w_frame = SelectionSlider(
+            continuous_update=False, description="frame"
+        )
+        self.w_y_pixel_range = IntRangeSlider(
+            continuous_update=False, description="y_pixels"
+        )
+        self.w_x_pixel_range = IntRangeSlider(
+            continuous_update=False, description="x_pixels"
+        )
+
+        if self.central_wl = None:
+            pass #TODO Here weiter
+
+
+        #self.w_central_wl = FloatText(
+        #
+        #)
+
         # The container with all the widgets
-        self.widget_container = [HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s])]
+        self.widget_container = VBox([
+                HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s]),
+                HBox([self.w_frame, self.w_y_pixel_range, self.w_x_pixel_range]),
+            ])
 
     def _set_widget_options(self):
         """Set all widget options."""
-        self.w_pp_s.options = self.data.pp_delays
-        self.w_pp_s.value = self.data.pp_delays[0]
+        self.w_pp_s.options = self.data.pp_delays.tolist()
+        self.w_pp_s.value = self.w_pp_s.options[0]
+        self.w_frame.options = list(range(0, self.data.data.shape[frame_axis_index]))
+        self.w_y_pixel_range.max = self.data.data.shape[y_pixel_index]
+        self.w_y_pixel_range.value = self.w_y_pixel_range.min, self.w_y_pixel_range.max
+        self.w_x_pixel_range.max = self.data.data.shape[x_pixel_index]
+        self.w_x_pixel_range.value = self.w_x_pixel_range.min, self.w_x_pixel_range.max
+
+    @property
+    def view_data(self):
+        """prepare view data."""
+        view_data = self.data.data[
+            self.w_pp_s.value,
+            self.w_frame.value,
+            slice(*self.w_y_pixel_range.value),
+            slice(*self.w_x_pixel_range.value)
+        ]
+        return view_data
 
     def _update_figure(self):
         """Init initial figure."""
         super()._init_figure()
-        self._lines = plt.plot(self._view_data[0], self._view_data[1])
-
-    def _update_lines():
-        """Update figure with changes"""
-        for line in self.ax.get_lines():
-            pass
+        #self.fig.clf
+        self.ax.clear()
+        self._lines = plt.plot(self.view_data.T)
 
     def _init_observer():
         pass
