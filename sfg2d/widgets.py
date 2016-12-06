@@ -548,34 +548,54 @@ class AllYouCanPlot(GuiABS):
         return central_wl
 
     @property
-    def view_data(self):
-        """prepare view data."""
-        view_data = self.data.data[
+    def y(self):
+        """prepare y data to plot."""
+        # Needed to account for overlapping of the range sliders.
+        # y_range = self.w_y_pixel_range.value
+        # if y_range[0] == y_range[1]:
+        #     if self.data.data.shape[y_pixel_index] > y_range[0]:
+        #         y_range = y_range[0], y_range[0] + 1
+        #     else:
+        #         y_range = y_range[1] - 1, y_range[1]
+        y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
+                                         self.data.data.shape[y_pixel_index])
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data.data.shape[x_pixel_index])
+
+        y = self.data.data[
             self.w_pp_s.value,
             self.w_frame.value,
-            slice(*self.w_y_pixel_range.value),
-            slice(*self.w_x_pixel_range.value)
-        ].squeeze()
+            y_slice,
+            x_slice
+        ].T
+        return y
+
+    @property
+    def x(self):
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data.data.shape[x_pixel_index])
         if self.w_calib.value=='pixel':
-            view_data = np.vstack([np.arange(self.data.data.shape[x_pixel_index]), view_data])
+            x = np.arange(self.data.data.shape[x_pixel_index])
         if self.w_calib.value=='nm':
-            view_data = np.vstack([self.data.wavelength, view_data])
+            x = self.data.wavelength,
         if self.w_calib.value=='wavenumber':
-            view_data= np.vstack([self.data.wavenumber, view_data])
-        return view_data
+            x = self.data.wavenumber
+        return x#[x_slice]
 
     def _update_figure(self):
         """Init initial figure."""
         super()._init_figure()
         #self.fig.clf
         self.ax.clear()
-        self._lines = plt.plot(*self.view_data)
+        self._lines = plt.plot(self.x, self.y)
         self.ax.set_xlabel(self.w_calib.value)
 
     def _init_observer(self):
         self.w_calib.observe(self._calib_observer, 'value')
         self.w_frame.observe(self._frame_observer, 'value')
         self.w_pp_s.observe(self._pp_delay_observer, 'value')
+        self.w_y_pixel_range.observe(self._y_pixel_range_observer, 'value')
+        self.w_x_pixel_range.observe(self._x_pixel_range_observer, 'value')
 
     def _unobserve(self):
         pass
@@ -588,6 +608,12 @@ class AllYouCanPlot(GuiABS):
         self._update_figure()
 
     def _pp_delay_observer(self, new):
+        self._update_figure()
+
+    def _y_pixel_range_observer(self, new):
+        self._update_figure()
+
+    def _x_pixel_range_observer(self, new):
         self._update_figure()
 
 class PPDelaySlider():
@@ -787,3 +813,14 @@ class Importer(PPDelaySlider):
     def _init_observer(self):
         self.w_files.observe(self._update_file, 'value')
         super()._init_observer()
+
+def _slider_range_to_slice(value_tuple, max):
+    """Transform a tuple into a slice accounting for overlapping"""
+    range = value_tuple
+    if range[0] == range[1]:
+        if range[0] < max:
+            range = range[0], range[0] + 1
+        else:
+            range = range[1] - 1, range[1]
+
+    return slice(*range)
