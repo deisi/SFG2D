@@ -49,7 +49,7 @@ def get_frame_mean(fname, fbaseline):
     ret.baseline = baseline.mean(frame_axis_index).squeeze()
     if baseline_frames > 1:
         ret.dbaseline = baseline.std(frame_axis_index).squeeze() / sqrt(baseline_frames)
-        
+
     ret.back_sub = ret.data - ret.baseline
     ret.frame_mean = ret.back_sub.mean(frame_axis_index).squeeze()
 
@@ -62,7 +62,8 @@ def get_frame_mean(fname, fbaseline):
         )
     return ret
 
-def normalization(DataContainer, baseline, ir_profile, dbaseline=None, dir_profile=None):
+def normalization(DataContainer, baseline,
+                  ir_profile, dbaseline=None, dir_profile=None):
     '''Function to add baseline substraction and normalization
 
     The DataContainer get added a base_sub property, that
@@ -76,7 +77,6 @@ def normalization(DataContainer, baseline, ir_profile, dbaseline=None, dir_profi
         dir_profile = zeros(data_shape)
     if isinstance(dbaseline, type(None)):
         dbaseline = zeros(data_shape)
-
 
     DataContainer.back_sub = DataContainer.data - baseline
     # Up to now the uncertainty of the data is only given by the
@@ -235,7 +235,6 @@ def save_frame_mean(fname, data_container):
     base = getattr(data_container, 'base', None)
     if not isinstance(base, type(None)):
         base = base.mean(frame_axis_index)
-
 
     if not isinstance(normalized, type(None)) and frames > 1:
         # This is only the statistical fluctuation of the normalized data itself
@@ -479,17 +478,22 @@ class AllYouCanEat():
 
         return False
 
+    @property
+    def _read_veronica_data(self):
+        """Reads data from text file using genfromtxt."""
+        return genfromtxt(self._fname)
+
     def _check_type(self):
         """Check the type by comparing name and data shape."""
 
-        # .spe is binary and hard to check by shapre.
+        # .spe is binary and hard to check by shape.
         # We will assume it was not named wrongly and
         # just go on.
         if self._type == 'spe':
             return True
 
         typeByName = self._type
-        self._data = genfromtxt(self._fname)
+        self._data = self._read_veronica_data
         typeByShape = self._get_type_by_shape()
 
         if typeByName == typeByShape:
@@ -551,7 +555,7 @@ class AllYouCanEat():
         # 3 because victor saves 3 spectra at a time
         # 1 because its only 1 spectrum no repetition
         # x axis given by the pixels
-        self._data = self._data[:, 1:4].reshape(1, 1, 3, PIXEL)
+        self._data = array([[self._data[:, 1:4].T]])
 
     def _arrange_ts(self):
         self._data
