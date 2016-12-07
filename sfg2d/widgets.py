@@ -3,7 +3,7 @@ from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
 from pandas.core.series import Series
 from pandas.core.frame import DataFrame
 import matplotlib.pyplot as plt
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown, Text
 from traitlets import TraitError
 from glob import glob
 import json
@@ -403,7 +403,7 @@ class PumpProbeDataImporter(DataImporter):
         self.scan.norm = self.norm_widget.data
         if self.normalize_toggle.value:
             self.scan.normalize(inplace=True)
-    
+
     def update_data(self, *args):
         """ update the data viewd in the plot"""
         if isinstance(self.scan, TimeScan):
@@ -470,7 +470,6 @@ class GuiABS():
         if not self.ax:
             self.ax = plt.gca()
 
-
     def _update_figure(self):
         """Update figure with changes"""
         pass
@@ -511,17 +510,20 @@ class AllYouCanPlot(GuiABS):
         )
 
         self.w_central_wl = FloatText(
-            description='Central Wl', value=self.central_wl, width='60px'
+            description='Central Wl', value=self.central_wl, width='120px'
         )
         self.w_calib = Dropdown(
-            description='Calibration', options=['pixel', 'nm', 'wavenumber'], width='80px'
+            description='Calibration', options=['pixel', 'nm', 'wavenumber'], width='60px'
         )
         self.w_vis_wl = FloatText(
-            description = 'Vis Wl', value = self.vis_wl, width = '60px'
+            description = 'Vis Wl', value = self.vis_wl, width = '120px'
         )
+        self.w_folder = Text(description="Folder")
+        self.w_file = Select(descripion='Files')
 
         # The container with all the widgets
         self.widget_container = VBox([
+                HBox([self.w_folder, self.w_file,]),
                 HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s]),
                 HBox([self.w_frame, self.w_y_pixel_range, self.w_x_pixel_range]),
                 self.w_vis_wl, self.w_central_wl, self.w_calib
@@ -531,9 +533,22 @@ class AllYouCanPlot(GuiABS):
         """Set all widget options."""
         self.w_pp_s.options = self.data.pp_delays.tolist()
         self.w_pp_s.value = self.w_pp_s.options[0]
+        if self.data.pp_delays.shape == (1,):
+            self.w_pp_s.disabled = True
+        else:
+            self.w_pp_s.disabled = False
+
         self.w_frame.options = list(range(0, self.data.data.shape[frame_axis_index]))
+        if self.data.data.shape[frame_axis_index] == 1:
+            self.w_frame.disabled = True
+        else:
+            self.w_frame.disabled = False
         self.w_y_pixel_range.max = self.data.data.shape[y_pixel_index]
         self.w_y_pixel_range.value = self.w_y_pixel_range.min, self.w_y_pixel_range.max
+        if self.data.data.shape[y_pixel_index] == 1:
+            self.w_y_pixel_range.disabled = True
+        else:
+            self.w_y_pixel_range.disabled = False
         self.w_x_pixel_range.max = self.data.data.shape[x_pixel_index]
         self.w_x_pixel_range.value = self.w_x_pixel_range.min, self.w_x_pixel_range.max
 
@@ -561,9 +576,9 @@ class AllYouCanPlot(GuiABS):
                                          self.data.data.shape[y_pixel_index])
         x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
                                          self.data.data.shape[x_pixel_index])
-
+        pp_delay_index = np.where(self.w_pp_s.value == self.data.pp_delays)[0][0]
         y = self.data.data[
-            self.w_pp_s.value,
+            pp_delay_index,
             self.w_frame.value,
             y_slice,
             x_slice
@@ -591,6 +606,9 @@ class AllYouCanPlot(GuiABS):
         self.ax.set_xlabel(self.w_calib.value)
 
     def _init_observer(self):
+        self.w_folder.on_submit(self._on_folder_submit)
+        self.w_file.observe(self._update_data, 'value')
+        self.w_file.observe(self._update_figure_callback, 'value')
         self.w_calib.observe(self._update_figure_callback, 'value')
         self.w_frame.observe(self._update_figure_callback, 'value')
         self.w_pp_s.observe(self._update_figure_callback, 'value')
@@ -603,6 +621,34 @@ class AllYouCanPlot(GuiABS):
 
     def _update_figure_callback(self, new):
         self._update_figure()
+
+    def _on_folder_submit(self, new):
+        fnames = np.sort(glob(os.path.normcase(self.w_folder.value + '/*' )))
+        # Only .dat and .spe in known
+        mask = [a or b for a, b in zip([".dat" in s for s in fnames],  [".spe" in s for s in fnames])]
+        fnames = fnames[np.where(mask)]
+        # Remove AVG
+        fnames = fnames[np.where(["AVG" not in s for s in fnames])]
+        fnames = [os.path.split(elm)[1] for elm in fnames]
+
+        if debug:
+            print("_on_filder_submit_called")
+        if debug > 1:
+            print("fnames:", fnames)
+
+        self.w_file.options = fnames
+
+    def _update_data(self, new):
+        fname = self.w_folder.value + "/" + self.w_file.value
+        self.data = AllYouCanEat(fname)
+        if ".spe" in self.w_file.value:
+            self.w_central_wl.disabled = True
+        else:
+            self.w_central_wl.disabled = False
+
+
+        self._set_widget_options()
+
 
 class PPDelaySlider():
     def __init__(self, pp_delays=[0], data=None):
