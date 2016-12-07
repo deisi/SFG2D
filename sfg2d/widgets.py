@@ -577,10 +577,10 @@ class AllYouCanPlot(GuiABS):
         if self.w_calib.value=='pixel':
             x = np.arange(self.data.data.shape[x_pixel_index])
         if self.w_calib.value=='nm':
-            x = self.data.wavelength,
+            x = self.data.wavelength
         if self.w_calib.value=='wavenumber':
             x = self.data.wavenumber
-        return x#[x_slice]
+        return x[x_slice]
 
     def _update_figure(self):
         """Init initial figure."""
@@ -591,29 +591,17 @@ class AllYouCanPlot(GuiABS):
         self.ax.set_xlabel(self.w_calib.value)
 
     def _init_observer(self):
-        self.w_calib.observe(self._calib_observer, 'value')
-        self.w_frame.observe(self._frame_observer, 'value')
-        self.w_pp_s.observe(self._pp_delay_observer, 'value')
-        self.w_y_pixel_range.observe(self._y_pixel_range_observer, 'value')
-        self.w_x_pixel_range.observe(self._x_pixel_range_observer, 'value')
+        self.w_calib.observe(self._update_figure_callback, 'value')
+        self.w_frame.observe(self._update_figure_callback, 'value')
+        self.w_pp_s.observe(self._update_figure_callback, 'value')
+        self.w_y_pixel_range.observe(self._update_figure_callback, 'value')
+        self.w_x_pixel_range.observe(self._update_figure_callback, 'value')
 
     def _unobserve(self):
         pass
         #TODO find out if I can use the widget_container for this
 
-    def _calib_observer(self, new):
-        self._update_figure()
-
-    def _frame_observer(self, new):
-        self._update_figure()
-
-    def _pp_delay_observer(self, new):
-        self._update_figure()
-
-    def _y_pixel_range_observer(self, new):
-        self._update_figure()
-
-    def _x_pixel_range_observer(self, new):
+    def _update_figure_callback(self, new):
         self._update_figure()
 
 class PPDelaySlider():
