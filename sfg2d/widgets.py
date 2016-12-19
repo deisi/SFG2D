@@ -3,7 +3,7 @@ from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
 from pandas.core.series import Series
 from pandas.core.frame import DataFrame
 import matplotlib.pyplot as plt
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown, Text
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown, Text, Checkbox
 from traitlets import TraitError
 from glob import glob
 import json
@@ -13,9 +13,386 @@ import numpy as np
 
 from .io.veronica import read_auto
 from .io.allYouCanEat import AllYouCanEat, x_pixel_index, y_pixel_index, spec_index, frame_axis_index, pp_index
+from .io.veronica import pixel_to_nm
 from .core.scan import Scan, TimeScan
+from .utils.static import nm_to_ir_wavenumbers
 
 debug = 1
+
+class GuiABS():
+    def __init__(self, data=AllYouCanEat(), fig=None, ax=None):
+        self.data = data
+        self._fig = fig
+        self._ax = ax
+        self.widget_container = [] # List of widgets to display
+
+    def __call__(self):
+        self._init__widgets()
+        self._set_widget_options()
+        self._init_observer()
+        self._update_figure()
+        display(self.widget_container)
+        self.fig
+
+    def _init__widgets(self):
+        """Init all widgets."""
+        pass
+
+    def _set_widget_options(self):
+        """Set all widget options."""
+        pass
+
+    def _init_figure(self):
+        """Init initial figure."""
+        if not self.fig:
+            self._fig = plt.gcf()
+
+        if not self.ax:
+            self._ax = plt.gca()
+
+    def _update_figure(self):
+        """Update figure with changes"""
+        pass
+
+    def _init_observer(self):
+        pass
+
+    def _unobserve(self):
+        pass
+
+    @property
+    def fig(self):
+        return self._fig
+
+class AllYouCanPlot(GuiABS):
+    def __init__(self, central_wl=None, vis_wl=810, **kwargs):
+        """Plotting gui based on the AllYouCanEat class as a data backend.
+
+        Parameters
+        ----------
+        data : Optional, AllYouCanEat obj.
+            Default dataset to start with. If None is given, an empty one is created.
+        fig: Optional, matplotlib figure
+            The figure to draw on.
+            Defaults to create a new one.
+        ax: Optional, matplotlib axes. The axes to draw on.
+            Defaults to create a new one.
+        central_wl: float
+            Central wavelength of the camera to start with.
+            If none is given, it tryes to find out from by investigating the
+            metadata.
+        vis_wl: float
+            Wavelength of the visible to begin with.
+
+        Example:
+        -------
+        test = AllYouCanPlot()
+        test()
+        # Type the Folder you want to investigate in the folder Text box and press RETURN.
+        # A list of selectable files will appear on the right side.
+        """
+        super().__init__(**kwargs)
+        self._central_wl = central_wl
+        self.vis_wl = vis_wl
+        self._ax_xlim = None
+        self._ax_ylim = None
+
+    def _init_figure(self):
+        #super()._init_figure()
+        if not self._fig and not self._ax:
+            self._fig, self._ax = plt.subplots(2, 1, figsize=(8, 12))
+        #if len(self.fig.get_axes()) < 2:
+        #    rect = [0,0,self.fig.get_figwidth(),self.fig.get_figheight()/2]
+        #    self.fig.add_axes(rect)
+        #self.fig.canvas.mpl_connect('resize_event', self._resize_callback)
+
+    def _init__widgets(self):
+        """Init all widgets."""
+        self.w_pp_s = SelectionSlider(
+            continuous_update=False, description="pp_delay",
+        )
+        self.w_smooth_s = IntSlider(
+            continuous_update=False, description="smooth",
+            min=1, max=100
+        )
+        self.w_Autoscale = Checkbox(
+            description="Autoscale",
+            value=True,
+        )
+        self.w_frame = SelectionSlider(
+            continuous_update=False, description="frame"
+        )
+        self.w_frame_median = Checkbox(
+            description='median',
+        )
+        self.w_y_pixel_range = IntRangeSlider(
+            continuous_update=False, description="y_pixels"
+        )
+        self.w_x_pixel_range = IntRangeSlider(
+            continuous_update=False, description="x_pixels"
+        )
+
+        self.w_central_wl = FloatText(
+            description='Central Wl', value=self.central_wl, width='120px'
+        )
+        self.w_calib = Dropdown(
+            description='Calibration', options=['pixel', 'nm', 'wavenumber'], width='60px'
+        )
+        self.w_vis_wl = FloatText(
+            description = 'Vis Wl', value = self.vis_wl, width = '120px'
+        )
+        self.w_folder = Text(description="Folder")
+        self.w_file = Select(descripion='Files')
+
+        # The container with all the widgets
+        self.widget_container = VBox([
+                HBox([self.w_folder, self.w_file,]),
+                HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s]),
+                HBox([self.w_frame, self.w_frame_median, self.w_y_pixel_range, self.w_x_pixel_range]),
+                self.w_calib, self.w_central_wl, self.w_vis_wl,
+            ])
+
+    def _set_widget_options(self):
+        """Set all widget options. And default values."""
+        self.w_pp_s.options = self.data.pp_delays.tolist()
+        if self.w_pp_s.value not in self.w_pp_s.options:
+            self.w_pp_s.value = self.w_pp_s.options[0]
+        if self.data.pp_delays.shape == (1,):
+            self.w_pp_s.disabled = True
+        else:
+            self.w_pp_s.disabled = False
+
+        self.w_frame.options = list(range(0, self.data.data.shape[frame_axis_index]))
+        if self.data.data.shape[frame_axis_index] == 1:
+            self.w_frame.disabled = True
+        else:
+            self.w_frame.disabled = False
+        self.w_y_pixel_range.max = self.data.data.shape[y_pixel_index]
+        if np.any(np.array(self.w_y_pixel_range.value) > self.w_y_pixel_range.max):
+            self.w_y_pixel_range.value = self.w_y_pixel_range.min, self.w_y_pixel_range.max
+        if self.data.data.shape[y_pixel_index] == 1:
+            self.w_y_pixel_range.disabled = True
+        else:
+            self.w_y_pixel_range.disabled = False
+        self.w_x_pixel_range.max = self.data.data.shape[x_pixel_index]
+        self.w_x_pixel_range.value = self.w_x_pixel_range.min, self.w_x_pixel_range.max
+
+        if isinstance(self.central_wl, type(None)):
+            self.w_central_wl.value = 0
+        else:
+            self.w_central_wl.value = self.central_wl
+        self.w_vis_wl.value = self.vis_wl
+
+        self._toggle_frame_slider()
+        self._toggle_central_wl()
+        self._toggle_vis_wl()
+
+    @property
+    def ax(self):
+        """Return axes of the upper graph."""
+        #try:
+        #    ret = self.fig.get_axes()[0]
+        #except IndexError:
+        #    ret = None
+        ret = self._ax[0]
+        return ret
+
+    @property
+    def ax_lower(self):
+        """Return axes of the lower graph."""
+        #try:
+        #    ret = self.fig.get_axes()[-1]
+        #except IndexError:
+        #    ret = None
+        ret = self._ax[1]
+        return ret
+
+    @property
+    def central_wl(self):
+        if self._central_wl == None:
+            if self.data.metadata.get('central_wl') != 0:
+                self._central_wl = self.data.metadata.get('central_wl')
+        return self._central_wl
+
+    @property
+    def y(self):
+        """Y data used in the plot."""
+        y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
+                                         self.data.data.shape[y_pixel_index])
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data.data.shape[x_pixel_index])
+        pp_delay_index = np.where(self.w_pp_s.value == self.data.pp_delays)[0][0]
+        if self.w_frame_median.value:
+            data = np.median(self.data.data, 1)
+            y = data[pp_delay_index, y_slice, x_slice].T
+        else:
+            y = self.data.data[
+                pp_delay_index,
+                self.w_frame.value,
+                y_slice,
+                x_slice
+            ].T
+        return y
+
+    @property
+    def x(self):
+        """X data of the plot"""
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data.data.shape[x_pixel_index])
+        # Need pixel as a possible default value.
+        pixel = np.arange(self.data.data.shape[x_pixel_index])
+        central_wl = self.w_central_wl.value
+        vis_wl = self.w_vis_wl.value
+
+        if self.w_calib.value == 'pixel':
+            x = pixel
+        if self.w_calib.value == 'nm':
+            x = self.data.wavelength
+            if self.w_central_wl.value != 0:
+                x = pixel_to_nm(pixel, central_wl)
+        if self.w_calib.value == 'wavenumber':
+            x = self.data.wavenumber
+            # TODO refactor this with better vis_wl default
+            if vis_wl != 810 and central_wl != 0:
+                nm = pixel_to_nm(pixel, central_wl)
+                x = nm_to_ir_wavenumbers(nm, vis_wl)
+            elif vis_wl != 810 and central_wl == 0:
+                x = nm_to_ir_wavenumbers(self.data.wavelength, vis_wl)
+        return x[x_slice]
+
+    @property
+    def sum_y(self):
+        """y data of the summed plot."""
+        y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
+                                         self.data.data.shape[y_pixel_index])
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data.data.shape[x_pixel_index])
+
+        if self.w_frame_median.value:
+            # TODO Maybe merge this with y property. They are redundant to some
+            # extend.
+            data = np.median(self.data.data, frame_axis_index)
+            y = data[:, y_slice, x_slice].sum(x_pixel_index)
+        else:
+            y = self.data.data[:, self.w_frame.value, y_slice, x_slice].sum(x_pixel_index)
+        return y
+
+    @property
+    def sum_x(self):
+        """x data of the summed plot."""
+        return self.data.pp_delays
+
+    def _update_figure(self):
+        """Init initial figure."""
+        self._init_figure()
+        self.ax.clear()
+        self._lines = self.ax.plot(self.x, self.y)
+        self.ax.set_xlabel(self.w_calib.value)
+        if self.w_Autoscale.value:
+            self._ax_xlim = self.ax.get_xlim()
+            self._ax_ylim = self.ax.get_ylim()
+        if not isinstance(self._ax_xlim, type(None)):
+            self.ax.set_xlim(*self._ax_xlim)
+        if not isinstance(self._ax_ylim, type(None)):
+            self.ax.set_ylim(*self._ax_ylim)
+        self.ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
+        self.ax.callbacks.connect('ylim_changed', self._on_ylim_changed)
+
+        self.ax_lower.clear()
+        sum_y = self.sum_y
+        self._lines2 = self.ax_lower.plot(self.sum_x, sum_y)
+        self._points2 = self.ax_lower.plot(self.sum_x, sum_y, 'o')
+        for i in range(len(self._lines2)):
+            points = self._points2[i]
+            color = self._lines2[i].get_color()
+            points.set_color(color)
+        #self._points2 = self.ax_lower.plot(self.sum_x, self.sum_y, 'o')
+        self.ax_lower.set_xlabel('pp delay / fs')
+        self.ax_lower.set_ylabel('Sum')
+
+    def _update_lower_ax(self):
+        """Allways call this after _update_figure."""
+        # Think if I want to implement this as a seperate function or here.
+        pass
+
+
+    def _update_lines(self, new=None):
+        """Update only the lines of the plot"""
+        for i in range(len(self._lines)):
+            line = self._lines[i]
+            new_y = self.y.T[i]
+            line.set_xdata(self.x)
+            line.set_ydata(new_y)
+        self.ax.figure.canvas.draw()
+
+    def _init_observer(self):
+        self.w_folder.on_submit(self._on_folder_submit)
+        self.w_file.observe(self._update_data, 'value')
+        self.w_file.observe(self._update_figure_callback, 'value')
+        self.w_calib.observe(self._update_figure_callback, 'value')
+        self.w_calib.observe(self._toggle_vis_wl, 'value')
+        self.w_calib.observe(self._toggle_central_wl, 'value')
+        self.w_frame.observe(self._update_figure_callback, 'value')
+        self.w_pp_s.observe(self._update_figure_callback, 'value')
+        self.w_y_pixel_range.observe(self._update_figure_callback, 'value')
+        self.w_x_pixel_range.observe(self._update_figure_callback, 'value')
+        self.w_vis_wl.observe(self._update_figure_callback, 'value')
+        self.w_central_wl.observe(self._update_figure_callback, 'value')
+        self.w_frame_median.observe(self._update_figure_callback, 'value')
+        self.w_frame_median.observe(self._toggle_frame_slider, 'value')
+        self.w_Autoscale.observe(self._update_figure_callback, 'value')
+
+    def _update_figure_callback(self, new):
+        self._update_figure()
+
+    def _on_folder_submit(self, new):
+        fnames = np.sort(glob(os.path.normcase(self.w_folder.value + '/*' )))
+        # Only .dat and .spe in known
+        mask = [a or b for a, b in zip([".dat" in s for s in fnames], [".spe" in s for s in fnames])]
+        fnames = fnames[np.where(mask)]
+        # Remove AVG
+        fnames = fnames[np.where(["AVG" not in s for s in fnames])]
+        fnames = [os.path.split(elm)[1] for elm in fnames]
+
+        if debug:
+            print("_on_filder_submit_called")
+        if debug > 1:
+            print("fnames:", fnames)
+
+        self.w_file.options = fnames
+
+    def _toggle_vis_wl(self, new=None):
+        if self.w_calib.value == 'wavenumber':
+            self.w_vis_wl.disabled = False
+        else:
+            self.w_vis_wl.disabled = True
+
+    def _toggle_central_wl(self, new=None):
+        if self.w_calib.value == 'pixel' or self.data._type == 'spe':
+            self.w_central_wl.disabled = True
+        else:
+            self.w_central_wl.disabled = False
+
+    def _update_data(self, new):
+        fname = self.w_folder.value + "/" + self.w_file.value
+        self.data = AllYouCanEat(fname)
+        self._central_wl = None
+        self._set_widget_options()
+
+    def _toggle_frame_slider(self, new=None):
+        '''toggle frame slider on or of '''
+        if self.w_frame_median.value:
+            self.w_frame.disabled = True
+        else:
+            self.w_frame.disabled = False
+
+    def _on_xlim_changed(self, new=None):
+        self._ax_xlim = self.ax.get_xlim()
+
+    def _on_ylim_changed(self, new=None):
+        self._ax_ylim = self.ax.get_ylim()
+
+
 
 class MyBqPlot():
     """Class for Bqolot setup. """
@@ -443,211 +820,6 @@ class PumpProbeDataImporter(DataImporter):
 ######################################################################
 #                         A new Approach                             #
 ######################################################################
-class GuiABS():
-    def __init__(self, data=AllYouCanEat(), fig=None, ax=None):
-        self.data = data
-        self.fig = fig
-        self.ax = ax
-        self.widget_container = [] # List of widgets to display
-
-    def __call__(self):
-        display(self.widget_container)
-        self.fig
-
-    def _init__widgets(self):
-        """Init all widgets."""
-        pass
-
-    def _set_widget_options(self):
-        """Set all widget options."""
-        pass
-
-    def _init_figure(self):
-        """Init initial figure."""
-        if not self.fig:
-            self.fig = plt.gcf()
-
-        if not self.ax:
-            self.ax = plt.gca()
-
-    def _update_figure(self):
-        """Update figure with changes"""
-        pass
-
-    def _init_observer(self):
-        pass
-
-    def _unobserve(self):
-        pass
-
-class AllYouCanPlot(GuiABS):
-    def __init__(self, central_wl=None, vis_wl=810, **kwargs):
-        super().__init__(**kwargs)
-        self._central_wl = central_wl
-        self.vis_wl = vis_wl
-
-    def _init__widgets(self):
-        """Init all widgets."""
-        self.w_pp_s = SelectionSlider(
-            continuous_update=False, description="pp_delay"
-        )
-        self.w_smooth_s = IntSlider(
-            continuous_update=False, description="smooth",
-            min=1, max=100
-        )
-        self.w_Autoscale = ToggleButton(
-            description="Autoscale",
-            value=True,
-        )
-        self.w_frame = SelectionSlider(
-            continuous_update=False, description="frame"
-        )
-        self.w_y_pixel_range = IntRangeSlider(
-            continuous_update=False, description="y_pixels"
-        )
-        self.w_x_pixel_range = IntRangeSlider(
-            continuous_update=False, description="x_pixels"
-        )
-
-        self.w_central_wl = FloatText(
-            description='Central Wl', value=self.central_wl, width='120px'
-        )
-        self.w_calib = Dropdown(
-            description='Calibration', options=['pixel', 'nm', 'wavenumber'], width='60px'
-        )
-        self.w_vis_wl = FloatText(
-            description = 'Vis Wl', value = self.vis_wl, width = '120px'
-        )
-        self.w_folder = Text(description="Folder")
-        self.w_file = Select(descripion='Files')
-
-        # The container with all the widgets
-        self.widget_container = VBox([
-                HBox([self.w_folder, self.w_file,]),
-                HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s]),
-                HBox([self.w_frame, self.w_y_pixel_range, self.w_x_pixel_range]),
-                self.w_vis_wl, self.w_central_wl, self.w_calib
-            ])
-
-    def _set_widget_options(self):
-        """Set all widget options."""
-        self.w_pp_s.options = self.data.pp_delays.tolist()
-        self.w_pp_s.value = self.w_pp_s.options[0]
-        if self.data.pp_delays.shape == (1,):
-            self.w_pp_s.disabled = True
-        else:
-            self.w_pp_s.disabled = False
-
-        self.w_frame.options = list(range(0, self.data.data.shape[frame_axis_index]))
-        if self.data.data.shape[frame_axis_index] == 1:
-            self.w_frame.disabled = True
-        else:
-            self.w_frame.disabled = False
-        self.w_y_pixel_range.max = self.data.data.shape[y_pixel_index]
-        self.w_y_pixel_range.value = self.w_y_pixel_range.min, self.w_y_pixel_range.max
-        if self.data.data.shape[y_pixel_index] == 1:
-            self.w_y_pixel_range.disabled = True
-        else:
-            self.w_y_pixel_range.disabled = False
-        self.w_x_pixel_range.max = self.data.data.shape[x_pixel_index]
-        self.w_x_pixel_range.value = self.w_x_pixel_range.min, self.w_x_pixel_range.max
-
-    @property
-    def central_wl(self):
-        central_wl = 674
-        if self._central_wl == None:
-            if self.data.metadata.get('central_wl') != 0:
-                central_wl = self.data.metadata.get('central_wl')
-        else:
-            central_wl = self._central_wl
-        return central_wl
-
-    @property
-    def y(self):
-        """prepare y data to plot."""
-        # Needed to account for overlapping of the range sliders.
-        # y_range = self.w_y_pixel_range.value
-        # if y_range[0] == y_range[1]:
-        #     if self.data.data.shape[y_pixel_index] > y_range[0]:
-        #         y_range = y_range[0], y_range[0] + 1
-        #     else:
-        #         y_range = y_range[1] - 1, y_range[1]
-        y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
-                                         self.data.data.shape[y_pixel_index])
-        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
-                                         self.data.data.shape[x_pixel_index])
-        pp_delay_index = np.where(self.w_pp_s.value == self.data.pp_delays)[0][0]
-        y = self.data.data[
-            pp_delay_index,
-            self.w_frame.value,
-            y_slice,
-            x_slice
-        ].T
-        return y
-
-    @property
-    def x(self):
-        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
-                                         self.data.data.shape[x_pixel_index])
-        if self.w_calib.value=='pixel':
-            x = np.arange(self.data.data.shape[x_pixel_index])
-        if self.w_calib.value=='nm':
-            x = self.data.wavelength
-        if self.w_calib.value=='wavenumber':
-            x = self.data.wavenumber
-        return x[x_slice]
-
-    def _update_figure(self):
-        """Init initial figure."""
-        super()._init_figure()
-        #self.fig.clf
-        self.ax.clear()
-        self._lines = plt.plot(self.x, self.y)
-        self.ax.set_xlabel(self.w_calib.value)
-
-    def _init_observer(self):
-        self.w_folder.on_submit(self._on_folder_submit)
-        self.w_file.observe(self._update_data, 'value')
-        self.w_file.observe(self._update_figure_callback, 'value')
-        self.w_calib.observe(self._update_figure_callback, 'value')
-        self.w_frame.observe(self._update_figure_callback, 'value')
-        self.w_pp_s.observe(self._update_figure_callback, 'value')
-        self.w_y_pixel_range.observe(self._update_figure_callback, 'value')
-        self.w_x_pixel_range.observe(self._update_figure_callback, 'value')
-
-    def _unobserve(self):
-        pass
-        #TODO find out if I can use the widget_container for this
-
-    def _update_figure_callback(self, new):
-        self._update_figure()
-
-    def _on_folder_submit(self, new):
-        fnames = np.sort(glob(os.path.normcase(self.w_folder.value + '/*' )))
-        # Only .dat and .spe in known
-        mask = [a or b for a, b in zip([".dat" in s for s in fnames],  [".spe" in s for s in fnames])]
-        fnames = fnames[np.where(mask)]
-        # Remove AVG
-        fnames = fnames[np.where(["AVG" not in s for s in fnames])]
-        fnames = [os.path.split(elm)[1] for elm in fnames]
-
-        if debug:
-            print("_on_filder_submit_called")
-        if debug > 1:
-            print("fnames:", fnames)
-
-        self.w_file.options = fnames
-
-    def _update_data(self, new):
-        fname = self.w_folder.value + "/" + self.w_file.value
-        self.data = AllYouCanEat(fname)
-        if ".spe" in self.w_file.value:
-            self.w_central_wl.disabled = True
-        else:
-            self.w_central_wl.disabled = False
-
-
-        self._set_widget_options()
 
 
 class PPDelaySlider():
