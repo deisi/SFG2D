@@ -18,7 +18,7 @@ class FileHandler(FileSystemEventHandler):
         self.ffiles = glob(self.ffolder + '/*.dat')
         self.ffiles = [ x for x in self.ffiles if "AVG" not in x ]
         self.fnames = [path.split(ffile)[1] for ffile in self.ffiles]
-    
+
     def on_any_event(self, event):
         if debug:
             print('got event', event)
@@ -35,8 +35,9 @@ def setup_inspector(folder, observer, importer):
     '''Sets up an Inspector with a file handler'''
     if not path.isdir(folder):
         if debug: print('setup_inspector called with invaild fpath')
-        return observer, importer, None
-    
+        importer = sfg2d.widgets.Importer('/')
+        return observer, importer, importer
+
     event_handler = FileHandler(folder)
 
     # On the first run the importer is None. From Then on we update it.
@@ -50,7 +51,7 @@ def setup_inspector(folder, observer, importer):
             if debug: print('OSError during creation of importer')
         except IndexError:
             if debug: print('IndexError during creation of importer')
-        
+
     # Start file observer to monitor filechanges in new folder
     observer.schedule(event_handler, folder, recursive=False)
     observer.start()
@@ -60,14 +61,14 @@ def update_inspector(new):
     '''Callback for the W_FOLDER observer'''
     #return setup_inspector(W_FOLDER.value, OBSERVER, IMPORTER)
     global OBSERVER, IMPORTER, EVENT_HANDLER
-    
+
     if not path.isdir(W_FOLDER.value):
         W_FOLDER.layout.border = '3px red dotted'
         if debug: print('update_ispector with invalid path. Skipping')
         return
-    
+
     W_FOLDER.layout.border = ''
-    
+
     if OBSERVER.isAlive():
         if debug: print('Killing old OBSERVER')
         OBSERVER.unschedule_all()
@@ -83,15 +84,17 @@ def update_inspector(new):
             IMPORTER()
         except OSError:
             return
-        
+
     EVENT_HANDLER.importer = IMPORTER
     IMPORTER.ffolder = W_FOLDER.value
     IMPORTER.w_files.options = EVENT_HANDLER.fnames
-    
+    return IMPORTER
+
 
 W_FOLDER = Text(
     description = 'Folder:',
     value = 'D:/das/2016/09/30',
+    # value='/home/malte/MeasurmentData/2016/09/07/'
     )
 
 display(W_FOLDER)

@@ -3,13 +3,15 @@ from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
 from pandas.core.series import Series
 from pandas.core.frame import DataFrame
 import matplotlib.pyplot as plt
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown, Text, Checkbox
+import matplotlib.ticker as mtick
+from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown, Text, Checkbox, Layout
 from traitlets import TraitError
 from glob import glob
 import json
 import warnings
 import os
 import numpy as np
+from scipy.signal import medfilt2d, medfilt
 
 from .io.veronica import read_auto
 from .io.allYouCanEat import AllYouCanEat, x_pixel_index, y_pixel_index, spec_index, frame_axis_index, pp_index
@@ -17,7 +19,7 @@ from .io.veronica import pixel_to_nm
 from .core.scan import Scan, TimeScan
 from .utils.static import nm_to_ir_wavenumbers
 
-debug = 1
+debug = 0
 
 class GuiABS():
     def __init__(self, data=AllYouCanEat(), fig=None, ax=None):
@@ -100,7 +102,7 @@ class AllYouCanPlot(GuiABS):
     def _init_figure(self):
         #super()._init_figure()
         if not self._fig and not self._ax:
-            self._fig, self._ax = plt.subplots(2, 1, figsize=(8, 12))
+            self._fig, self._ax = plt.subplots(1, 2, figsize=(9, 4.5))
         #if len(self.fig.get_axes()) < 2:
         #    rect = [0,0,self.fig.get_figwidth(),self.fig.get_figheight()/2]
         #    self.fig.add_axes(rect)
@@ -113,7 +115,7 @@ class AllYouCanPlot(GuiABS):
         )
         self.w_smooth_s = IntSlider(
             continuous_update=False, description="smooth",
-            min=1, max=100
+            min=1, max=19, step=2,
         )
         self.w_Autoscale = Checkbox(
             description="Autoscale",
@@ -142,7 +144,10 @@ class AllYouCanPlot(GuiABS):
             description = 'Vis Wl', value = self.vis_wl, width = '120px'
         )
         self.w_folder = Text(description="Folder")
-        self.w_file = Select(descripion='Files')
+        self.w_file = Select(
+            descripion='Files',
+            layout = Layout(width='70%', max_width='100%')#, border='solid')
+        )
 
         # The container with all the widgets
         self.widget_container = VBox([
@@ -232,6 +237,8 @@ class AllYouCanPlot(GuiABS):
                 y_slice,
                 x_slice
             ].T
+        if self.w_smooth_s.value != 1:
+            y = medfilt2d(y, (self.w_smooth_s.value, 1))
         return y
 
     @property
@@ -268,13 +275,18 @@ class AllYouCanPlot(GuiABS):
         x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
                                          self.data.data.shape[x_pixel_index])
 
+        y = self.data.data[:, :, y_slice, x_slice]
+        if self.w_smooth_s.value != 1:
+            # Smooth only over x-pixel axis
+            y = medfilt(y, (1, 1, 1, self.w_smooth_s.value))
+
         if self.w_frame_median.value:
-            # TODO Maybe merge this with y property. They are redundant to some
-            # extend.
-            data = np.median(self.data.data, frame_axis_index)
-            y = data[:, y_slice, x_slice].sum(x_pixel_index)
+            y = np.median(y, frame_axis_index)
         else:
-            y = self.data.data[:, self.w_frame.value, y_slice, x_slice].sum(x_pixel_index)
+            y = y[:, self.w_frame.value, :, :]
+
+        y = y.sum(x_pixel_index)
+
         return y
 
     @property
@@ -285,6 +297,7 @@ class AllYouCanPlot(GuiABS):
     def _update_figure(self):
         """Init initial figure."""
         self._init_figure()
+        fontsize = 8
         self.ax.clear()
         self._lines = self.ax.plot(self.x, self.y)
         self.ax.set_xlabel(self.w_calib.value)
@@ -297,6 +310,11 @@ class AllYouCanPlot(GuiABS):
             self.ax.set_ylim(*self._ax_ylim)
         self.ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.ax.callbacks.connect('ylim_changed', self._on_ylim_changed)
+        self.ax.set_xticklabels(self.ax.get_xticks(), fontsize=fontsize)
+        self.ax.set_yticklabels(self.ax.get_yticks(), fontsize=fontsize)
+        self.ax.set_title("Signal")
+        self.ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2e'))
+        self.ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
 
         self.ax_lower.clear()
         sum_y = self.sum_y
@@ -306,9 +324,13 @@ class AllYouCanPlot(GuiABS):
             points = self._points2[i]
             color = self._lines2[i].get_color()
             points.set_color(color)
-        #self._points2 = self.ax_lower.plot(self.sum_x, self.sum_y, 'o')
         self.ax_lower.set_xlabel('pp delay / fs')
-        self.ax_lower.set_ylabel('Sum')
+        self.ax_lower.set_title('Sum')
+        self.ax_lower.set_xticklabels(self.ax_lower.get_xticks(), fontsize=fontsize)
+        self.ax_lower.set_yticklabels(self.ax_lower.get_yticks(), fontsize=fontsize)
+        self.ax_lower.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2g'))
+        self.ax_lower.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
+        self.ax_lower.yaxis.tick_right()
 
     def _update_lower_ax(self):
         """Allways call this after _update_figure."""
@@ -341,11 +363,20 @@ class AllYouCanPlot(GuiABS):
         self.w_frame_median.observe(self._update_figure_callback, 'value')
         self.w_frame_median.observe(self._toggle_frame_slider, 'value')
         self.w_Autoscale.observe(self._update_figure_callback, 'value')
+        self.w_smooth_s.observe(self._update_figure_callback, 'value')
 
     def _update_figure_callback(self, new):
         self._update_figure()
 
     def _on_folder_submit(self, new):
+        if not os.path.isdir(self.w_folder.value):
+            self.w_folder.layout.border = '3px red dotted'
+            self.w_file.disabled = True
+            return
+        self.w_folder.layout.border = ''
+        self.w_file.disabled = False
+
+
         fnames = np.sort(glob(os.path.normcase(self.w_folder.value + '/*' )))
         # Only .dat and .spe in known
         mask = [a or b for a, b in zip([".dat" in s for s in fnames], [".spe" in s for s in fnames])]
@@ -374,6 +405,8 @@ class AllYouCanPlot(GuiABS):
             self.w_central_wl.disabled = False
 
     def _update_data(self, new):
+        if not os.path.isdir(self.w_folder.value):
+            return
         fname = self.w_folder.value + "/" + self.w_file.value
         self.data = AllYouCanEat(fname)
         self._central_wl = None
@@ -406,7 +439,7 @@ class MyBqPlot():
 
         ax_x = Axis(scale=x_sc,
                     label=x_label)
-        ax_y = Axis(scale=y_sc, 
+        ax_y = Axis(scale=y_sc,
                     label=y_label, orientation='vertical')
 
         # Zoom only y-scale
