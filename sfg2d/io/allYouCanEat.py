@@ -14,6 +14,8 @@ spec_index = y_pixel_index
 frame_axis_index = -3
 pp_index = -4 # pump-probe delay
 
+debug=0
+
 def get_AllYouCanEat_scan(fname, baseline, ir_profile,
                           wavenumber=arange(1600), dir_profile=None, dbaseline=None):
     '''Function to unify usual data processing pipeline.
@@ -354,7 +356,8 @@ class AllYouCanEat():
         self.pp_delays = array([0])
         self.metadata = {}
         self._fname  = fname
-        self._data = zeros(4)
+        self._data = zeros((1,1,1,1600))
+        self._type = 'unknown'
 
         if isinstance(fname, type(None)):
             return
@@ -424,7 +427,8 @@ class AllYouCanEat():
             return
 
         raise NotImplementedError("Uuuups this should never be reached."
-                                  "Bug with %s" % self._fname)
+                                  "Bug with %s. I cannot understand the datatype" % self._fname
+                                  )
 
     def _read_metadata(self):
         """Read metadata of the file """
@@ -496,12 +500,17 @@ class AllYouCanEat():
         self._data = self._read_veronica_data
         typeByShape = self._get_type_by_shape()
 
+        if debug:
+            print('Type by name is:', typeByName)
+            print('Type by shape is:', typeByShape)
+
         if typeByName == typeByShape:
             return True
 
         print("type by name and type by shape don't match in %s" % self._fname)
         print("typeByName : " + typeByName + " typeByShape: " + typeByShape)
         print("Fallback to type by shape.")
+        self._type = typeByShape
         return False
 
     def _get_type_by_shape(self):
@@ -612,16 +621,13 @@ class AllYouCanEat():
 
         if self._type != 'spe':
             self.pixel = arange(PIXEL)
+            self.wavelength = self.pixel
             cw = self.metadata.get('central_wl')
             if cw and cw >= 1:
                 self.wavelength = pixel_to_nm(
                     arange(PIXEL),
                     self.metadata.get('central_wl')
                 )
-        # wavelength does not exist when central wl is wrong in
-        # filename in that case we will use pixel so wavenumber
-        # is not empty
-        wavelength = getattr(self, "wavelength", self.pixel)
         self.wavenumber = nm_to_ir_wavenumbers(
-            wavelength, self.metadata.get('vis_wl', 810)
+            self.wavelength, self.metadata.get('vis_wl', 810)
         )

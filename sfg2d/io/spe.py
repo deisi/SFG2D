@@ -136,7 +136,7 @@ class PrincetonSPEFile3():
         )
         self.timeUTC = datetime.strptime(
             date + timeUTC, "%d%b%Y%H%M%S"
-        ) 
+        )
         self.gain = self._readFromHeader('I', 198)[0]
         self.comments = self._readFromHeader('400s', 200)[0].decode('utf-8')
         self.central_wl = self._readFromHeader('f', 72)[0] # in nm
@@ -146,8 +146,7 @@ class PrincetonSPEFile3():
         # Read calib data
         self.wavelength = np.arange(self.xdim)
         if self.headerVersion >= 3:
-            return        
-        self.central_wl = self._readFromHeader('f', 72)[0]
+            return
         self.poly_coeff = np.array(self._readFromHeader('6d', 3263))
         # numpy needs polynomparams in reverse oder
         params = self.poly_coeff[np.where( self.poly_coeff != 0 )][::-1]
