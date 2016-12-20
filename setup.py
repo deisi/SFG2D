@@ -25,6 +25,9 @@ for source_file in glob('sfg2d/utils/*' + ext):
                   include_dirs=[np.get_include()])
     )
 
+if USE_CYTHON:
+    extensions = cythonize(extensions)
+
 with open('README.rst') as readme_file:
     readme = readme_file.read()
 
@@ -81,7 +84,6 @@ setup(
     ],
     test_suite='tests',
     tests_require=test_requirements,
-    #ext_modules=cythonize('./sfg2d/utils/static_c.pyx')
     ext_modules=extensions,
 )
 
