@@ -1,9 +1,29 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 from setuptools import setup
-from Cython.Build import cythonize
+from setuptools.extension import Extension
+from glob import glob
 
+import numpy as np
+
+try:
+    from Cython.Build import cythonize
+    USE_CYTHON = True
+except ImportError:
+    print('Cython is not available; using pre-generated C files')
+    USE_CYTHON = False
+
+ext = '.pyx' if USE_CYTHON else '.c'
+extensions = []
+for source_file in glob('sfg2d/utils/*' + ext):
+    fname, _ = os.path.splitext(os.path.basename(source_file))
+    extensions.append(
+        Extension('sfg2d.utils.{0}'.format(fname),
+                  sources=['sfg2d/utils/{0}{1}'.format(fname, ext)],
+                  include_dirs=[np.get_include()])
+    )
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -61,5 +81,7 @@ setup(
     ],
     test_suite='tests',
     tests_require=test_requirements,
-    ext_modules=cythonize('./sfg2d/utils/static_c.pyx')
+    #ext_modules=cythonize('./sfg2d/utils/static_c.pyx')
+    ext_modules=extensions,
 )
+
