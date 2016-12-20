@@ -476,7 +476,15 @@ class AllYouCanEat():
             self._type = 'sc'
             return True
 
+        if ftail.find('_kin_') != -1:
+            self._type = 'sc'
+            return True
+
         if ftail.find('_ts_') != -1:
+            self._type = 'ts'
+            return True
+
+        if ftail.find('_cc_') != -1:
             self._type = 'ts'
             return True
 

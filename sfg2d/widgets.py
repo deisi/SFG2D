@@ -1,17 +1,14 @@
-from IPython.display import display
-from bqplot import LinearScale, Axis, Lines, Figure, Toolbar, PanZoom
-from pandas.core.series import Series
-from pandas.core.frame import DataFrame
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
-from ipywidgets import VBox, HBox, ToggleButton, BoundedIntText, SelectionSlider, IntSlider, Select, IntRangeSlider, FloatText, Dropdown, Text, Checkbox, Layout
-from traitlets import TraitError
-from glob import glob
-import json
+"""Module for widget classes."""
+
 import warnings
 import os
+from glob import glob
 import numpy as np
 from scipy.signal import medfilt2d, medfilt
+from pandas.core.frame import DataFrame
+from pandas.core.series import Series
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 
 from .io.veronica import read_auto
 from .io.allYouCanEat import AllYouCanEat, x_pixel_index, y_pixel_index, spec_index, frame_axis_index, pp_index
@@ -29,6 +26,7 @@ class GuiABS():
         self.widget_container = [] # List of widgets to display
 
     def __call__(self):
+        from IPython.display import display
         self._init__widgets()
         self._set_widget_options()
         self._init_observer()
@@ -67,7 +65,8 @@ class GuiABS():
         return self._fig
 
 class AllYouCanPlot(GuiABS):
-    def __init__(self, central_wl=None, vis_wl=810, **kwargs):
+    def __init__(self, central_wl=None, vis_wl=810, figsize=None, 
+                 **kwargs):
         """Plotting gui based on the AllYouCanEat class as a data backend.
 
         Parameters
@@ -98,11 +97,30 @@ class AllYouCanPlot(GuiABS):
         self.vis_wl = vis_wl
         self._ax_xlim = None
         self._ax_ylim = None
+        self._figsize = figsize
+        self._lines = None
+        self._lines2 = None
+        self._points2 = None
+
+        self.w_pp_s = None
+        self.w_smooth_s = None
+        self.w_Autoscale = None
+        self.w_frame = None
+        self.w_frame_median = None
+        self.w_y_pixel_range = None
+        self.w_x_pixel_range = None
+        self.w_central_wl = None
+        self.w_calib = None
+        self.w_vis_wl = None
+        self.w_folder = None
+        self.w_vis_wl = None
+        self.w_folder = None
+        self.w_file = None
 
     def _init_figure(self):
         #super()._init_figure()
         if not self._fig and not self._ax:
-            self._fig, self._ax = plt.subplots(1, 2, figsize=(9, 4.5))
+            self._fig, self._ax = plt.subplots(1, 2, figsize=self._figsize)
         #if len(self.fig.get_axes()) < 2:
         #    rect = [0,0,self.fig.get_figwidth(),self.fig.get_figheight()/2]
         #    self.fig.add_axes(rect)
@@ -110,50 +128,52 @@ class AllYouCanPlot(GuiABS):
 
     def _init__widgets(self):
         """Init all widgets."""
-        self.w_pp_s = SelectionSlider(
+        import ipywidgets as wi
+
+        self.w_pp_s = wi.SelectionSlider(
             continuous_update=False, description="pp_delay",
         )
-        self.w_smooth_s = IntSlider(
+        self.w_smooth_s = wi.IntSlider(
             continuous_update=False, description="smooth",
             min=1, max=19, step=2,
         )
-        self.w_Autoscale = Checkbox(
+        self.w_Autoscale = wi.Checkbox(
             description="Autoscale",
             value=True,
         )
-        self.w_frame = SelectionSlider(
+        self.w_frame = wi.SelectionSlider(
             continuous_update=False, description="frame"
         )
-        self.w_frame_median = Checkbox(
+        self.w_frame_median = wi.Checkbox(
             description='median',
         )
-        self.w_y_pixel_range = IntRangeSlider(
+        self.w_y_pixel_range = wi.IntRangeSlider(
             continuous_update=False, description="y_pixels"
         )
-        self.w_x_pixel_range = IntRangeSlider(
+        self.w_x_pixel_range = wi.IntRangeSlider(
             continuous_update=False, description="x_pixels"
         )
 
-        self.w_central_wl = FloatText(
+        self.w_central_wl = wi.FloatText(
             description='Central Wl', value=self.central_wl, width='120px'
         )
-        self.w_calib = Dropdown(
+        self.w_calib = wi.Dropdown(
             description='Calibration', options=['pixel', 'nm', 'wavenumber'], width='60px'
         )
-        self.w_vis_wl = FloatText(
+        self.w_vis_wl = wi.FloatText(
             description = 'Vis Wl', value = self.vis_wl, width = '120px'
         )
-        self.w_folder = Text(description="Folder")
-        self.w_file = Select(
+        self.w_folder = wi.Text(description="Folder")
+        self.w_file = wi.Select(
             descripion='Files',
-            layout = Layout(width='70%', max_width='100%')#, border='solid')
+            layout = wi.Layout(width='70%', max_width='100%')#, border='solid')
         )
 
         # The container with all the widgets
-        self.widget_container = VBox([
-                HBox([self.w_folder, self.w_file,]),
-                HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s]),
-                HBox([self.w_frame, self.w_frame_median, self.w_y_pixel_range, self.w_x_pixel_range]),
+        self.widget_container = wi.VBox([
+                wi.HBox([self.w_folder, self.w_file,]),
+                wi.HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s]),
+                wi.HBox([self.w_frame, self.w_frame_median, self.w_y_pixel_range, self.w_x_pixel_range]),
                 self.w_calib, self.w_central_wl, self.w_vis_wl,
             ])
 
@@ -214,7 +234,7 @@ class AllYouCanPlot(GuiABS):
 
     @property
     def central_wl(self):
-        if self._central_wl == None:
+        if self._central_wl is None:
             if self.data.metadata.get('central_wl') != 0:
                 self._central_wl = self.data.metadata.get('central_wl')
         return self._central_wl
@@ -432,20 +452,23 @@ class MyBqPlot():
 
     def fig_init(self, title='',x_label='', y_label=''):
         """Init an empty bqplot figure"""
-        x_sc = LinearScale()
-        y_sc = LinearScale()
+        import bqplot as bq
+        from ipywidgets import ToggleButton, BoundedIntText
 
-        line = Lines(scales={'x':x_sc, 'y':y_sc})
+        x_sc = bq.LinearScale()
+        y_sc = bq.LinearScale()
 
-        ax_x = Axis(scale=x_sc,
+        line = bq.Lines(scales={'x':x_sc, 'y':y_sc})
+
+        ax_x = bq.Axis(scale=x_sc,
                     label=x_label)
-        ax_y = Axis(scale=y_sc,
+        ax_y = bq.Axis(scale=y_sc,
                     label=y_label, orientation='vertical')
 
         # Zoom only y-scale
         def py_update(new):
             if tb_py.value:
-                py = PanZoom(scales={'y': [y_sc]})
+                py = bq.PanZoom(scales={'y': [y_sc]})
                 fig.interaction = py
             else:
                 fig.interaction.close()
@@ -462,10 +485,10 @@ class MyBqPlot():
             )
         smooth_width.observe(self.fig_update, "value")
 
-        fig = Figure(marks=[line], axes=[ax_x, ax_y], 
+        fig = bq.Figure(marks=[line], axes=[ax_x, ax_y], 
                      title=title)
 
-        tb = Toolbar(figure=fig)
+        tb = bq.Toolbar(figure=fig)
 
         fig.pyplot = tb
         fig.tb_py = tb_py
@@ -533,6 +556,9 @@ class DataImporter(MyBqPlot):
         """ create the widget by calling it."""
         # Hackaround for not automatic valueupdate problem
         # when ffolder is changed on the fly
+        from IPython.display import display
+        from ipywidgets import HBox, VBox
+
         try:
             fpath = os.path.join(self.ffolder, self.fpath_selector.value)
             fbase = os.path.join(self.ffolder, self.fbase_selector.value)
@@ -637,10 +663,10 @@ class DataImporter(MyBqPlot):
                           % (fpath, fbase))
             return
         self.get(fpath, fbase )
-        
+
     def update_scan(self, *args):
         """update scan related things here."""
-        
+
         # there can be different indeces and then we dont want
         # baseline substitution we also need to make shure that
         # baseline toggle is only caled in case of this function has
@@ -669,10 +695,10 @@ class DataImporter(MyBqPlot):
         else:
             warnings.warn('No data to update in %s' % self)
             return
-            
+
         if self.spec_selector.value != 'All':
             self.data = self.data[self.spec_selector.value]
-                        
+
     @property
     def widget_status(self):
         """Save widget config as ppWidget.json in ffolder"""
@@ -698,7 +724,7 @@ class DataImporter(MyBqPlot):
             #print(widget_name, widget_value)
             widget = getattr(self, widget_name)
             widget.value = widget_value
-            
+
 
 class PumpProbeDataImporter(DataImporter):
     """ Very Similar to the DataImporter but the handling of spectra is
@@ -710,7 +736,7 @@ class PumpProbeDataImporter(DataImporter):
         'normalize_toggle'
     )
 
-    def __init__(self, ffolder, 
+    def __init__(self, ffolder,
                  fpath_selector, fbase_selector, pp_delay_slider,
                  pump_selector, probe_selector, sub_baseline_toggle,
                  normalize_toggle, norm_widget):
@@ -750,6 +776,8 @@ class PumpProbeDataImporter(DataImporter):
         """Create the widget by calling it """
         # Hackaround for not automatic valueupdate problem
         # when ffolder is changed on the fly
+        from IPython.display import display
+        from ipywidgets import HBox, VBox
         try:
             fpath = os.path.join(self.ffolder, self.fpath_selector.value)
             fbase = os.path.join(self.ffolder,  self.fbase_selector.value)
@@ -873,6 +901,7 @@ class PPDelaySlider():
         self._init_observer()
 
     def __call__(self):
+        from IPython.display import display
         display(self._container)
         self.fig
 
@@ -894,19 +923,21 @@ class PPDelaySlider():
         del self.data
 
     def _init_widgets(self):
-        self.w_pp_s = SelectionSlider(
+        import ipywidgets as wi
+
+        self.w_pp_s = wi.SelectionSlider(
             continuous_update=False, description="pp_delay"
         )
-        self.w_smooth_s = IntSlider(
+        self.w_smooth_s = wi.IntSlider(
             continuous_update=False, description="smooth",
             min=1, max=100
         )
-        self.w_Autoscale = ToggleButton(
+        self.w_Autoscale = wi.ToggleButton(
             description="Autoscale",
             value=True,
         )
         # The container with all the widgets
-        self._container = HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s])
+        self._container = wi.HBox([self.w_Autoscale, self.w_pp_s, self.w_smooth_s])
 
     def _init_widget_options(self):
         self.w_pp_s.options = self.pp_delays
@@ -1012,11 +1043,13 @@ class Importer(PPDelaySlider):
             Folder to list data in.
 
         """
+        import ipywidgets as wi
+
         self.ffolder = ffolder
         files = sorted(glob(ffolder + '/*.dat'))
         files = [ x for x in files if "AVG" not in x ]
         fnames = [os.path.split(ffile)[1] for ffile in files]
-        self.w_files = Select(
+        self.w_files = wi.Select(
             description='File',
             options = fnames
             )
@@ -1026,7 +1059,7 @@ class Importer(PPDelaySlider):
 
         pp_delays, data = self._get_data()
         super().__init__(pp_delays, data.med)
-        self._container = VBox([self.w_files, self._container])
+        self._container = wi.VBox([self.w_files, self._container])
 
     def _get_data(self):
         if not self.w_files.value:
