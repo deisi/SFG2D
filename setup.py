@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
+import os, sys
 from setuptools import setup
 from setuptools.extension import Extension
 from glob import glob
-
-import numpy as np
 
 try:
     from Cython.Build import cythonize
@@ -22,10 +20,20 @@ for source_file in glob('sfg2d/utils/*' + ext):
     extensions.append(
         Extension('sfg2d.utils.{0}'.format(fname),
                   sources=['sfg2d/utils/{0}{1}'.format(fname, ext)],
-                  include_dirs=[np.get_include()])
+                  #include_dirs=[np.get_include()]
+        )
     )
 
 if USE_CYTHON:
+    try:
+        import numpy as np
+    except ImportError:
+        print("Please install numpy before building package with cython.")
+        print("Error Numpy missing. Abording.")
+        sys.exit()
+
+    for extension in extensions:
+        extension.include_dirs = [np.get_include()]
     extensions = cythonize(extensions)
 
 with open('README.rst') as readme_file:
@@ -41,12 +49,7 @@ requirements = [
     'scipy',
     'pandas',
     'ipython',
-    #'cython',
-    #'notebook', # must be installed in the system virtualenv is not enouth
-    #'bqplot', # system ...
-    #'widgetsnbextension',
-    #'ipywidgets',
-    #'jupyter',
+    #'PySide', Not python 3.5 Ready Yet.
 ]
 
 test_requirements = [

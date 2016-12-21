@@ -6,7 +6,5 @@ tox<=2.3.1
 coverage<=4.1
 Sphinx<=1.4.4
 Cython<=0.25.2
-# Probfit that works with python3
-#-e git+https://github.com/iminuit/probfit.git#egg=probfit
 
 

@@ -1,0 +1,4 @@
+iminuit
+
+# Probfit that works with python3
+-e git+https://github.com/iminuit/probfit.git#egg=probfit
