@@ -29,18 +29,18 @@ class WidgetBase():
         self._central_wl = central_wl
         self._vis_wl = vis_wl
         self._figsize = figsize
-        self.widget_container = [] # List of widgets to display
+        self.children = [] # List of widgets to display
+        self._init_widget()
 
     def __call__(self):
         from IPython.display import display
-        self._init__widgets()
-        self._set_widget_options()
+        self._configure_widgets()
         self._init_observer()
         self._update_figure()
-        display(self.widget_container)
+        display(self.children)
         self.fig
 
-    def _init__widgets(self):
+    def _init_widget(self):
         """Init all widgets."""
         import ipywidgets as wi
 
@@ -84,7 +84,7 @@ class WidgetBase():
             description='median',
         )
 
-        self.widget_container = wi.VBox([
+        self.children = wi.VBox([
                 self.w_folder,
                 self.w_file,
                 wi.HBox([self.w_Autoscale, self.w_frame_median,]),
@@ -93,7 +93,7 @@ class WidgetBase():
                 self.w_calib, self.w_central_wl, self.w_vis_wl,
         ])
 
-    def _set_widget_options(self):
+    def _configure_widgets(self):
         """Set all widget options. And default values."""
 
         self.w_pp_s.options = self.data.pp_delays.tolist()
@@ -168,7 +168,7 @@ class WidgetBase():
         fname = self.w_folder.value + "/" + self.w_file.value
         self.data = AllYouCanEat(fname)
         self._central_wl = None
-        self._set_widget_options()
+        self._configure_widgets()
 
     def _init_observer(self):
         self.w_folder.on_submit(self._on_folder_submit)
@@ -329,6 +329,11 @@ class SpecAndSummed(WidgetBase):
     def _init_figure(self):
         if not self._fig and not self._ax:
             self._fig, self._ax = plt.subplots(1, 2, figsize=self._figsize)
+        elif self._fig and not self._ax:
+            self._fig.set_figwidth = self._figsize[1]
+            self._fig.set_figheight = self._figsize[0]
+            self._ax = [self._fig.add_subplot(121), self._fig.add_subplot(122)]
+
 
     def _update_figure(self):
         """Update figure on page 0."""
@@ -465,7 +470,7 @@ class SpecAndSummed(WidgetBase):
         return self.data.pp_delays
 
     # def _on_page_changed(self, new):
-    #     page = self.widget_container.selected_index
+    #     page = self.children.selected_index
     #     if page == 0:
     #         self._update_figure()
     #     if page == 1:
@@ -495,9 +500,9 @@ class SpecAndBase(WidgetBase):
         super().__init__(figsize=figsize, **kwargs)
         self.data_base = np.zeros_like(self.data.data)
 
-    def _init__widgets(self):
+    def _init_widget(self):
         import ipywidgets as wi
-        super()._init__widgets()
+        super()._init_widget()
         # We overwrite the filebox, because we need more entries there.
         self.w_base = wi.Select(description='Base')
         self.w_sub_base = wi.ToggleButton(description='Sub Baseline')
@@ -514,7 +519,7 @@ class SpecAndBase(WidgetBase):
         self.w_filebox = wi.HBox([self.w_file, self.w_base,
                                wi.VBox([self.w_sub_base, self.w_show_baseline, self.w_Autoscale,])
         ])
-        self.widget_container = wi.VBox([
+        self.children = wi.VBox([
                 self.w_folder,
                 self.w_filebox,
                 wi.HBox([self.w_pp_s, self.w_smooth_s]),
@@ -526,9 +531,9 @@ class SpecAndBase(WidgetBase):
                 self.w_calib, self.w_central_wl, self.w_vis_wl,
         ])
 
-    def _set_widget_options(self):
+    def _configure_widgets(self):
         """Set widget options."""
-        super()._set_widget_options()
+        super()._configure_widgets()
         self.w_pp_baseline_slider.options = list(range(self.data_base.shape[pp_index]))
         if self.w_pp_baseline_slider.value not in self.w_pp_baseline_slider.options:
             self.w_pp_baseline_slider.value = 0
@@ -543,6 +548,11 @@ class SpecAndBase(WidgetBase):
         """Init the fiures and axes"""
         if not self._fig and not self._ax:
             self._fig, self._ax = plt.subplots(1, 1, figsize=self._figsize)
+        elif self._fig and not self._ax:
+            self._fig.set_figwidth = self._figsize[1]
+            self._fig.set_figheight = self._figsize[0]
+            self._ax = self._fig.add_subplot(111)
+
 
     def _update_figure(self):
         self._init_figure()
@@ -626,7 +636,7 @@ class SpecAndBase(WidgetBase):
     def _on_base_changed(self, new):
         fname = self.w_folder.value + "/" + self.w_base.value
         self.data_base = AllYouCanEat(fname).data
-        self._set_widget_options()
+        self._configure_widgets()
         self._update_figure()
 
 ##### Helper function
@@ -641,7 +651,6 @@ def _filter_fnames(folder_path):
     fnames = fnames[np.where(["AVG" not in s for s in fnames])]
     fnames = [os.path.split(elm)[1] for elm in fnames]
     return fnames
-
 
 
 #### End of helper function
