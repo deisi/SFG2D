@@ -16,7 +16,7 @@ from .io.veronica import pixel_to_nm
 from .core.scan import Scan, TimeScan
 from .utils.static import nm_to_ir_wavenumbers
 
-debug = 1
+debug = 0
 
 class WidgetBase():
     """A Base class that contains the most generic widgets for a class using
@@ -24,8 +24,8 @@ class WidgetBase():
     def __init__(self, data=AllYouCanEat(), fig=None, ax=None,
                  central_wl=None, vis_wl=None, figsize=None):
         self.data = data
+        self.data_base = np.zeros_like(self.data.data)
         self._fig = fig
-        self._ax = ax
         self._central_wl = central_wl
         self._vis_wl = vis_wl
         self._figsize = figsize
@@ -42,6 +42,9 @@ class WidgetBase():
 
     def _init_widget(self):
         """Init all widgets."""
+        # A widget property starts with w_.
+        # self.w_children is going to be displayed. All widgets that should be
+        # visible must register with that.
         import ipywidgets as wi
 
         self.w_folder = wi.Text(description="Folder")
@@ -49,6 +52,10 @@ class WidgetBase():
             descripion='Files',
             layout = wi.Layout(width='70%', max_width='100%')
         )
+        self.w_base = wi.Select(description='Base')
+        self.w_sub_base = wi.ToggleButton(description='Sub Baseline')
+        self.w_show_baseline = wi.Checkbox(description='Show Baseline',
+                                        value=True)
         self.w_smooth_s = wi.IntSlider(
             continuous_update=False, description="smooth",
             min=1, max=19, step=2,
@@ -83,18 +90,22 @@ class WidgetBase():
         self.w_frame_median = wi.Checkbox(
             description='median',
         )
-
-        self.children = wi.VBox([
-                self.w_folder,
-                self.w_file,
-                wi.HBox([self.w_Autoscale, self.w_frame_median,]),
-                wi.HBox([self.w_pp_s, self.w_smooth_s,]),
-                wi.HBox([self.w_frame, self.w_y_pixel_range, self.w_x_pixel_range]),
-                self.w_calib, self.w_central_wl, self.w_vis_wl,
+        self.w_pp_baseline_slider = wi.SelectionSlider(
+            description='Baseline pp_delay index', continuous_update=False)
+        self.w_frame_baseline = wi.SelectionSlider(
+            description='Baseline Frame', continuous_update=False)
+        self.w_frame_base_med = wi.Checkbox(
+            description='median', value=False)
+        self.w_spec_base_slider = wi.SelectionSlider(
+            description='Baseline Spectrum', continuous_update=False)
+        self.w_filebox = wi.HBox([self.w_file, self.w_base,
+                               wi.VBox([self.w_sub_base, self.w_show_baseline, self.w_Autoscale,])
         ])
 
     def _configure_widgets(self):
-        """Set all widget options. And default values."""
+        """Set all widget options. And default values.
+
+        It must be save to recall this method at any time."""
 
         self.w_pp_s.options = self.data.pp_delays.tolist()
         if self.w_pp_s.value not in self.w_pp_s.options:
@@ -124,6 +135,15 @@ class WidgetBase():
         else:
             self.w_central_wl.value = self.central_wl
         self.w_vis_wl.value = self.vis_wl
+        self.w_pp_baseline_slider.options = list(range(self.data_base.shape[pp_index]))
+        if self.w_pp_baseline_slider.value not in self.w_pp_baseline_slider.options:
+            self.w_pp_baseline_slider.value = 0
+        self.w_frame_baseline.options = list(range(self.data_base.shape[frame_axis_index]))
+        if self.w_frame_baseline.value not in self.w_frame_baseline.options:
+            self.w_frame_baseline.value = 0
+        self.w_spec_base_slider.options = list(range(self.data_base.shape[y_pixel_index]))
+        if self.w_spec_base_slider.value not in self.w_spec_base_slider.options:
+            self.w_spec_base_slider.value = 0
 
         self._toggle_central_wl()
         self._toggle_vis_wl()
@@ -153,8 +173,8 @@ class WidgetBase():
         if not self.fig:
             self._fig = plt.gcf()
 
-        if not self.ax:
-            self._ax = plt.gca()
+        if len(self.axes) is 0:
+            self._fig.add_subplot(111)
 
     def _update_figure(self):
         """Update figure with changes"""
@@ -187,6 +207,13 @@ class WidgetBase():
         self.w_central_wl.observe(self._update_figure_callback, 'value')
         self.w_Autoscale.observe(self._update_figure_callback, 'value')
         self.w_smooth_s.observe(self._update_figure_callback, 'value')
+        self.w_base.observe(self._on_base_changed, 'value')
+        self.w_sub_base.observe(self._update_figure_callback, 'value')
+        self.w_show_baseline.observe(self._update_figure_callback, 'value')
+        self.w_pp_baseline_slider.observe(self._update_figure_callback, 'value')
+        self.w_frame_baseline.observe(self._update_figure_callback, 'value')
+        self.w_spec_base_slider.observe(self._update_figure_callback, 'value')
+        self.w_frame_base_med.observe(self._update_figure_callback, 'value')
 
     def _unobserve(self):
         pass
@@ -196,8 +223,8 @@ class WidgetBase():
         return self._fig
 
     @property
-    def ax(self):
-        return self._ax
+    def axes(self):
+        return self._fig.axes
 
     def _prepare_x_data(self, data, wavelength=None, wavenumber=None):
         """Apply gui transformations to given data."""
@@ -225,12 +252,6 @@ class WidgetBase():
             if central_wl != 0 and vis_wl != 0:
                 nm = pixel_to_nm(pixel, central_wl)
                 x = nm_to_ir_wavenumbers(nm, vis_wl)
-            # TODO refactor this with better vis_wl default
-            #elif vis_wl != 810 and central_wl != 0:
-            #    nm = pixel_to_nm(pixel, central_wl)
-            #    x = nm_to_ir_wavenumbers(nm, vis_wl)
-            #elif vis_wl != 810 and central_wl == 0:
-                #x = nm_to_ir_wavenumbers(wavelength, vis_wl)
         return x[x_slice]
 
     @property
@@ -253,16 +274,19 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.w_pp_s.value == pp_delays)[0][0]
 
+        y = data[:, :, y_slice, x_slice].copy()
+        if self.w_sub_base.value:
+            y -= np.ones_like(y) * self.y_base
         # TODO add the possibility to select frame regions.
         if self.w_frame_median.value:
-            y = data[pp_delay_index, :, y_slice, x_slice]
+            y = y[pp_delay_index, :, :, :]
             y = np.median(y, 0)
         else:
-            y = data[
+            y = y[
                 pp_delay_index,
                 self.w_frame.value,
-                y_slice,
-                x_slice
+                :,
+                :
             ]
         if self.w_smooth_s.value != 1:
             y = medfilt2d(y, (1, self.w_smooth_s.value))
@@ -273,6 +297,44 @@ class WidgetBase():
         """Y data used in the plot."""
         pp_delays = getattr(self.data, 'pp_delays')
         return self._prepare_y_data(self.data.data, pp_delays)
+
+    @property
+    def x_base(self):
+        wavelength = getattr(self.data, 'wavelength', None)
+        wavenumber = getattr(self.data, 'wavenumber', None)
+        x = self._prepare_x_data(
+            self.data_base,
+            wavelength,
+            wavenumber
+        )
+        return x
+
+    @property
+    def y_base(self):
+        # y_slice needed to have a consistent interface between background and spectra data
+        # y_slice = _slider_range_to_slice(
+        #     self.w_y_pixel_range.value,
+        #     self.data_base.shape[y_pixel_index]
+        # )
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data_base.shape[x_pixel_index])
+
+        # TODO this is a hack, because I cant select frame regions yet
+        frame_slice = self.w_frame_baseline.value
+        if self.w_frame_base_med.value:
+            data = self.data_base[
+                self.w_pp_baseline_slider.value,
+                :,
+                self.w_spec_base_slider.value,
+                x_slice]
+            y = np.median(data, 0)
+        else:
+            y = self.data_base[
+                    self.w_pp_baseline_slider.value,
+                    frame_slice,
+                    self.w_spec_base_slider.value,
+                    x_slice]
+        return y.T
 
     @property
     def central_wl(self):
@@ -293,6 +355,59 @@ class WidgetBase():
             print("fnames:", fnames)
 
         self.w_file.options = fnames
+        self.w_base.options = self.w_file.options
+
+    def _on_base_changed(self, new):
+        fname = self.w_folder.value + "/" + self.w_base.value
+        self.data_base = AllYouCanEat(fname).data
+        self._configure_widgets()
+        self._update_figure()
+
+class SpecAndBase(WidgetBase):
+
+    def __init__(self, figsize=(8 , 6), **kwargs):
+        super().__init__(figsize=figsize, **kwargs)
+
+    def _init_widget(self):
+        import ipywidgets as wi
+        super()._init_widget()
+        self.children = wi.VBox([
+                self.w_folder,
+                self.w_filebox,
+                wi.HBox([self.w_pp_s, self.w_smooth_s]),
+                wi.HBox([self.w_frame, self.w_y_pixel_range, self.w_frame_median,
+                      #self.w_x_pixel_range
+                ]),
+                wi.HBox([self.w_pp_baseline_slider, self.w_frame_baseline,
+                          self.w_frame_base_med, ]),
+                self.w_spec_base_slider,
+                self.w_calib, self.w_central_wl, self.w_vis_wl,
+        ])
+
+    def _init_figure(self):
+        """Init the fiures and axes"""
+        if not self._fig:
+            self._fig, ax = plt.subplots(1, 1, figsize=self._figsize)
+        elif self._fig and len(self.axes) is not 1:
+            self._fig.set_size_inches(self._figsize, forward=True)
+            self._ax = self._fig.add_subplot(111)
+
+    def _update_figure(self):
+        self._init_figure()
+        ax = self.axes[0]
+        ax.clear()
+        ax.plot(self.x, self.y, label='Spectrum')
+        if self.w_show_baseline.value:
+            ax.plot(self.x_base, self.y_base, label='Baseline')
+        ax.legend(framealpha=0.5)
+        if self.w_Autoscale.value:
+            self._ax_xlim = ax.get_xlim()
+            self._ax_ylim = ax.get_ylim()
+        if not isinstance(self._ax_xlim, type(None)):
+            ax.set_xlim(*self._ax_xlim)
+        if not isinstance(self._ax_ylim, type(None)):
+            ax.set_ylim(*self._ax_ylim)
+
 
 class SpecAndSummed(WidgetBase):
     def __init__(self, central_wl=None, vis_wl=810, figsize=(10, 4), **kwargs):
@@ -327,23 +442,39 @@ class SpecAndSummed(WidgetBase):
         self._ax_ylim = None
 
     def _init_figure(self):
-        if not self._fig and not self._ax:
-            self._fig, self._ax = plt.subplots(1, 2, figsize=self._figsize)
-        elif self._fig and not self._ax:
-            self._fig.set_figwidth = self._figsize[1]
-            self._fig.set_figheight = self._figsize[0]
-            self._ax = [self._fig.add_subplot(121), self._fig.add_subplot(122)]
+        if not self._fig:
+            self._fig, ax = plt.subplots(1, 2, figsize=self._figsize)
+        elif self._fig and len(self.axes) is not 2:
+            self._fig.set_size_inches(self._figsize, forward=True)
+            [self._fig.add_subplot(121), self._fig.add_subplot(122)]
 
+    def _init_widget(self):
+        import ipywidgets as wi
+        super()._init_widget()
+        self.children = wi.VBox([
+                self.w_folder,
+                self.w_filebox,
+                wi.HBox([self.w_pp_s, self.w_smooth_s, self.w_frame_median]),
+                wi.HBox([self.w_frame, self.w_y_pixel_range, self.w_x_pixel_range]),
+                wi.HBox([self.w_pp_baseline_slider, self.w_frame_baseline,
+                      self.w_frame_base_med,]),
+                self.w_spec_base_slider,
+                self.w_calib, self.w_central_wl, self.w_vis_wl,
+        ])
 
     def _update_figure(self):
         """Update figure on page 0."""
         self._init_figure()
         fontsize = 8
-        ax = self.ax
+        ax = self.axes[0]
         ax.clear()
-        self._lines = ax.plot(self.x, self.y)
+        ax.plot(self.x, self.y, label='Spectrum')
+        if self.w_show_baseline.value:
+            ax.plot(self.x_base, self.y_base, label='Baseline')
+        ax.legend(framealpha=0.5)
         ax.set_xlabel(self.w_calib.value)
         ax.set_title('Spectrum')
+        # Buffer ax_{x,y}_lim so we can reuse it later
         if self.w_Autoscale.value:
             self._ax_xlim = ax.get_xlim()
             self._ax_ylim = ax.get_ylim()
@@ -359,14 +490,14 @@ class SpecAndSummed(WidgetBase):
         ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2e'))
         ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
 
-        ax = self.ax0_1
+        ax = self.axes[1]
         ax.clear()
         sum_y = self.sum_y
-        self._lines0_1 = ax.plot(self.sum_x, sum_y)
-        self._points0_1 = ax.plot(self.sum_x, sum_y, 'o')
-        for i in range(len(self._lines0_1)):
-            points = self._points0_1[i]
-            color = self._lines0_1[i].get_color()
+        lines0_1 = ax.plot(self.sum_x, sum_y)
+        points0_1 = ax.plot(self.sum_x, sum_y, 'o')
+        for i in range(len(lines0_1)):
+            points = points0_1[i]
+            color = lines0_1[i].get_color()
             points.set_color(color)
         ax.set_xlabel('pp delay / fs')
         ax.set_ylabel('Sum')
@@ -377,58 +508,9 @@ class SpecAndSummed(WidgetBase):
         ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
         ax.yaxis.tick_right()
 
-    def _update_figure_2(self):
-        """Update figure on page 1."""
-        self._init_figure()
-        self.ax.clear()
-        #self._lines2_0 = self.ax.plot(self.norm_x, self.norm_y)
-        self.ax.set_title('IR-Profile')
-
-        self.ax0_1.clear()
-        self.ax0_1.set_title('Baseline')
-
-    def _update_lower_ax(self):
-        """Allways call this after _update_figure."""
-        # Think if I want to implement this as a seperate function or here.
-        pass
-
-    def _update_lines(self, new=None):
-        """Update only the lines of the plot"""
-        for i in range(len(self._lines)):
-            line = self._lines[i]
-            new_y = self.y.T[i]
-            line.set_xdata(self.x)
-            line.set_ydata(new_y)
-        self.ax.figure.canvas.draw()
-
-    @property
-    def ax(self):
-        """Return axes of the upper graph."""
-        #try:
-        #    ret = self.fig.get_axes()[0]
-        #except IndexError:
-        #    ret = None
-        ret = self._ax[0]
-        return ret
-
-    @property
-    def ax0_1(self):
-        """Return axes of the lower graph."""
-        #try:
-        #    ret = self.fig.get_axes()[-1]
-        #except IndexError:
-        #    ret = None
-        ret = self._ax[1]
-        return ret
-
-    @property
-    def ax2_0(self):
-        """Axes of the upper plot on page 1."""
-        return self._ax1[0]
-
-    @property
-    def ax2_1(self):
-        return self._ax1[1]
+        self._fig.canvas.draw()
+        for ax in self.axes:
+            ax.figure.canvas.draw()
 
     @property
     def central_wl(self):
@@ -469,175 +551,14 @@ class SpecAndSummed(WidgetBase):
         """x data of the summed plot."""
         return self.data.pp_delays
 
-    # def _on_page_changed(self, new):
-    #     page = self.children.selected_index
-    #     if page == 0:
-    #         self._update_figure()
-    #     if page == 1:
-    #         self._update_figure_2()
-
-    # def _on_norm_folder_submit(self, new):
-    #     """Callback for normalization folder widget."""
-    #     fnames = _filter_fnames(self.w_norm_folder.value)
-
-    #     if debug:
-    #         print("_on_filder_submit_called")
-    #     if debug > 1:
-    #         print("fnames:", fnames)
-
-    #     self.w_norm_file.options = fnames
-
     def _on_xlim_changed(self, new=None):
-        self._ax_xlim = self.ax.get_xlim()
+        self._ax_xlim = self.axes[0].get_xlim()
 
     def _on_ylim_changed(self, new=None):
-        self._ax_ylim = self.ax.get_ylim()
+        self._ax_ylim = self.axes[0].get_ylim()
 
 
-class SpecAndBase(WidgetBase):
 
-    def __init__(self, figsize=(8 , 6), **kwargs):
-        super().__init__(figsize=figsize, **kwargs)
-        self.data_base = np.zeros_like(self.data.data)
-
-    def _init_widget(self):
-        import ipywidgets as wi
-        super()._init_widget()
-        # We overwrite the filebox, because we need more entries there.
-        self.w_base = wi.Select(description='Base')
-        self.w_sub_base = wi.ToggleButton(description='Sub Baseline')
-        self.w_show_baseline = wi.Checkbox(description='Show Baseline',
-                                        value=True)
-        self.w_pp_baseline_slider = wi.SelectionSlider(
-            description='Baseline pp_delay index', continuous_update=False)
-        self.w_frame_baseline = wi.SelectionSlider(
-            description='Baseline Frame', continuous_update=False)
-        self.w_frame_base_med = wi.Checkbox(
-            description='median', value=False)
-        self.w_spec_base_slider = wi.SelectionSlider(
-            description='Spectrum', continuous_update=False)
-        self.w_filebox = wi.HBox([self.w_file, self.w_base,
-                               wi.VBox([self.w_sub_base, self.w_show_baseline, self.w_Autoscale,])
-        ])
-        self.children = wi.VBox([
-                self.w_folder,
-                self.w_filebox,
-                wi.HBox([self.w_pp_s, self.w_smooth_s]),
-                wi.HBox([self.w_frame, self.w_y_pixel_range, self.w_frame_median,
-                      #self.w_x_pixel_range
-                ]),
-                wi.HBox([self.w_pp_baseline_slider, self.w_frame_baseline,
-                      self.w_frame_base_med,]),
-                self.w_calib, self.w_central_wl, self.w_vis_wl,
-        ])
-
-    def _configure_widgets(self):
-        """Set widget options."""
-        super()._configure_widgets()
-        self.w_pp_baseline_slider.options = list(range(self.data_base.shape[pp_index]))
-        if self.w_pp_baseline_slider.value not in self.w_pp_baseline_slider.options:
-            self.w_pp_baseline_slider.value = 0
-        self.w_frame_baseline.options = list(range(self.data_base.shape[frame_axis_index]))
-        if self.w_frame_baseline.value not in self.w_frame_baseline.options:
-            self.w_frame_baseline.value = 0
-        self.w_spec_base_slider.options = list(range(self.data_base.shape[y_pixel_index]))
-        if self.w_spec_base_slider.value not in self.w_spec_base_slider.options:
-            self.w_spec_base_slider.value = 0
-
-    def _init_figure(self):
-        """Init the fiures and axes"""
-        if not self._fig and not self._ax:
-            self._fig, self._ax = plt.subplots(1, 1, figsize=self._figsize)
-        elif self._fig and not self._ax:
-            self._fig.set_figwidth = self._figsize[1]
-            self._fig.set_figheight = self._figsize[0]
-            self._ax = self._fig.add_subplot(111)
-
-
-    def _update_figure(self):
-        self._init_figure()
-        ax = self._ax
-        ax.clear()
-        ax.plot(self.x, self.y, label='Spectrum')
-        if self.w_show_baseline.value:
-            ax.plot(self.x_base, self.y_base, label='Baseline')
-        ax.legend()
-        if self.w_Autoscale.value:
-            self._ax_xlim = ax.get_xlim()
-            self._ax_ylim = ax.get_ylim()
-        if not isinstance(self._ax_xlim, type(None)):
-            ax.set_xlim(*self._ax_xlim)
-        if not isinstance(self._ax_ylim, type(None)):
-            ax.set_ylim(*self._ax_ylim)
-
-    def _init_observer(self):
-        super()._init_observer()
-        self.w_base.observe(self._on_base_changed, 'value')
-        self.w_sub_base.observe(self._update_figure_callback, 'value')
-        self.w_show_baseline.observe(self._update_figure_callback, 'value')
-        self.w_pp_baseline_slider.observe(self._update_figure_callback, 'value')
-        self.w_frame_baseline.observe(self._update_figure_callback, 'value')
-        self.w_spec_base_slider.observe(self._update_figure_callback, 'value')
-        self.w_frame_base_med.observe(self._update_figure_callback, 'value')
-
-    @property
-    def x_base(self):
-        wavelength = getattr(self.data, 'wavelength', None)
-        wavenumber = getattr(self.data, 'wavenumber', None)
-        x = self._prepare_x_data(
-            self.data_base,
-            wavelength,
-            wavenumber
-        )
-        return x
-
-    @property
-    def y_base(self):
-        # y_slice needed to have a consistent interface between background and spectra data
-        y_slice = _slider_range_to_slice(
-            self.w_y_pixel_range.value,
-            self.data_base.shape[y_pixel_index]
-        )
-
-        # TODO this is a hack, because I cant solect frame regions yet
-        frame_slice = self.w_frame_baseline.value
-        if self.w_frame_base_med.value:
-            data = self.data_base[
-                self.w_pp_baseline_slider.value,
-                :,
-                y_slice,
-                :]
-            y = np.median(data, 0)
-        else:
-            y = self.data_base[self.w_pp_baseline_slider.value,
-                               frame_slice,
-                               y_slice,
-                               :]
-
-        return y.T
-
-    @property
-    def y(self):
-        y = super().y
-        # Additiona variable ret is needed to prevent
-        # numpy from subtracting self.y_base in place and thus
-        # recursively subtracting the baseline on call.
-        if self.w_sub_base.value:
-            ret = y - self.y_base
-        else:
-            ret = y
-        return ret
-
-    def _on_folder_submit(self, new):
-        # Add ir_base options here so changes show up int the gui.
-        super()._on_folder_submit(new)
-        self.w_base.options = self.w_file.options
-
-    def _on_base_changed(self, new):
-        fname = self.w_folder.value + "/" + self.w_base.value
-        self.data_base = AllYouCanEat(fname).data
-        self._configure_widgets()
-        self._update_figure()
 
 ##### Helper function
 def _filter_fnames(folder_path):
