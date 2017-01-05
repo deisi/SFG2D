@@ -27,22 +27,28 @@ class Tabulated(Dashboard):
         import ipywidgets as iwi
 
         children = []
-        self.fig = wi.plt.figure()
+        self.wi_fig = wi.plt.figure()
         for widget in args:
             widget._configure_widgets()
             children.append(widget.children)
-            widget._fig = self.fig
+            widget._fig = self.wi_fig
 
         self.w_tabs = iwi.Tab(children=children)
-        self.w_normalize = iwi.ToggleButton(description='Normalize')
+        self.w_normalize = iwi.Button(description='Normalize')
         self.children = iwi.VBox([self.w_tabs, self.w_normalize])
+        self.fig, self.ax = None, None
+
+    def _init_figure(self):
+        if not self.fig and not self.ax:
+            self.fig, self.ax = wi.plt.subplots(1, 1)
+        elif self.fig and not self.ax:
+            raise NotImplementedError
 
     def __call__(self):
         from IPython.display import display
-        #self.fig = wi.plt.figure()
         for widget in self.widgets:
             widget._init_observer()
-            #widget._fig = self.fig
+        self._init_figure()
         self._init_observer()
         display(self.children)
 
@@ -54,7 +60,7 @@ class Tabulated(Dashboard):
         # to avoid divition by 0 errors.
         #for widget in self.widgets[1].children.children:
         #    widget.observe(self._toggle_normalization, 'value')
-        self.w_normalize.observe(self._on_normalize, 'value')
+        self.w_normalize.on_click(self._on_normalize_clicked)
 
     @property
     def y_normalized(self):
@@ -65,9 +71,9 @@ class Tabulated(Dashboard):
     def _on_tab_changed(self, new):
         if debug:
             print("Dashboard._on_tab_changed called")
-        axes = self.fig.axes
+        axes = self.wi_fig.axes
         for ax in axes:
-             self.fig.delaxes(ax)
+             self.wi_fig.delaxes(ax)
         page = self.w_tabs.selected_index
         widget = self.widgets[page]
         widget._update_figure()
@@ -81,8 +87,19 @@ class Tabulated(Dashboard):
         if w0.y.shape[0] != w1.y.shape[0]:
             self.w_normalize.disable = True
             return False
+        if w1.y.shape[1] is 1:
+            self.w_normalize.disabled = False
+            return True
         if w0.y.shape[1] != w1.y.shape[1]:
             self.w_normalize.disabled = True
             return False
         self.w_normalize.disabled = False
         return True
+
+    def _on_normalize_clicked(self, new=None):
+        
+        if not self._check_ir_and_spec_ranges:
+            return
+        ax = self.fig.axes[0]
+        ax.clear()
+        ax.plot(self.y_normalized)

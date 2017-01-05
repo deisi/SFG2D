@@ -226,10 +226,9 @@ class WidgetBase():
     def axes(self):
         return self._fig.axes
 
+    #TODO Find a better name.
     def _prepare_x_data(self, data, wavelength=None, wavenumber=None):
-        """Apply gui transformations to given data."""
-        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
-                                         data.shape[x_pixel_index])
+        """Apply transformations to data, that don't change the shape"""
         # Need pixel as a possible default value.
         pixel = np.arange(data.shape[x_pixel_index])
         central_wl = self.w_central_wl.value
@@ -252,51 +251,56 @@ class WidgetBase():
             if central_wl != 0 and vis_wl != 0:
                 nm = pixel_to_nm(pixel, central_wl)
                 x = nm_to_ir_wavenumbers(nm, vis_wl)
-        return x[x_slice]
+        return x
 
     @property
     def x(self):
-        """X data of the plot"""
+        """X data of the plot.
+
+        Shape changing transformations belong in here."""
         wavelength = getattr(self.data, 'wavelength', None)
         wavenumber = getattr(self.data, 'wavenumber', None)
-        return self._prepare_x_data(
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data.data.shape[x_pixel_index])
+        ret = self._prepare_x_data(
             self.data.data,
             wavelength,
             wavenumber
         )
+        return ret[x_slice]
 
-    def _prepare_y_data(self, data, pp_delays):
-
-        y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
-                                         data.shape[y_pixel_index])
-        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
-                                         data.shape[x_pixel_index])
-        pp_delay_index = np.where(
-            self.w_pp_s.value == pp_delays)[0][0]
-
-        y = data[:, :, y_slice, x_slice].copy()
+    def _prepare_y_data(self, data):
+        """Non shape chainging transofrmations."""
+        #TODO Test if copy is still needed.
+        y = data.copy()#[pp_delay_index, :, :, :].copy()
         if self.w_sub_base.value:
             y -= np.ones_like(y) * self.y_base
-        # TODO add the possibility to select frame regions.
-        if self.w_frame_median.value:
-            y = y[pp_delay_index, :, :, :]
-            y = np.median(y, 0)
-        else:
-            y = y[
-                pp_delay_index,
-                self.w_frame.value,
-                :,
-                :
-            ]
         if self.w_smooth_s.value != 1:
             y = medfilt2d(y, (1, self.w_smooth_s.value))
-        return y.T
+        return y
 
     @property
     def y(self):
         """Y data used in the plot."""
         pp_delays = getattr(self.data, 'pp_delays')
-        return self._prepare_y_data(self.data.data, pp_delays)
+        y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
+                                         self.data.data.shape[y_pixel_index])
+        x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
+                                         self.data.data.shape[x_pixel_index])
+        pp_delay_index = np.where(
+            self.w_pp_s.value == pp_delays)[0][0]
+
+        # TODO add the possibility to select frame regions.
+        ret =  self._prepare_y_data(self.data.data)[pp_delay_index, :, :, :]
+        if self.w_frame_median.value:
+            ret = np.median(y, frame_axis_index)
+        else:
+            ret = ret[
+                self.w_frame.value,
+                :,
+                :
+            ]
+        return ret[y_slice, x_slice].T
 
     @property
     def x_base(self):
