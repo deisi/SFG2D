@@ -21,11 +21,30 @@ class Dashboard():
     def __call__(self):
         pass
 
-class Tabulated(Dashboard):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        import ipywidgets as iwi
+class Normalize(Dashboard):
+    """A 3 Pages Tabed dashboard.
 
+    The first page shows two axis.
+    On the first axes one sees the raw signal. And possibly
+    a baseline. Each y-pixel of the ccd camera gets projected into a single.
+    spectra line on this first axes. With the *Show Baseline* Button one can
+    toggle the visibility of the Baseline. Autoscale prevents the axes from
+    re-scaling up on data change. Numorus sliders allow for inspection of the
+    data.
+    The second axes shows the Sum of each spectrum vs pump-probe time delay.
+    This is only use full if you do pump-probe experiment. Otherwise this axis
+    will only show to you the a single point with the value of the sum(area) of
+    the spectrum from axes one.
+
+
+    The second page shows A single Spectrum and possibly a baseline.
+
+    The third page shows, after usage of the normalize button the quotient
+    of the first and the second page spectrum. This allows for IR Normalization."""
+
+    def __init__(self, *args, **kwargs):
+        import ipywidgets as iwi
+        super().__init__(*args, **kwargs)
         children = []
         self.wi_fig = wi.plt.figure()
         for widget in args:
@@ -34,21 +53,14 @@ class Tabulated(Dashboard):
             widget._fig = self.wi_fig
 
         self.w_tabs = iwi.Tab(children=children)
+        self.children = self.w_tabs
         self.w_normalize = iwi.Button(description='Normalize')
         self.children = iwi.VBox([self.w_tabs, self.w_normalize])
-        self.fig, self.ax = None, None
-
-    def _init_figure(self):
-        if not self.fig and not self.ax:
-            self.fig, self.ax = wi.plt.subplots(1, 1)
-        elif self.fig and not self.ax:
-            raise NotImplementedError
 
     def __call__(self):
         from IPython.display import display
         for widget in self.widgets:
             widget._init_observer()
-        self._init_figure()
         self._init_observer()
         display(self.children)
 
@@ -56,17 +68,14 @@ class Tabulated(Dashboard):
         if debug:
             print("Dasboards._init_observer called")
         self.w_tabs.observe(self._on_tab_changed, 'selected_index')
-        # Normalization must be registered to all widgets on the second page
-        # to avoid divition by 0 errors.
-        #for widget in self.widgets[1].children.children:
-        #    widget.observe(self._toggle_normalization, 'value')
-        self.w_normalize.on_click(self._on_normalize_clicked)
+        self.w_normalize.on_click(self._on_normalize)
 
-    @property
-    def y_normalized(self):
-        spec = self.widgets[0].y
-        ir = self.widgets[1].y
-        return spec/ir
+        # observers to w? must be re initiated on each data change.
+        w0, w1, *_ = self.widgets
+        # Need to make shure, that Normalize button is only clickable,
+        # When the shape of the data allows for normalization
+        w0.w_y_pixel_range.observe(self._is_normalizable_callback, "value")
+        w1.w_y_pixel_range.observe(self._is_normalizable_callback, "value")
 
     def _on_tab_changed(self, new):
         if debug:
@@ -79,11 +88,27 @@ class Tabulated(Dashboard):
         widget._update_figure()
 
     def _on_normalize(self, new):
-        """Set gui in such a state, that it can savely normalize."""
-        pass
+        if debug:
+            print("Normalize._on_normalize called.")
+        if not self._is_normalizable:
+            return
 
-    def _check_ir_and_spec_ranges(self):
-        w0, w1,  = self.widgets
+        w0, w1, w2, *_ = self.widgets
+        spec = w0._prepare_y_data(w0.data.data)
+        #TODO add frame_med filter here.
+        ir = wi.np.ones_like(spec) * w1.y.T
+
+        w2.data = w0.data.copy()
+        w2.data.data = spec/ir
+        w2._unobserve()
+        if self.w_tabs.selected_index is 2:
+            w2._update_figure()
+        w2._configure_widgets()
+        w2._init_observer()
+
+    @property
+    def _is_normalizable(self):
+        w0, w1, *_  = self.widgets
         if w0.y.shape[0] != w1.y.shape[0]:
             self.w_normalize.disable = True
             return False
@@ -96,10 +121,5 @@ class Tabulated(Dashboard):
         self.w_normalize.disabled = False
         return True
 
-    def _on_normalize_clicked(self, new=None):
-        
-        if not self._check_ir_and_spec_ranges:
-            return
-        ax = self.fig.axes[0]
-        ax.clear()
-        ax.plot(self.y_normalized)
+    def _is_normalizable_callback(self, new):
+        self._is_normalizable

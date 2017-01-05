@@ -355,7 +355,10 @@ class AllYouCanEat():
     def __init__(self, fname=None):
         self.pp_delays = array([0])
         self.metadata = {}
-        self._fname  = fname
+        if not fname:
+            self._fname = ""
+        else:
+            self._fname  = fname
         self._data = zeros((1,1,1,1600))
         self._type = 'unknown'
 
@@ -402,6 +405,11 @@ class AllYouCanEat():
                 i * self.metadata['exposure_time']
             )
         return ret
+
+    @property
+    def frames(self):
+        """Number of frames."""
+        return self.data.shape[frame_axis_index]
 
     def _readData(self):
         self._get_type()
@@ -568,7 +576,7 @@ class AllYouCanEat():
         self.pixel = arange(sp.xdim)
 
     def _arrange_sp(self):
-        """Makes a scan having the same data structure as spe """
+        """Makes a scan have the same data structure as spe """
         # 3 because victor saves 3 spectra at a time
         # 1 because its only 1 spectrum no repetition
         # x axis given by the pixels
@@ -611,6 +619,10 @@ class AllYouCanEat():
         ret = zeros(
             (self.NumPp_delays, self.NumReps, SPECS, PIXEL)
         )
+        if debug:
+            print("Input data shape:", self._data.shape)
+            print("Result data shape: ", ret.shape)
+            print("Number of repetitions: ", self.NumReps)
         for i_row in range(len(self._data)):
             row = self._data[i_row]
             # The index of the current delay
@@ -618,8 +630,12 @@ class AllYouCanEat():
             i_pixel = i_row % PIXEL
             for i_col in range(len(row)):
                 # The index of the current repetition
-                i_rep = i_col // self.NumReps
+                if self.NumReps is 1:
+                    i_rep = 0
+                else:
+                    i_rep = i_col // self.NumReps
                 i_spec = i_col % SPECS  # 3 is the number of specs
+                #print(i_delay, i_rep, i_spec, i_pixel)
                 ret[i_delay, i_rep, i_spec, i_pixel] = row[i_col]
 
         self._data = ret
@@ -639,3 +655,14 @@ class AllYouCanEat():
         self.wavenumber = nm_to_ir_wavenumbers(
             self.wavelength, self.metadata.get('vis_wl', 810)
         )
+
+    def copy(self):
+        ret = AllYouCanEat()
+        ret.pp_delays = self.pp_delays.copy()
+        ret.metadata = self.metadata.copy()
+        ret._fname = self._fname
+        ret._data = self._data
+        ret._type = self._type
+        ret._dates = self._dates
+        ret.wavelength = self.wavelength.copy()
+        return ret
