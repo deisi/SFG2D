@@ -25,7 +25,7 @@ class WidgetBase():
     def __init__(self, data=AllYouCanEat(), fig=None, ax=None,
                  central_wl=None, vis_wl=None, figsize=None):
         self.data = data
-        self.data_base = np.zeros_like(self.data.data)
+        self.data_base = np.zeros_like(self.data.data, dtype="int64")
         self._fig = fig
         self._central_wl = central_wl
         self._vis_wl = vis_wl
@@ -424,6 +424,7 @@ class WidgetBase():
         """Non shape changing transformations."""
         #TODO Test if copy is still needed.
         y = data.copy()
+        y = y.astype('float64')
         if self.w_sub_base.value:
             y -= np.ones_like(y) * self.y_base
         return y
