@@ -1,6 +1,6 @@
 from os import path
 from numpy import genfromtxt, array, delete, zeros, arange,\
-    ndarray, concatenate, savez, sqrt, load, ones, empty
+    ndarray, concatenate, savez, sqrt, load, ones, empty, dtype
 from pandas import DataFrame, Series
 from copy import deepcopy
 from .veronica import PIXEL, SPECS, pixel_to_nm
@@ -583,7 +583,6 @@ class AllYouCanEat():
         self._data = array([[self._data[:, 1:4].T]])
 
     def _arrange_ts(self):
-        self._data
 
         def _iterator(elm):
             return array(
@@ -592,7 +591,7 @@ class AllYouCanEat():
                 [elm(i) for i in range(1, self.NumReps + 1)]
             ).flatten().tolist()
 
-        # Remove unneeded columns
+        # Only keep the columns that hold raw data
         colum_inds = [0] + _iterator(lambda i: [6*i+2, 6*i+3, 6*i+4])
         self._data = self._data[:, colum_inds]
 
@@ -600,24 +599,29 @@ class AllYouCanEat():
         self.pp_delays = self._data[0::1602, 0]
         self._data = delete(self._data, slice(0, None, 1602), 0)
 
-        # Now We know the rest is uint32
+        # Now We know the rest is uint32 and we can save some ram here.
         self._data = self._data.astype('uint32')
 
-        # pop empty rows
-        empty_rows = [i*1600 + i-1 for i in range(self._data.shape[0]//1600)]
+        # delete empty rows
+        empty_rows = [i*PIXEL + i-1 for i in range(self._data.shape[0]//PIXEL)]
         self._data = delete(self._data, empty_rows, 0)
 
         # Currently numpy ignores the [-1, ...] in the empty_rows, but we want
-        # the last line to be deleted as well, because it is empty
-        if self._data.shape[0] % 1600 == 1:
+        # the last line to be deleted as well, because it is empty. 
+        # This will be changed in the future.
+        if self._data.shape[0] % PIXEL == 1:
             self._data = delete(self._data, -1, 0)
 
         # Remove the 0 (pixel) column it is redundant
+        # There is no point in wasting ram just to count
+        # the rows.
         self._data = self._data[:, 1:]
 
         # We want data to fit in the same structure as all the other scans
+        # So we prepare a result array with the right shape
         ret = zeros(
-            (self.NumPp_delays, self.NumReps, SPECS, PIXEL)
+            (self.NumPp_delays, self.NumReps, SPECS, PIXEL),
+            dtype('uint32')
         )
         if debug:
             print("Input data shape:", self._data.shape)
@@ -627,17 +631,20 @@ class AllYouCanEat():
             row = self._data[i_row]
             # The index of the current delay
             i_delay = i_row // PIXEL
+            # The current pixel
             i_pixel = i_row % PIXEL
             for i_col in range(len(row)):
-                # The index of the current repetition
-                if self.NumReps is 1:
-                    i_rep = 0
-                else:
-                    i_rep = i_col // self.NumReps
+                # index of the spectrum
                 i_spec = i_col % SPECS  # 3 is the number of specs
-                #print(i_delay, i_rep, i_spec, i_pixel)
-                ret[i_delay, i_rep, i_spec, i_pixel] = row[i_col]
-
+                # index of the repetition (frame)
+                i_rep = i_col // SPECS
+                try:
+                    ret[i_delay, i_rep, i_spec, i_pixel] = row[i_col]
+                except IndexError:
+                    print('**********ERROR**************')
+                    print(i_delay, i_rep, i_spec, i_pixel)
+                    self._data = ret
+                    return
         self._data = ret
 
     def _make_calibration(self):
