@@ -106,7 +106,7 @@ class WidgetBase():
             description='frame', continuous_update=False)
         self.w_frame_base_med = wi.Checkbox(
             description='median', value=False)
-        self.w_spec_base_slider = wi.IntSlider(
+        self.w_spec_base_slider = wi.IntRangeSlider(
             description='spectrum', continuous_update=False)
         self.w_sum_over = wi.Dropdown(description='sum x-axis',
                                        options=('pp_delays', 'frames'),
@@ -194,13 +194,15 @@ class WidgetBase():
             self.w_frame_baseline.disabled = False
         if self.w_frame_baseline.value >  self.w_frame_baseline.max:
             self.w_frame_baseline.value = 0
-        self.w_spec_base_slider.max = self.data_base.shape[y_pixel_index] - 1
+        self.w_spec_base_slider.max = self.data_base.shape[y_pixel_index]
+        self.w_spec_base_slider.min = 0
         if self.w_spec_base_slider.max is 0:
             self.w_spec_base_slider.disabled = True
         else:
             self.w_spec_base_slider.disabled = False
-        if self.w_spec_base_slider.value > self.w_spec_base_slider.max:
-            self.w_spec_base_slider.value = 0
+        if self.w_spec_base_slider.value[1] > self.w_spec_base_slider.max:
+            self.w_spec_base_slider.value[1] = self.w_spec_base_slider.max
+            self.w_spec_base_slider.value[0] = 0
 
         self._toggle_central_wl()
         self._toggle_vis_wl()
@@ -422,11 +424,29 @@ class WidgetBase():
 
     def _prepare_y_data(self, data):
         """Non shape changing transformations."""
+        #TODO Refactor with better name
         #TODO Test if copy is still needed.
         y = data.copy()
         y = y.astype('float64')
         if self.w_sub_base.value:
-            y -= np.ones_like(y) * self.y_base
+            if len(self.y_base.shape) == 1:
+                y -= np.ones_like(y) * self.y_base
+            else:
+                # Check if this is possible
+                if self.data_base.shape[spec_index] is not self.data.data.shape[spec_index]:
+                    message = 'Cant subtract baseline spectra wise due to' \
+                              'unmatched dimensions. Data shape is %s, but' \
+                              'baseline shape is %s' %\
+                               (self.data.data.shape, self.data_base.shape)
+                    warnings.warn(message)
+                    self.w_sub_base.value = False
+                    return y
+                base = self.data_base[self.w_pp_baseline_slider.value, :]
+                if self.w_frame_base_med.value:
+                    base = base.med(0)
+                else:
+                    base = base[self.w_frame_baseline.value]
+                y -= base[None, None, :] + self.w_baseline_offset.value
         return y
 
     @property
@@ -452,6 +472,7 @@ class WidgetBase():
             ]
         ret = ret[y_slice, :]
         # Must be done here, because it works only on 2d data.
+        # TODO I could use the not 2d version
         if self.w_smooth_s.value != 1:
             ret = medfilt2d(ret, (1, self.w_smooth_s.value))
         return ret.T
@@ -474,18 +495,22 @@ class WidgetBase():
 
         # TODO this is a hack, because I cant select frame regions yet
         frame_slice = self.w_frame_baseline.value
+        spec_slice = _slider_range_to_slice(
+            self.w_spec_base_slider.value,
+            self.w_spec_base_slider.max,
+        )
         if self.w_frame_base_med.value:
             data = self.data_base[
                 self.w_pp_baseline_slider.value,
                 :,
-                self.w_spec_base_slider.value,
+                spec_slice,
                 :]
             y = np.median(data, 0) + self.w_baseline_offset.value
         else:
             y = self.data_base[
                     self.w_pp_baseline_slider.value,
                     frame_slice,
-                    self.w_spec_base_slider.value,
+                    spec_slice,
                     :] + self.w_baseline_offset.value
         return y.T
 
@@ -850,6 +875,8 @@ def _slider_range_to_slice(range_value_tuple, max):
     # This can happen if one links
     # sliders but can not guarantee that they
     # refer to the same data.
+    if range_value_tuple == (0, 0):
+        return slice(None, None, None)
     if any(range_value_tuple) > max:
             if range_value_tuple[0] > max:
                 range_value_tuple[0] = max
