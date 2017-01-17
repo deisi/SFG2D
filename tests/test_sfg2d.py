@@ -17,27 +17,21 @@ from click.testing import CliRunner
 from sfg2d import sfg2d
 from sfg2d import cli
 
+import numpy as np
 
 
-class TestSfg2d(unittest.TestCase):
+class TestAllYouCanEat(unittest.TestCase):
 
     def setUp(self):
-        pass
+        from sfg2d.io.allYouCanEat import AllYouCanEat
+        self.data = AllYouCanEat('../sfg2d/data/00_sp_quarz_w650_gcm_e20s_pr3000.dat')
 
     def tearDown(self):
         pass
 
-    def test_000_something(self):
-        pass
+    def test_pp_delays_is_numpy_array(self):
+        assert isinstance(self.data, type(np.zeros(1)))
 
-    def test_command_line_interface(self):
-        runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
-        assert 'sfg2d.cli.main' in result.output
-        help_result = runner.invoke(cli.main, ['--help'])
-        assert help_result.exit_code == 0
-        assert '--help  Show this message and exit.' in help_result.output
 
 
 if __name__ == '__main__':

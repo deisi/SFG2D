@@ -46,12 +46,24 @@ def get_metadata_from_filename(fpath):
     except IndexError:
         pass
 
-    try:
-        metadata["central_wl"] = int(fsplit[3].split("w")[1])
-    except IndexError:
-        match_cw = re.search("_wl(\d+)", ffile)
-        if match_cw:
-            metadata["central_wl"] = int(match_cw.group(1))
+    #  try:
+    #      metadata["central_wl"] = int(fsplit[3].split("w")[1])
+    #  except IndexError:
+    #      match_cw = re.search("_wl(\d+)", ffile)
+    #      if match_cw:
+    #          metadata["central_wl"] = int(match_cw.group(1))
+    #  except ValueError:
+    #      pass
+    central_wl_conditions = [
+        '_wl(\d\d\d)_',
+        '_w(\d\d\d)_',
+        '_cw(\d\d\d)_',
+    ]
+    for condition in central_wl_conditions:
+        match_central_wl = re.search(condition, ffile)
+        if match_central_wl:
+            metadata['central_wl'] = int(match_central_wl.group(1))
+            break
 
     # find gain
     match_gain = re.search("_g([cm\d]+)_", ffile)
@@ -97,8 +109,12 @@ def get_metadata_from_filename(fpath):
             metadata[key] = bool(match.group(1))
 
     # get creation time of the file
-    date = datetime.fromtimestamp(os.path.getctime(fpath))
-    metadata['date'] = date
+    try:
+        date = datetime.fromtimestamp(os.path.getctime(fpath))
+        metadata['date'] = date
+    except FileNotFoundError:
+        pass
+
 
     _match_booleans("pu", "pump")
     _match_booleans("pr", "probe")

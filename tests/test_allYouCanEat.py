@@ -60,7 +60,7 @@ class TestQuartz(unittest.TestCase):
         for key in self.result_dict['metadata']:
             assert self.data.metadata[key] == self.result_dict['metadata'][key]
 
-    def test_1_row_of_quartz(self):
+    def test_some_row(self):
         ind, data = self.result_dict['some_row']
         assert np.all(self.data.data[ind] == data)
 
@@ -90,20 +90,25 @@ class TestQuartz(unittest.TestCase):
 class TestSPE(TestQuartz):
 
     def setUp(self):
-        self.data = AllYouCanEat('../data/08_h20_gcm_e10m_ssp_purged1_pr6150nm_background.spe')
+        self.data = AllYouCanEat('../data/08_h2o_gcm_e10m_ssp_purged1_pr6150nm_background.spe')
         self.result_dict = {
             'shape_of_data' : (1, 60, 1, 1600),
             'metadata' : {
                 'exposure_time' : timedelta(0, 599, 945984),
-                'material' : 'h2o':
-                'polarisation' : 'ssp'
+                'material' : 'h2o',
+                'polarisation' : 'ssp',
                 'sp_type' : 'spe',
                 'tempSet' : -75.0,
             },
-            'some_row' : (0, 23, 0, slice(None, None), np.load('../data/08_frame23.npy')),
+            'some_row' : ([0, 23, 0, slice(None, None)],
+                          np.load('../data/08_frame23.npy')),
             'type' : 'spe',
             'pixel' : np.arange(1600),
-            'times'
+            'times' : np.load('../data/08_times.npy').tolist(),
+            'frames' : 60,
+            'pp_delays' : np.array([0]),
+            'wavelength' : np.load('../data/08_wavelength.npy'),
+            'wavenumber' : np.load('../data/08_wavenumber.npy'),
         }
 
 if __name__ == '__main__':
