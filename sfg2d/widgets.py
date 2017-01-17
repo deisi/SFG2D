@@ -9,6 +9,7 @@ from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import matplotlib.gridspec as gridspec
 
 from .io.veronica import read_auto
 from .io.allYouCanEat import AllYouCanEat, x_pixel_index, y_pixel_index, spec_index, frame_axis_index, pp_index
@@ -16,7 +17,7 @@ from .io.veronica import pixel_to_nm
 from .core.scan import Scan, TimeScan
 from .utils.static import nm_to_ir_wavenumbers
 
-debug = 1
+debug = 0
 
 class WidgetBase():
     """A Base class that contains the most generic widgets for a class using
@@ -24,7 +25,7 @@ class WidgetBase():
     def __init__(self, data=AllYouCanEat(), fig=None, ax=None,
                  central_wl=None, vis_wl=None, figsize=None):
         self.data = data
-        self.data_base = np.zeros_like(self.data.data)
+        self.data_base = np.zeros_like(self.data.data, dtype="int64")
         self._fig = fig
         self._central_wl = central_wl
         self._vis_wl = vis_wl
@@ -105,11 +106,12 @@ class WidgetBase():
             description='frame', continuous_update=False)
         self.w_frame_base_med = wi.Checkbox(
             description='median', value=False)
-        self.w_spec_base_slider = wi.IntSlider(
+        self.w_spec_base_slider = wi.IntRangeSlider(
             description='spectrum', continuous_update=False)
-        self.w_sum_over = wi.Dropdown(description='sum via',
+        self.w_sum_over = wi.Dropdown(description='sum x-axis',
                                        options=('pp_delays', 'frames'),
                                       width='60px',)
+        self.w_baseline_offset = wi.FloatText(description='Offset', value=0, widht = "60px")
 
         ### From here on the aligning boxers ###
         folder_box = wi.HBox([wi.Label("Folder", margin='0px 123px 0px 0px'), self.w_folder])
@@ -137,6 +139,7 @@ class WidgetBase():
             wi.HBox([
                 self.w_pp_baseline_slider, self.w_frame_baseline,
                 self.w_spec_base_slider, self.w_frame_base_med, ]),
+                self.w_baseline_offset
             ])
         #self.w_baseline_box.border = "1px black solid"
         self.w_baseline_box.margin = "8px 0px 8px 0px"
@@ -191,13 +194,15 @@ class WidgetBase():
             self.w_frame_baseline.disabled = False
         if self.w_frame_baseline.value >  self.w_frame_baseline.max:
             self.w_frame_baseline.value = 0
-        self.w_spec_base_slider.max = self.data_base.shape[y_pixel_index] - 1
+        self.w_spec_base_slider.max = self.data_base.shape[y_pixel_index]
+        self.w_spec_base_slider.min = 0
         if self.w_spec_base_slider.max is 0:
             self.w_spec_base_slider.disabled = True
         else:
             self.w_spec_base_slider.disabled = False
-        if self.w_spec_base_slider.value > self.w_spec_base_slider.max:
-            self.w_spec_base_slider.value = 0
+        if self.w_spec_base_slider.value[1] > self.w_spec_base_slider.max:
+            self.w_spec_base_slider.value[1] = self.w_spec_base_slider.max
+            self.w_spec_base_slider.value[0] = 0
 
         self._toggle_central_wl()
         self._toggle_vis_wl()
@@ -333,6 +338,7 @@ class WidgetBase():
         self.w_frame_base_med.observe(self._update_figure_callback, 'value')
         self.w_frame_base_med.observe(self._toggle_frame_base_slider, 'value')
         self.w_sum_over.observe(self._update_figure_callback, "value")
+        self.w_baseline_offset.observe(self._update_figure_callback, "value")
 
     # TODO Refactor this with a lisf of figure updating
     # widgets and then unobserver only the figure updates.
@@ -360,6 +366,7 @@ class WidgetBase():
         self.w_spec_base_slider.unobserve_all()
         self.w_frame_base_med.unobserve_all()
         self.w_sum_over.unobserve_all()
+        self.w_baseline_box.unobserve_all()
 
     @property
     def fig(self):
@@ -417,10 +424,29 @@ class WidgetBase():
 
     def _prepare_y_data(self, data):
         """Non shape changing transformations."""
+        #TODO Refactor with better name
         #TODO Test if copy is still needed.
         y = data.copy()
+        y = y.astype('float64')
         if self.w_sub_base.value:
-            y -= np.ones_like(y) * self.y_base
+            if len(self.y_base.shape) == 1:
+                y -= np.ones_like(y) * self.y_base
+            else:
+                # Check if this is possible
+                if self.data_base.shape[spec_index] is not self.data.data.shape[spec_index]:
+                    message = 'Cant subtract baseline spectra wise due to' \
+                              'unmatched dimensions. Data shape is %s, but' \
+                              'baseline shape is %s' %\
+                               (self.data.data.shape, self.data_base.shape)
+                    warnings.warn(message)
+                    self.w_sub_base.value = False
+                    return y
+                base = self.data_base[self.w_pp_baseline_slider.value, :]
+                if self.w_frame_base_med.value:
+                    base = base.med(0)
+                else:
+                    base = base[self.w_frame_baseline.value]
+                y -= base[None, None, :] + self.w_baseline_offset.value
         return y
 
     @property
@@ -446,6 +472,7 @@ class WidgetBase():
             ]
         ret = ret[y_slice, :]
         # Must be done here, because it works only on 2d data.
+        # TODO I could use the not 2d version
         if self.w_smooth_s.value != 1:
             ret = medfilt2d(ret, (1, self.w_smooth_s.value))
         return ret.T
@@ -468,19 +495,23 @@ class WidgetBase():
 
         # TODO this is a hack, because I cant select frame regions yet
         frame_slice = self.w_frame_baseline.value
+        spec_slice = _slider_range_to_slice(
+            self.w_spec_base_slider.value,
+            self.w_spec_base_slider.max,
+        )
         if self.w_frame_base_med.value:
             data = self.data_base[
                 self.w_pp_baseline_slider.value,
                 :,
-                self.w_spec_base_slider.value,
+                spec_slice,
                 :]
-            y = np.median(data, 0)
+            y = np.median(data, 0) + self.w_baseline_offset.value
         else:
             y = self.data_base[
                     self.w_pp_baseline_slider.value,
                     frame_slice,
-                    self.w_spec_base_slider.value,
-                    :]
+                    spec_slice,
+                    :] + self.w_baseline_offset.value
         return y.T
 
     @property
@@ -546,7 +577,7 @@ class SpecAndBase(WidgetBase):
     def _update_figure(self):
         """Is called on all gui element changes.
 
-        This function renders the plot. When ever you want to make a changes
+        This function renders the plot. When ever you want to make changes
         visible in the figure you need to run this."""
         self._init_figure()
         ax = self.axes[0]
@@ -749,7 +780,6 @@ class Normalized(SpecAndSummed):
     def _init_widget(self):
         import ipywidgets as wi
         super()._init_widget()
-        #self.w_reload = wi.Button(description='Reload')
         self.w_show_baseline.value = False
         self.children = wi.VBox([
             #self.w_reload,
@@ -757,9 +787,74 @@ class Normalized(SpecAndSummed):
             wi.HBox([self.w_frame, self.w_y_pixel_range, self.w_x_pixel_range, self.w_frame_median,
                   #self.w_x_pixel_range
             ]),
-            wi.HBox([self.w_calib, self.w_sum_over ]),
+            wi.HBox([self.w_calib, self.w_sum_over]),
             self.w_central_wl, self.w_vis_wl,
         ])
+
+class ImgView(WidgetBase):
+    """A Class to view full spe images."""
+    def __init__(self, *args, figsize=(8,6), **kwargs):
+        super().__init__(*args, figsize=figsize, **kwargs)
+
+    def _init_figure(self):
+        if not self._fig:
+            self._fig = plt.figure(self._figsize)
+            gs = gridspec.GridSpec(2, 2, width_ratios=[1, 3],
+                                   height_ratios=[3,1])
+            ax = self._fig.add_subplot(gs[0, 1])
+            self._fig.add_subplot(gs[0, 0], sharey=ax)
+            self._fig.add_subplot(gs[1, 1], sharex=ax)
+        elif self._fig and len(self.axes) is not 3:
+            self._fig.set_size_inches(self._figsize, forward=True)
+            gs = gridspec.GridSpec(2, 2, width_ratios=[1, 3],
+                                   height_ratios=[3,1])
+            ax = self._fig.add_subplot(gs[0, 1])
+            self._fig.add_subplot(gs[0, 0], sharey=ax)
+            self._fig.add_subplot(gs[1, 1], sharex=ax)
+
+
+    def _update_figure(self):
+        self._init_figure()
+        view_data = self.data.data[self.w_pp_s.value, self.w_frame.value]
+        ax = self.axes[0]
+        plt.sca(ax)
+        ax.clear()
+        img = ax.imshow(view_data, interpolation=self.w_interpolate.value,
+                  origin="lower", aspect="auto")
+        plt.colorbar(img)
+
+        axl = self.axes[1]
+        axl.clear()
+        y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
+                                         self.data.data.shape[y_pixel_index])
+        view_data2 = self.data.data[self.w_pp_s.value, self.w_frame.value, y_slice].sum(y_pixel_index)
+        axl.plot(view_data2)
+
+    def _init_widget(self):
+        import ipywidgets as wi
+        super()._init_widget()
+        self.w_smooth_s.visible = False
+        self.w_smooth_s.disabled  = True
+        self.w_pp_s.visible = False
+        self.w_pp_s.disabled = True
+        self.w_interpolate = wi.Dropdown(
+            description="Interpolation",
+            options=('none', 'nearest', 'bilinear', 'bicubic',
+                     'spline16', 'spline36', 'hanning', 'hamming', 'hermite', 'kaiser',
+                     'quadric', 'catrom', 'gaussian', 'bessel', 'mitchell', 'sinc',
+                     'lanczos'),
+            value = "nearest",
+        )
+        self.children = wi.VBox([
+            self.w_signal_box,
+            wi.HBox([self.w_calib, self.w_central_wl, self.w_vis_wl]),
+            self.w_interpolate,
+        ])
+
+    def _init_observer(self):
+        super()._init_observer()
+        self.w_interpolate.observe(self._update_figure_callback, "value")
+
 
 ##### Helper function
 def _filter_fnames(folder_path):
@@ -780,6 +875,8 @@ def _slider_range_to_slice(range_value_tuple, max):
     # This can happen if one links
     # sliders but can not guarantee that they
     # refer to the same data.
+    if range_value_tuple == (0, 0):
+        return slice(None, None, None)
     if any(range_value_tuple) > max:
             if range_value_tuple[0] > max:
                 range_value_tuple[0] = max

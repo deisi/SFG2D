@@ -10,7 +10,7 @@ are, you are writing a widget."""
 
 from . import widgets as wi
 
-debug = 1
+debug = 0
 
 class Dashboard():
     def __init__(self, *args, **kwargs):
@@ -85,6 +85,9 @@ class Normalize(Dashboard):
              self.wi_fig.delaxes(ax)
         page = self.w_tabs.selected_index
         widget = self.widgets[page]
+        if page == 3:
+            self.widgets[3].data = self.widgets[0].data
+            self.widgets[3]._configure_widgets()
         widget._update_figure()
 
     def _on_normalize(self, new):
