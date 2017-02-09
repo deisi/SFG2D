@@ -11,18 +11,17 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
 
-from .io.veronica import read_auto
-from .io.allYouCanEat import AllYouCanEat, x_pixel_index, y_pixel_index, spec_index, frame_axis_index, pp_index
+from .core import SfgRecord
 from .io.veronica import pixel_to_nm
-from .core.scan import Scan, TimeScan
 from .utils.static import nm_to_ir_wavenumbers
+from .utils.consts import X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX, FRAME_AXIS_INDEX, PP_INDEX
 
 debug = 0
 
 class WidgetBase():
     """A Base class that contains the most generic widgets for a class using
-    allYouCanEat data."""
-    def __init__(self, data=AllYouCanEat(), fig=None, ax=None,
+    SfgRecord object as data container."""
+    def __init__(self, data=SfgRecord(), fig=None, ax=None,
                  central_wl=None, vis_wl=None, figsize=None):
         self.data = data
         self.data_base = np.zeros_like(self.data.data, dtype="int64")
@@ -159,19 +158,19 @@ class WidgetBase():
         else:
             self.w_pp_s.disabled = False
 
-        self.w_frame.max = self.data.data.shape[frame_axis_index] - 1
-        if self.data.data.shape[frame_axis_index] == 1:
+        self.w_frame.max = self.data.data.shape[FRAME_AXIS_INDEX] - 1
+        if self.data.data.shape[FRAME_AXIS_INDEX] == 1:
             self.w_frame.disabled = True
         else:
             self.w_frame.disabled = False
-        self.w_y_pixel_range.max = self.data.data.shape[y_pixel_index]
+        self.w_y_pixel_range.max = self.data.data.shape[Y_PIXEL_INDEX]
         if np.any(np.array(self.w_y_pixel_range.value) > self.w_y_pixel_range.max):
             self.w_y_pixel_range.value = self.w_y_pixel_range.min, self.w_y_pixel_range.max
-        if self.data.data.shape[y_pixel_index] == 1:
+        if self.data.data.shape[Y_PIXEL_INDEX] == 1:
             self.w_y_pixel_range.disabled = True
         else:
             self.w_y_pixel_range.disabled = False
-        self.w_x_pixel_range.max = self.data.data.shape[x_pixel_index]
+        self.w_x_pixel_range.max = self.data.data.shape[X_PIXEL_INDEX]
         if np.any(np.array(self.w_x_pixel_range.value) > self.w_x_pixel_range.max):
             self.w_x_pixel_range.value = self.w_x_pixel_range.min, self.w_x_pixel_range.max
 
@@ -180,21 +179,21 @@ class WidgetBase():
         else:
             self.w_central_wl.value = self.central_wl
         self.w_vis_wl.value = self.vis_wl
-        self.w_pp_baseline_slider.max = self.data_base.shape[pp_index] - 1
+        self.w_pp_baseline_slider.max = self.data_base.shape[PP_INDEX] - 1
         if self.w_pp_baseline_slider.max is 0:
             self.w_pp_baseline_slider.disabled = True
         else:
             self.w_pp_baseline_slider.disabled = False
         if self.w_pp_baseline_slider.value > self.w_pp_baseline_slider.max:
             self.w_pp_baseline_slider.value = 0
-        self.w_frame_baseline.max = self.data_base.shape[frame_axis_index] - 1
+        self.w_frame_baseline.max = self.data_base.shape[FRAME_AXIS_INDEX] - 1
         if self.w_frame_baseline.max is 0:
             self.w_frame_baseline.disabled = True
         else:
             self.w_frame_baseline.disabled = False
         if self.w_frame_baseline.value >  self.w_frame_baseline.max:
             self.w_frame_baseline.value = 0
-        self.w_spec_base_slider.max = self.data_base.shape[y_pixel_index]
+        self.w_spec_base_slider.max = self.data_base.shape[Y_PIXEL_INDEX]
         self.w_spec_base_slider.min = 0
         if self.w_spec_base_slider.max is 0:
             self.w_spec_base_slider.disabled = True
@@ -212,7 +211,7 @@ class WidgetBase():
     def _toggle_vis_wl(self, new=None):
         """Toggle the vis wl text box according to calibration axis.
 
-        The new keyword exists, so if can also server as a callback function."""
+        The new keyword exists, so it can also server as a callback function."""
         if self.w_calib.value == 'wavenumber':
             self.w_vis_wl.disabled = False
         else:
@@ -276,9 +275,15 @@ class WidgetBase():
         self._update_figure()
 
     def _update_data(self, new):
-        """Gets called when new data is selected in the gui."""
+        """Update the internal data objects.
+
+        The internal data objects are updated according to
+        *WidgetBase.w_folder.value* and *WidgetBase.w_file.value*.
+        The *WidgetBase._central_wl* property gets reseted, and child
+        widget elements, like e.g. WidgetBase.w_pp_s are checked for
+        correctness and reseted."""
         fname = self.w_folder.value + "/" + self.w_file.value
-        self.data = AllYouCanEat(fname)
+        self.data = SfgRecord(fname)
         self._central_wl = None
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
@@ -289,7 +294,9 @@ class WidgetBase():
         self._update_figure()
 
     def _on_base_changed(self, new):
-        """Called when baseline is changed."""
+        """Change the data of the baseline.
+
+        Resets all elements that need to be reseted on a baseline change."""
         fname = self.w_folder.value + "/" + self.w_base.value
         # If we have already loaded the data to ram for the baseline,
         # we just copy it from there. Thats a lot faster then reading
@@ -299,7 +306,7 @@ class WidgetBase():
                 print("Copied new baseline data from ram.")
             self.data_base = self.data.data.copy()
         else:
-            self.data_base = AllYouCanEat(fname).data
+            self.data_base = SfgRecord(fname).data
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_observer
@@ -381,7 +388,7 @@ class WidgetBase():
         """Apply transformations to data, that don't change the shape"""
 
         # Need pixel as a possible default value.
-        pixel = np.arange(data.shape[x_pixel_index])
+        pixel = np.arange(data.shape[X_PIXEL_INDEX])
         central_wl = self.w_central_wl.value
         vis_wl = self.w_vis_wl.value
 
@@ -414,7 +421,7 @@ class WidgetBase():
         wavelength = getattr(self.data, 'wavelength', None)
         wavenumber = getattr(self.data, 'wavenumber', None)
         #x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
-        #                                 self.data.data.shape[x_pixel_index])
+        #                                 self.data.data.shape[X_PIXEL_INDEX])
         ret = self._prepare_x_data(
             self.data.data,
             wavelength,
@@ -431,9 +438,11 @@ class WidgetBase():
         if self.w_sub_base.value:
             if len(self.y_base.shape) == 1:
                 y -= np.ones_like(y) * self.y_base
+            elif self.y_base.shape[1] == 1:
+                y -= np.ones_like(y) * self.y_base[:, 0]
             else:
                 # Check if this is possible
-                if self.data_base.shape[spec_index] is not self.data.data.shape[spec_index]:
+                if self.data_base.shape[SPEC_INDEX] is not self.data.data.shape[SPEC_INDEX]:
                     message = 'Cant subtract baseline spectra wise due to' \
                               'unmatched dimensions. Data shape is %s, but' \
                               'baseline shape is %s' %\
@@ -443,7 +452,7 @@ class WidgetBase():
                     return y
                 base = self.data_base[self.w_pp_baseline_slider.value, :]
                 if self.w_frame_base_med.value:
-                    base = base.med(0)
+                    base = np.median(base, 0)
                 else:
                     base = base[self.w_frame_baseline.value]
                 y -= base[None, None, :] + self.w_baseline_offset.value
@@ -456,14 +465,14 @@ class WidgetBase():
         #TODO the ppdelay slider needs to be a custom slider.
         pp_delays = getattr(self.data, 'pp_delays')
         y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
-                                         self.data.data.shape[y_pixel_index])
+                                         self.data.data.shape[Y_PIXEL_INDEX])
         pp_delay_index = np.where(
             self.w_pp_s.value == pp_delays)[0][0]
 
         # TODO add the possibility to select frame regions.
         ret =  self._prepare_y_data(self.data.data)[pp_delay_index, :, :, :]
         if self.w_frame_median.value:
-            ret = np.median(ret, frame_axis_index)
+            ret = np.median(ret, FRAME_AXIS_INDEX)
         else:
             ret = ret[
                 self.w_frame.value,
@@ -597,11 +606,11 @@ class SpecAndBase(WidgetBase):
 
 class SpecAndSummed(WidgetBase):
     def __init__(self, central_wl=None, vis_wl=810, figsize=(10, 4), **kwargs):
-        """Plotting gui based on the AllYouCanEat class as a data backend.
+        """Plotting gui based on the SfgRecord class as a data backend.
 
         Parameters
         ----------
-        data : Optional, AllYouCanEat obj.
+        data : Optional, SfgRecord obj.
             Default dataset to start with. If None is given, an empty one is created.
         fig: Optional, matplotlib figure
             The figure to draw on.
@@ -617,7 +626,7 @@ class SpecAndSummed(WidgetBase):
 
         Example:
         -------
-        test = AllYouCanPlot()
+        test = SpecAndSummed()
         test()
         # Type the Folder you want to investigate in the folder Text box and press RETURN.
         # A list of selectable files will appear on the right side.
@@ -661,11 +670,6 @@ class SpecAndSummed(WidgetBase):
         ax.plot(self.x, self.y, label='Spectrum')
         if self.w_show_baseline.value:
             ax.plot(self.x_base, self.y_base, label='Baseline')
-        ax.vlines(self.x_vlines, *ax.get_ylim(),
-                  linestyle="dashed")
-        ax.legend(framealpha=0.5)
-        ax.set_xlabel(self.w_calib.value)
-        ax.set_title('Spectrum')
         # Buffer ax_{x,y}_lim so we can reuse it later
         if self.w_Autoscale.value:
             self._ax_xlim = ax.get_xlim()
@@ -674,6 +678,11 @@ class SpecAndSummed(WidgetBase):
             ax.set_xlim(*self._ax_xlim)
         if not isinstance(self._ax_ylim, type(None)):
             ax.set_ylim(*self._ax_ylim)
+        ax.legend(framealpha=0.5)
+        ax.set_xlabel(self.w_calib.value)
+        ax.set_title('Spectrum')
+        ax.vlines(self.x_vlines, *ax.get_ylim(),
+                  linestyle="dashed")
         ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         ax.callbacks.connect('ylim_changed', self._on_ylim_changed)
         ax.set_xticklabels(ax.get_xticks(), fontsize=fontsize)
@@ -719,9 +728,9 @@ class SpecAndSummed(WidgetBase):
     def sum_y(self):
         """y data of the summed plot."""
         y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
-                                         self.data.data.shape[y_pixel_index])
+                                         self.data.data.shape[Y_PIXEL_INDEX])
         x_slice = _slider_range_to_slice(self.w_x_pixel_range.value,
-                                         self.data.data.shape[x_pixel_index])
+                                         self.data.data.shape[X_PIXEL_INDEX])
 
         pp_delays = getattr(self.data, 'pp_delays')
         pp_delay_index = np.where(
@@ -733,7 +742,7 @@ class SpecAndSummed(WidgetBase):
 
         if 'pp_delays' in self.w_sum_over.value:
             if self.w_frame_median.value:
-                y = np.median(y, frame_axis_index)
+                y = np.median(y, FRAME_AXIS_INDEX)
             else:
                 y = y[:, self.w_frame.value, :, :]
         if 'frames' in self.w_sum_over.value:
@@ -742,7 +751,7 @@ class SpecAndSummed(WidgetBase):
         if self.w_smooth_s.value is not 1:
             y = medfilt(y, (1, 1, self.w_smooth_s.value))
 
-        return y.sum(x_pixel_index)
+        return y.sum(X_PIXEL_INDEX)
 
     @property
     def sum_x(self):
@@ -771,9 +780,7 @@ class SpecAndSummed(WidgetBase):
 
 # TODO Find Better name
 class Normalized(SpecAndSummed):
-    """A simplified version of SpecAndSummed.
-
-    This Widget is used to visualize data after normalization."""
+    """Widget to visualize data after normalization."""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -826,8 +833,8 @@ class ImgView(WidgetBase):
         axl = self.axes[1]
         axl.clear()
         y_slice = _slider_range_to_slice(self.w_y_pixel_range.value,
-                                         self.data.data.shape[y_pixel_index])
-        view_data2 = self.data.data[self.w_pp_s.value, self.w_frame.value, y_slice].sum(y_pixel_index)
+                                         self.data.data.shape[Y_PIXEL_INDEX])
+        view_data2 = self.data.data[self.w_pp_s.value, self.w_frame.value, y_slice].sum(Y_PIXEL_INDEX)
         axl.plot(view_data2)
 
     def _init_widget(self):

@@ -78,21 +78,20 @@ def get_metadata_from_filename(fpath):
     if match_exp_time:
         time = match_exp_time.group(1)
         unit = match_exp_time.group(2)
+        timedelta_kwargs = {}
 
-        # Translate between my time names and datetime str formatters
+        # Translate between timedelta and my naming convention.
         if unit == 'm':
-            unit = '%M'
+            timedelta_kwargs = {"minutes" : int(time)}
         elif unit == 's':
-            unit = '%S'
+            timedelta_kwargs = {"seconds" : int(time)}
         elif unit == 'ms':
-            # WTF there is no milisecond in datetime
-            unit = '%f'
-            time = str(int(time)*10**3)
+            timedelta_kwargs = {"milliseconds" : int(time)}
         elif unit == 'h':
-            unit = '%H'
+            timedelta_kwargs = {"hours" : int(time)}
         if debug:
             print(time, unit)
-        exp_time = datetime.strptime(time, unit) - datetime(1900, 1, 1)
+        exp_time = timedelta(**timedelta_kwargs)
         metadata["exposure_time"] = exp_time
 
     # find polarisation

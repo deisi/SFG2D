@@ -1,33 +1,33 @@
-watchdog<=0.8.3
+watchdog
 
-numpy<=1.11.1
+numpy
 
-pandas<=0.19.1
+pandas
 
-matplotlib<=1.5.3
+matplotlib
 
-scipy<=0.18.1
+scipy
 
-seaborn<=0.7.1
+seaborn
 
-Pillow<=3.3.1
+Pillow
 
-ipython<=5.1.0
+ipython
 
-watchdog<=0.8.3
+watchdog
 
-jupyter<=1.0.0
+jupyter
 
-jupyter_dashboards<=0.6.1
+jupyter_dashboards
 
-xmltodict<=0.10.2
+xmltodict
 
-PyYAML<=3.12
+PyYAML
 
-notebook<=4.2.3
+notebook
 
-widgetsnbextension<=1.2.6
+widgetsnbextension
 
-bqplot<=0.8.4
+bqplot
 
-ipywidgets<=5.2.2
+ipywidgets

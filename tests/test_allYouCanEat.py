@@ -44,7 +44,7 @@ class TestQuartz(unittest.TestCase):
         }
 
     def tearDown(self):
-        pass
+        del self.data
 
     def test_pp_delays_is_numpy_array(self):
         assert isinstance(self.data.pp_delays, type(np.zeros(1)))
@@ -64,9 +64,6 @@ class TestQuartz(unittest.TestCase):
         ind, data = self.result_dict['some_row']
         assert np.all(self.data.data[ind] == data)
 
-    def test_type(self):
-        assert self.data._type is self.result_dict['type']
-
     def test_data_pixel(self):
         assert all(self.data.pixel == self.result_dict['pixel'])
 
@@ -81,11 +78,16 @@ class TestQuartz(unittest.TestCase):
 
     def test_data_wavelength(self):
         wl = self.result_dict['wavelength']
-        assert all(self.data.wavelength == wl)
+        # Must allow for small machine percision differences
+        small_values = np.abs(wl - self.data.wavelength)
+        assert np.any(small_values < 10**(-12))
 
     def test_data_wavenumber(self):
         wl = self.result_dict['wavenumber']
-        assert all(self.data.wavenumber == wl)
+        # Must allow for small machine percision differences
+        self.data.metadata["vis_wl"] = 810 # Set the right vis_wl
+        small_values = np.abs(wl - self.data.wavenumber)
+        assert np.any(small_values < 10**(-12))
 
 class TestSPE(TestQuartz):
 
@@ -110,6 +112,34 @@ class TestSPE(TestQuartz):
             'wavelength' : np.load('../data/08_wavelength.npy'),
             'wavenumber' : np.load('../data/08_wavenumber.npy'),
         }
+
+class TestTs(unittest.TestCase):
+    def setUp(self):
+        self.data = AllYouCanEat('../data/09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat')
+
+    def tearDown(self):
+        del self.data
+
+    def test_wavenumber(self):
+        self.data.wavenumber
+
+    def test_wavelength(self):
+        self.data.wavelength
+
+    def test_pp_delays(self):
+        pp_delays = np.array([
+            -1900, -1700, -1500, -1300, -1100,  -900,  -700,  -500,  -400,
+            -300,  -200,  -150,  -100,   -50,   -25,     0,    25,    50,
+            100,   150,   200,   300,   400,   500,   700,   900,  1100,
+            1300,  1500,  1700,  1900
+        ], dtype=np.int)
+        assert all(self.data.pp_delays == pp_delays)
+
+    def test_shape_of_data(self):
+        assert self.data.data.shape == (31, 3, 3, 1600)
+
+    def test_frames(self):
+        assert self.data.frames == 3
 
 if __name__ == '__main__':
     sys.exit(unittest.main())

@@ -1,23 +1,18 @@
+# REFACTOR, I think the complete module is trash
 from os import path
 from numpy import genfromtxt, array, delete, zeros, arange,\
     ndarray, concatenate, savez, sqrt, load, ones, empty, dtype
 from pandas import DataFrame, Series
 from copy import deepcopy
-from .veronica import PIXEL, SPECS, pixel_to_nm
 import warnings
+from ..core import SfgRecord
 from ..core.scan import Scan
-
-# The meaning of the Indices in the data array
-x_pixel_index = -1
-y_pixel_index = -2
-spec_index = y_pixel_index
-frame_axis_index = -3
-pp_index = -4 # pump-probe delay
+from .. utils.consts import X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL
 
 debug=0
-
+#TODO Refactor all these functions. They are too specific.
 def get_AllYouCanEat_scan(fname, baseline, ir_profile,
-                          wavenumber=arange(1600), dir_profile=None, dbaseline=None):
+                          wavenumber=arange(PIXEL), dir_profile=None, dbaseline=None):
     '''Function to unify usual data processing pipeline.
 
     This function imports data, subtracts the baseline and normalizes the data.
@@ -45,20 +40,20 @@ def get_AllYouCanEat_scan(fname, baseline, ir_profile,
 def get_frame_mean(fname, fbaseline):
     ret = AllYouCanEat(fname)
     baseline = AllYouCanEat(fbaseline).data
-    baseline_frames = baseline.data.shape[frame_axis_index]
-    data_frames = ret.data.shape[frame_axis_index]
+    baseline_frames = baseline.data.shape[FRAME_AXIS_INDEX]
+    data_frames = ret.data.shape[FRAME_AXIS_INDEX]
 
-    ret.baseline = baseline.mean(frame_axis_index).squeeze()
+    ret.baseline = baseline.mean(FRAME_AXIS_INDEX).squeeze()
     if baseline_frames > 1:
-        ret.dbaseline = baseline.std(frame_axis_index).squeeze() / sqrt(baseline_frames)
+        ret.dbaseline = baseline.std(FRAME_AXIS_INDEX).squeeze() / sqrt(baseline_frames)
 
     ret.back_sub = ret.data - ret.baseline
-    ret.frame_mean = ret.back_sub.mean(frame_axis_index).squeeze()
+    ret.frame_mean = ret.back_sub.mean(FRAME_AXIS_INDEX).squeeze()
 
     # uncertainly of the norm depends of the measurement itself and on
     # the uncertainly of the Baseline as well.
     if data_frames >= 1:
-        ddata = ret.data.std(frame_axis_index).squeeze() / sqrt(data_frames)
+        ddata = ret.data.std(FRAME_AXIS_INDEX).squeeze() / sqrt(data_frames)
         ret.dframe_mean = sqrt(
             (ddata)**2 + (ret.dbaseline)**2
         )
@@ -130,31 +125,31 @@ def concatenate_data_sets(
 
     ret = deepcopy(list_of_data_sets[0])
     ret.data = concatenate(
-        [elm.data for elm in list_of_data_sets], frame_axis_index
+        [elm.data for elm in list_of_data_sets], FRAME_AXIS_INDEX
     )
     ret.back_sub = concatenate(
-        [elm.back_sub for elm in list_of_data_sets], frame_axis_index
+        [elm.back_sub for elm in list_of_data_sets], FRAME_AXIS_INDEX
     )
     ret.dback_sub = concatenate(
-        [elm.dback_sub for elm in list_of_data_sets], frame_axis_index
+        [elm.dback_sub for elm in list_of_data_sets], FRAME_AXIS_INDEX
     )
     ret.normalized = concatenate(
-        [elm.normalized for elm in list_of_data_sets], frame_axis_index
+        [elm.normalized for elm in list_of_data_sets], FRAME_AXIS_INDEX
     )
     ret.dnormalized = concatenate(
-        [elm.dnormalized for elm in list_of_data_sets], frame_axis_index
+        [elm.dnormalized for elm in list_of_data_sets], FRAME_AXIS_INDEX
     )
     ret.norm = concatenate(
-        [elm.norm for elm in list_of_data_sets], frame_axis_index
+        [elm.norm for elm in list_of_data_sets], FRAME_AXIS_INDEX
     )
     ret.dnorm = concatenate(
-        [elm.dnorm for elm in list_of_data_sets], frame_axis_index
+        [elm.dnorm for elm in list_of_data_sets], FRAME_AXIS_INDEX
     )
     ret.dates = concatenate(
         [elm.dates for elm in list_of_data_sets]
     )
     ret.sums = ret.norm.reshape(
-        ret.norm.shape[frame_axis_index], ret.norm.shape[x_pixel_index]
+        ret.norm.shape[FRAME_AXIS_INDEX], ret.norm.shape[X_PIXEL_INDEX]
     )[:, sum_sl].sum(1)
 
 
@@ -215,48 +210,48 @@ def save_frame_mean(fname, data_container):
     times = getattr(data_container, "times", None)
     metadata = getattr(data_container, 'metadata', None)
     # number of frames (usually = number of repetitions)
-    frames = data_container.data.shape[frame_axis_index]
-    data = data_container.data.mean(frame_axis_index)
-    back_sub = data_container.back_sub.mean(frame_axis_index)
+    frames = data_container.data.shape[FRAME_AXIS_INDEX]
+    data = data_container.data.mean(FRAME_AXIS_INDEX)
+    back_sub = data_container.back_sub.mean(FRAME_AXIS_INDEX)
     ddata = None
     dback_sub = None
     dnormalized = None
 
     if frames >= 1:
-        ddata = data_container.data.std(frame_axis_index) / sqrt(frames)
-        dback_sub = data_container.back_sub.std(frame_axis_index) / sqrt(frames)
+        ddata = data_container.data.std(FRAME_AXIS_INDEX) / sqrt(frames)
+        dback_sub = data_container.back_sub.std(FRAME_AXIS_INDEX) / sqrt(frames)
 
     normalized = getattr(data_container, 'normalized', None)
     if not isinstance(normalized, type(None)):
-        normalized = normalized.mean(frame_axis_index)
+        normalized = normalized.mean(FRAME_AXIS_INDEX)
 
     norm = getattr(data_container, 'norm', None)
     if not isinstance(norm, type(None)):
-        norm = norm.mean(frame_axis_index)
+        norm = norm.mean(FRAME_AXIS_INDEX)
 
     base = getattr(data_container, 'base', None)
     if not isinstance(base, type(None)):
-        base = base.mean(frame_axis_index)
+        base = base.mean(FRAME_AXIS_INDEX)
 
     if not isinstance(normalized, type(None)) and frames > 1:
         # This is only the statistical fluctuation of the normalized data itself
-        dnormalized = data_container.normalized.std(frame_axis_index) / sqrt(frames)
+        dnormalized = data_container.normalized.std(FRAME_AXIS_INDEX) / sqrt(frames)
         # we must also add the fluctuations due to the substraction of the baseline
         # and the normalization with the ir profile. These fluctuations
         # Themselves are stored in the dnormalized property of the data_container.
         # If I'm not mistaken we can just add them, because Gaussian error propagation
         # for the a+b is da+db
-        dnormalized += data_container.dnormalized.mean(frame_axis_index)
+        dnormalized += data_container.dnormalized.mean(FRAME_AXIS_INDEX)
 
     dnorm = None
     if not isinstance(norm, type(None)) and frames >= 1:
-        dnorm = data_container.norm.std(frame_axis_index) / sqrt(frames)
-        dnorm =+ data_container.dnorm.mean(frame_axis_index)
+        dnorm = data_container.norm.std(FRAME_AXIS_INDEX) / sqrt(frames)
+        dnorm =+ data_container.dnorm.mean(FRAME_AXIS_INDEX)
 
     dbase = None
     if not isinstance(base, type(None)) and frames >= 1:
-        dbase = data_container.base.std(frame_axis_index) / sqrt(frames)
-        dbase += data_container.dbase.mean(frame_axis_index)
+        dbase = data_container.base.std(FRAME_AXIS_INDEX) / sqrt(frames)
+        dbase += data_container.dbase.mean(FRAME_AXIS_INDEX)
 
     savez(
         fname,
@@ -288,7 +283,7 @@ def load_npz_to_Scan(fname, **kwargs):
 
     # TODO make this ready for 2d input
     ret = Scan()
-    column_names = ['spec_%i' % i for i in range(imp['data'].shape[spec_index])]
+    column_names = ['spec_%i' % i for i in range(imp['data'].shape[SPEC_INDEX])]
     ret.df = DataFrame(
         imp['data'].squeeze().T,
         index=imp['wavenumber'].squeeze(),
@@ -331,345 +326,11 @@ def load_npz_to_Scan(fname, **kwargs):
     ret.df['dnormalized'] = ret.dnormalized
     return ret
 
-class AllYouCanEat():
-    """Class to quickly import data.
+#TODO Rename to SFGData
+# This is here for backwards compactibility reasons
+# The name and the location of the class was bad. It sould
+# not be used any more
 
-    It is ment to read as many different datastructures as I find
-    here at the MPIP.
-
-    Reads
-    -----
-      - veronica.dat files
-      - veronica save files
-      - .spe files from Andor version 2.5 and version 3
-
-    Properties
-    ----------
-    data : 4 dim numpy array
-        Each axis seperates the data by:
-        - axis 0: pump-probe time delay
-        - axis 1: frames
-        - axis 2: y-pixels
-        - axis 3: x-pixels
-    """
-    def __init__(self, fname=None):
-        self.pp_delays = array([0])
-        self.metadata = {}
-        if not fname:
-            self._fname = ""
-        else:
-            self._fname  = fname
-        self._data = zeros((1,1,1,1600))
-        self._type = 'unknown'
-
-        if isinstance(fname, type(None)):
-            return
-
-        if '~' in fname:
-            fname = path.expanduser(fname)
-        self._fname = path.abspath(fname)
-        self._dates = None
-        self._readData()
-
-    @property
-    def data(self):
-        return self._data
-
-    @data.setter
-    def data(self, value):
-        if not isinstance(value, ndarray):
-            raise IOError("Can't use type %s for data" % type(value))
-        if len(value.shape) != 4:
-            raise IOError("Can't set shape %s to data" % value.shape)
-        self._data = value
-
-    @property
-    def dates(self):
-        if isinstance(self._dates, type(None)):
-            self._dates = []
-            for i in range(self.data.shape[1]):
-                self._dates.append(
-                    self.metadata['date'] + i * self.metadata['exposure_time']
-                )
-        return self._dates
-
-    @dates.setter
-    def dates(self, value):
-        self._dates = value
-
-    @property
-    def times(self):
-        ret = []
-        for i in range(self.data.shape[1]):
-            ret.append(
-                i * self.metadata['exposure_time']
-            )
-        return ret
-
-    @property
-    def frames(self):
-        """Number of frames."""
-        return self.data.shape[frame_axis_index]
-
-    def _readData(self):
-        self._get_type()
-        self._arrange_data()
-        self._read_metadata()
-        self._make_calibration()
-
-    def _get_type(self):
-        self._get_type_by_path()
-        self._check_type()
-
-    def _arrange_data(self):
-        if self._type == "spe":
-            self._arrange_spe()
-            return
-
-        if self._type == "sp":
-            self._arrange_sp()
-            return
-
-        if self._type == "ts" or self._type == 'sc':
-            self._arrange_ts()
-            return
-
-        raise NotImplementedError("Uuuups this should never be reached."
-                                  "Bug with %s. I cannot understand the datatype" % self._fname
-                                  )
-
-    def _read_metadata(self):
-        """Read metadata of the file """
-
-        from ..utils.metadata import get_metadata_from_filename
-
-        try:
-            metadata = get_metadata_from_filename(self._fname)
-        except ValueError:
-            warnings.warn('ValueError while trying to extract metadata from filepath./nSkipping')
-            return
-
-        if self._type == 'spe':
-            # At first we use the metadata entries from the file
-            # content. They are loaded during the arrange step.
-            # Here we add what we can get from the filename.
-            # file content metadata wins over
-            # filename metadata
-            # self.metadata = {**self.metadata, **metadata}
-            ret = metadata.copy()
-            ret.update(self.metadata.copy())
-            self.metadata = ret
-            return
-
-        self.metadata = metadata
-
-    def _get_type_by_path(self):
-        """Get datatype by looking at the path.
-
-        Sets self._type to a string describing the data. And returns true
-        at the first success. Returns False if type could not be deduced
-        by name."""
-        # First check the name. Maybe it follows my naming convention.
-        fhead, ftail = path.split(self._fname)
-
-        if path.splitext(ftail)[1] == '.spe':
-            self._type = 'spe'
-            return
-
-        if ftail.find('_sp_') != -1:
-            self._type = 'sp'
-            return True
-
-        if ftail.find('_sc_') != -1:
-            self._type = 'sc'
-            return True
-
-        if ftail.find('_kin_') != -1:
-            self._type = 'sc'
-            return True
-
-        if ftail.find('_ts_') != -1:
-            self._type = 'ts'
-            return True
-
-        if ftail.find('_cc_') != -1:
-            self._type = 'ts'
-            return True
-
-        return False
-
-    @property
-    def _read_veronica_data(self):
-        """Reads data from text file using genfromtxt."""
-        return genfromtxt(self._fname)
-
-    def _check_type(self):
-        """Check the type by comparing name and data shape."""
-
-        # .spe is binary and hard to check by shape.
-        # We will assume it was not named wrongly and
-        # just go on.
-        if self._type == 'spe':
-            return True
-
-        typeByName = self._type
-        self._data = self._read_veronica_data
-        typeByShape = self._get_type_by_shape()
-
-        if debug:
-            print('Type by name is:', typeByName)
-            print('Type by shape is:', typeByShape)
-
-        if typeByName == typeByShape:
-            return True
-
-        print("type by name and type by shape don't match in %s" % self._fname)
-        print("typeByName : " + typeByName + " typeByShape: " + typeByShape)
-        print("Fallback to type by shape.")
-        self._type = typeByShape
-        return False
-
-    def _get_type_by_shape(self):
-        """Get type from the shape of data."""
-        shape = self._data.shape
-
-        if shape == (1600, 6):
-            return 'sp'
-
-        # If shape is not correct raise an error. This must
-        # be handeled. It means another program is used, or data
-        # is possible corrupted
-        if shape[0] % 1602 != 0 or shape[1] % 6 != 0:
-            raise IOError("Can't understand shape of data in %s" % self._fname)
-
-        # The number of repetitions
-        # -1 because the AVG is saved into this file as well
-        self.NumReps = self._data.shape[1] // 6 - 1
-
-        # The numner of pp_delays
-        self.NumPp_delays = self._data.shape[0] // 1602
-
-        if self.NumPp_delays == 1:
-            return 'sc'
-
-        if self.NumPp_delays > 1:
-            return 'ts'
-
-        raise NotImplementedError(
-            "Uuups this should never be reached."
-            "Shape of %s is %s" % (self._fname, self._data.shape)
-        )
-
-    def _arrange_spe(self):
-        from .spe import PrincetonSPEFile3
-
-        sp = PrincetonSPEFile3(self._fname)
-        self._data = sp.data.reshape(1, sp.NumFrames, sp.ydim, sp.xdim)
-        self.metadata['central_wl'] = sp.central_wl
-        self.metadata['exposure_time'] = sp.exposureTime
-        self.metadata['gain'] = sp.gain
-        self.metadata['sp_type'] = 'spe'
-        self.metadata['date'] = sp.date
-        self.metadata['tempSet'] = sp.tempSet
-        self.wavelength = sp.wavelength
-        self.calib_poly = sp.calib_poly
-        self.pixel = arange(sp.xdim)
-
-    def _arrange_sp(self):
-        """Makes a scan have the same data structure as spe """
-        # 3 because victor saves 3 spectra at a time
-        # 1 because its only 1 spectrum no repetition
-        # x axis given by the pixels
-        self._data = array([[self._data[:, 1:4].T]])
-
-    def _arrange_ts(self):
-
-        def _iterator(elm):
-            return array(
-                # ditch first iteration because it the AVG
-                # and correct NumReps for the missing AVG entry
-                [elm(i) for i in range(1, self.NumReps + 1)]
-            ).flatten().tolist()
-
-        # Only keep the columns that hold raw data
-        colum_inds = [0] + _iterator(lambda i: [6*i+2, 6*i+3, 6*i+4])
-        self._data = self._data[:, colum_inds]
-
-        # pop pp_delays from data array and remove rows
-        self.pp_delays = self._data[0::1602, 0]
-        self._data = delete(self._data, slice(0, None, 1602), 0)
-
-        # Now We know the rest is uint32 and we can save some ram here.
-        self._data = self._data.astype('uint32')
-
-        # delete empty rows
-        empty_rows = [i*PIXEL + i-1 for i in range(self._data.shape[0]//PIXEL)]
-        self._data = delete(self._data, empty_rows, 0)
-
-        # Currently numpy ignores the [-1, ...] in the empty_rows, but we want
-        # the last line to be deleted as well, because it is empty. 
-        # This will be changed in the future.
-        if self._data.shape[0] % PIXEL == 1:
-            self._data = delete(self._data, -1, 0)
-
-        # Remove the 0 (pixel) column it is redundant
-        # There is no point in wasting ram just to count
-        # the rows.
-        self._data = self._data[:, 1:]
-
-        # We want data to fit in the same structure as all the other scans
-        # So we prepare a result array with the right shape
-        ret = zeros(
-            (self.NumPp_delays, self.NumReps, SPECS, PIXEL),
-            dtype('uint32')
-        )
-        if debug:
-            print("Input data shape:", self._data.shape)
-            print("Result data shape: ", ret.shape)
-            print("Number of repetitions: ", self.NumReps)
-        for i_row in range(len(self._data)):
-            row = self._data[i_row]
-            # The index of the current delay
-            i_delay = i_row // PIXEL
-            # The current pixel
-            i_pixel = i_row % PIXEL
-            for i_col in range(len(row)):
-                # index of the spectrum
-                i_spec = i_col % SPECS  # 3 is the number of specs
-                # index of the repetition (frame)
-                i_rep = i_col // SPECS
-                try:
-                    ret[i_delay, i_rep, i_spec, i_pixel] = row[i_col]
-                except IndexError:
-                    print('**********ERROR**************')
-                    print(i_delay, i_rep, i_spec, i_pixel)
-                    self._data = ret
-                    return
-        self._data = ret
-
-    def _make_calibration(self):
-        from ..utils.static import nm_to_ir_wavenumbers
-
-        if self._type != 'spe':
-            self.pixel = arange(PIXEL)
-            self.wavelength = self.pixel
-            cw = self.metadata.get('central_wl')
-            if cw and cw >= 1:
-                self.wavelength = pixel_to_nm(
-                    arange(PIXEL),
-                    self.metadata.get('central_wl')
-                )
-        self.wavenumber = nm_to_ir_wavenumbers(
-            self.wavelength, self.metadata.get('vis_wl', 810)
-        )
-
-    def copy(self):
-        ret = AllYouCanEat()
-        ret.pp_delays = self.pp_delays.copy()
-        ret.metadata = self.metadata.copy()
-        ret._fname = self._fname
-        ret._data = self._data
-        ret._type = self._type
-        ret._dates = self._dates
-        ret.wavelength = self.wavelength.copy()
-        return ret
+# DEPRECATED
+class AllYouCanEat(SfgRecord):
+    pass

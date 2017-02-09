@@ -1,4 +1,4 @@
-from . import veronica 
+from . import veronica, victor_controller
 from .spe import PrincetonSPEFile3
 from .allYouCanEat import AllYouCanEat, normalization,\
     concatenate_data_sets, get_AllYouCanEat_scan, save_data_set,\

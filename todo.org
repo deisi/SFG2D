@@ -1,0 +1,42 @@
+
+* Refactoring
+
+** Merge Widgets and Dashboards into one Module
+
+** Complete transition from AllYouCanEat to SfgRecord
+
+** Refactor Widgets for more seperation between data and view
+
+** Make more use of the global variables from the utils module
+
+** imports/the api of the module
+
+** Capitalize global variables
+
+** Change widget margins
+* Improvements
+
+** Deprecation warnings for AllYouCanEat objects
+
+** Bleach and Bleach Trace in gui
+
+** Make data snapable
+
+** Median over frame selection
+
+** IIV Calibratior
+
+** More tests for SfgRecord and Widgets
+
+** Metadata viewer
+
+** Test importfunction of new data structure
+
+** Transformer from new to old data structure
+
+** Calibration helper
+
+** Merge fitter into the widget
+
+** Plot Toolkit
+* Give a presentation about the tool and make it available on a server
