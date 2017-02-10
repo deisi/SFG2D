@@ -39,4 +39,8 @@
 ** Merge fitter into the widget
 
 ** Plot Toolkit
+
+** Save/load state of gui
+
+** List of last opened folders
 * Give a presentation about the tool and make it available on a server
