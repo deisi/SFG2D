@@ -6,8 +6,8 @@ import numpy as np
 from . import scan
 from ..io.veronica import SPECS, pixel_to_nm, get_from_veronika
 from ..io.victor_controller import get_from_victor_controller
-from ..utils.static import nm_to_ir_wavenumbers
-from ..utils.consts import X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX
+from ..utils import nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX, \
+    SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX
 
 class SfgRecord():
     """Class to load and manage SFG data in a 4D structure

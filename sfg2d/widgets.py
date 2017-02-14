@@ -22,6 +22,18 @@ class WidgetBase():
     Uses SfgRecord object as data container.
     Consists out of several ipywidgets.
     Plots are rendered using matplotlib.
+
+    Define any ipwidget you need within this class, within the
+    *WidgetBase._init_widget* function. Default or context
+    dependet options of the widgets can be set during the
+    *WidgetBase._configure_widgets* function.
+    The observers of the widgets are set within the *_init_observer*
+    function, or if it is an figure updating widget within the
+    *_init_figure_observers* function.
+    If an observer is defined, also define an unobserver in the
+    *_unobserver* function.
+
+    
     """
     def __init__(self, data=SfgRecord(), fig=None, ax=None,
                  central_wl=None, vis_wl=None, figsize=None):
@@ -35,6 +47,7 @@ class WidgetBase():
         self._central_wl = central_wl
         self._vis_wl = vis_wl
         self._figsize = figsize
+        self._figure_widgets = [] # List of widgets that update the figure
         self.children = [] # List of widgets to display
 
         # Setup all widgets
@@ -66,16 +79,24 @@ class WidgetBase():
 
         ### Widgets that do something
         self.wTextFolder = wi.Text(
-            #layout = wi.Layout(max_width='100%')
+            layout = wi.Layout(width='80%'),
         )
         self.wSelectFile = wi.Select(
             descripion='Files',
-            #layout = wi.Layout(max_width='100%')
+            layout = wi.Layout(width='100%'),
         )
-        self.wSelectBaseFile = wi.Select(description='Base')
-        self.wToggleSubBaseline = wi.ToggleButton(description='Sub Baseline', width='110px')
-        self.wCheckShowBaseline = wi.Checkbox(description='Show Baseline',
-                                        value=True)
+        self.wSelectBaseFile = wi.Select(
+            description='Base',
+            layout=self.wSelectFile.layout,
+        )
+        self.wToggleSubBaseline = wi.ToggleButton(
+            description='Sub Baseline',
+            layout=wi.Layout(width='70%'),
+        )
+        self.wCheckShowBaseline = wi.Checkbox(
+            description='Show Baseline',
+            value=True
+        )
         self.wIntSliderSmooth = wi.IntSlider(
             continuous_update=False, description="smooth",
             min=1, max=19, step=2,
@@ -92,14 +113,16 @@ class WidgetBase():
             max = PIXEL, value=(int(PIXEL*0.25), int(PIXEL*0.75)),
         )
         self.wTextCentralWl = wi.FloatText(
-            description='central wl', value=self.central_wl, width='120px'
+            description='central wl', value=self.central_wl,
+            layout=wi.Layout(width='10%', margin='2px 50px 2px 0px')
         )
         self.wDropdownCalib = wi.Dropdown(
             description='x-axis', options=['pixel', 'nm', 'wavenumber'],
-            width='60px'
+            layout=wi.Layout(width='60px', margin = "0px 130px 0px 0px"),
         )
         self.wTextVisWl = wi.FloatText(
-            description='vis wl', value=self.vis_wl, width='120px'
+            description='vis wl', value=self.vis_wl,
+            layout=self.wTextCentralWl.layout
         )
         self.wSliderPPDelay = wi.SelectionSlider(
             continuous_update=False, description="pp_delay",
@@ -118,31 +141,42 @@ class WidgetBase():
             description='median', value=False)
         self.wRangeSliderBaselineSpec = wi.IntRangeSlider(
             description='spectrum', continuous_update=False)
-        self.wDropSumAxis = wi.Dropdown(description='sum x-axis',
-                                       options=('pp_delays', 'frames'),
-                                      width='60px',)
-        self.wTextBaselineOffset = wi.FloatText(description='Offset', value=0, widht = "60px")
+        self.wDropSumAxis = wi.Dropdown(
+            description='sum x-axis',
+            options=('pp_delays', 'frames'),
+            layout=wi.Layout(width='60px'),
+        )
+        self.wTextBaselineOffset = wi.FloatText(
+            description='Offset', value=0,
+            layout=wi.Layout(widht = "10px"),
+        )
 
         ### Aligning boxers ###
-        folder_box = wi.HBox([wi.Label("Folder", margin='0px 123px 0px 0px'), self.wTextFolder])
-        self.wVBoxData = wi.VBox([
-            wi.Label("Data:"),
-            folder_box,
-            wi.HBox([
-                wi.VBox([self.wToggleSubBaseline, self.wCheckShowBaseline, self.wCheckAutoscale,]),
-                self.wSelectFile, self.wSelectBaseFile,
-            ])
-        ])
+        folder_box = wi.HBox([wi.Label("Folder",
+                              layout=wi.Layout(margin='0px 123px 0px 0px'))
+                              , self.wTextFolder])
+        self.wVBoxData = wi.VBox(
+            [
+                wi.Label("Data:"),
+                folder_box,
+                wi.HBox([
+                    wi.VBox([self.wToggleSubBaseline, self.wCheckShowBaseline, self.wCheckAutoscale,]),
+                    self.wSelectFile, self.wSelectBaseFile,
+                ]),
+            ],
+            layout=wi.Layout(margin = '2px 0px 16px 0px')
+        )
         #self.wVBoxData.border = '1px black solid'
-        self.wVBoxData.margin = '8px 0px 8px 0px'
 
-        self.wVBoxSignal = wi.VBox([
+        self.wVBoxSignal = wi.VBox(
+            [
                 wi.Label("Spectrum:"),
                 wi.HBox([self.wSliderPPDelay, self.wIntSliderSmooth, self.wCheckFrameMedian]),
                 wi.HBox([self.wSliderFrame, self.wIntRangeSliderPixelY, self.wIntRangeSliderPixelX]),
-        ])
+            ],
+            layout=self.wVBoxData.layout
+        )
         #self.wVBoxSignal.border = "1px black solid"
-        self.wVBoxSignal.margin = "8px 0px 8px 0px"
 
         self.wVBoxBaseline = wi.VBox([
             wi.Label("Baseline:"),
@@ -150,11 +184,32 @@ class WidgetBase():
                 self.wSliderBaselinePPDelay, self.wSliderBaselineFrame,
                 self.wRangeSliderBaselineSpec, self.wCheckBaselineFrameMedian, ]),
                 self.wTextBaselineOffset
-            ])
-        #self.wVBoxBaseline.border = "1px black solid"
-        self.wVBoxBaseline.margin = "8px 0px 8px 0px"
+            ],
+            layout=self.wVBoxData.layout
+        )
 
-        self.wDropdownCalib.margin = "0px 130px 0px 0px"
+        # Widgets that update the figure on value change
+        self._figure_widgets = [
+            self.wSelectFile,
+            self.wDropdownCalib,
+            self.wSliderPPDelay,
+            self.wSliderFrame,
+            self.wCheckFrameMedian,
+            self.wIntRangeSliderPixelY,
+            self.wIntRangeSliderPixelX,
+            self.wTextVisWl,
+            self.wTextCentralWl,
+            self.wCheckAutoscale,
+            self.wIntSliderSmooth,
+            self.wToggleSubBaseline,
+            self.wCheckShowBaseline,
+            self.wSliderBaselinePPDelay,
+            self.wSliderBaselineFrame,
+            self.wRangeSliderBaselineSpec,
+            self.wCheckBaselineFrameMedian,
+            self.wDropSumAxis,
+            self.wTextBaselineOffset,
+        ]
 
     def _configure_widgets(self):
         """Set all widget options. And default values.
@@ -238,65 +293,50 @@ class WidgetBase():
         """A callback version of _update_figer for usage in observers."""
         self._update_figure()
 
+    def _init_figure_observers(self):
+        """All observers that call the *update_figure_callback* """
+
+        # Because during widget runtime it can be necessary to stop
+        # and restart the automatic figure updating to prevent flickering
+        # and to speed up the gui.
+        for widget in self._figure_widgets:
+            widget.observe(self._update_figure_callback, "value")
+
     def _init_observer(self):
         """Set all observer of all subwidgets."""
         # This registers the callback functions to the gui elements.
         # After a call of _init_observer, the gui elements start to
-        # actually do something.
+        # actually do something, namely what ever is defined within the
+        # callback function of the observer.
         self.wTextFolder.on_submit(self._on_folder_submit)
         self.wSelectFile.observe(self._update_data, 'value')
-        self.wSelectFile.observe(self._update_figure_callback, 'value')
         self.wDropdownCalib.observe(self._toggle_vis_wl, 'value')
         self.wDropdownCalib.observe(self._toggle_central_wl, 'value')
-        self.wDropdownCalib.observe(self._update_figure_callback, 'value')
-        self.wSliderPPDelay.observe(self._update_figure_callback, 'value')
-        self.wSliderFrame.observe(self._update_figure_callback, 'value')
         self.wCheckFrameMedian.observe(self._toggle_frame_slider, 'value')
-        self.wCheckFrameMedian.observe(self._update_figure_callback, 'value')
-        self.wIntRangeSliderPixelY.observe(self._update_figure_callback, 'value')
-        self.wIntRangeSliderPixelX.observe(self._update_figure_callback, 'value')
-        self.wTextVisWl.observe(self._update_figure_callback, 'value')
-        self.wTextCentralWl.observe(self._update_figure_callback, 'value')
-        self.wCheckAutoscale.observe(self._update_figure_callback, 'value')
-        self.wIntSliderSmooth.observe(self._update_figure_callback, 'value')
         self.wSelectBaseFile.observe(self._on_base_changed, 'value')
-        self.wToggleSubBaseline.observe(self._update_figure_callback, 'value')
-        self.wCheckShowBaseline.observe(self._update_figure_callback, 'value')
-        self.wSliderBaselinePPDelay.observe(self._update_figure_callback, 'value')
-        self.wSliderBaselineFrame.observe(self._update_figure_callback, 'value')
-        self.wRangeSliderBaselineSpec.observe(self._update_figure_callback, 'value')
-        self.wCheckBaselineFrameMedian.observe(self._update_figure_callback, 'value')
         self.wCheckBaselineFrameMedian.observe(self._toggle_frame_base_slider, 'value')
-        self.wDropSumAxis.observe(self._update_figure_callback, "value")
-        self.wTextBaselineOffset.observe(self._update_figure_callback, "value")
+        self._init_figure_observers()
 
-    # TODO Refactor this with a lisf of figure updating
-    # widgets and then unobserver only the figure updates.
-    def _unobserve(self):
-        """Turn off all the observers."""
-        self.wTextFolder.unobserve_all()
-        self.wSelectFile.unobserve_all()
-        self.wDropdownCalib.unobserve_all()
-        self.wSliderPPDelay.unobserve_all()
-        self.wSliderFrame.unobserve_all()
-        self.wCheckFrameMedian.unobserve_all()
-        # Hack untill i split this up in dedicated method
-        # to unobserver only the figure callbacks.
-        self.wIntRangeSliderPixelY.unobserve(self._update_figure_callback, "value")
-        self.wIntRangeSliderPixelX.unobserve_all()
-        self.wTextVisWl.unobserve_all()
-        self.wTextCentralWl.unobserve_all()
-        self.wCheckAutoscale.unobserve_all()
-        self.wIntSliderSmooth.unobserve_all()
-        self.wSelectBaseFile.unobserve_all()
-        self.wToggleSubBaseline.unobserve_all()
-        self.wCheckShowBaseline.unobserve_all()
-        self.wSliderBaselinePPDelay.unobserve_all()
-        self.wSliderBaselineFrame.unobserve_all()
-        self.wRangeSliderBaselineSpec.unobserve_all()
-        self.wCheckBaselineFrameMedian.unobserve_all()
-        self.wDropSumAxis.unobserve_all()
-        self.wVBoxBaseline.unobserve_all()
+    def _unobserve_figure(self):
+        """Unobserver figure observers."""
+        for widget in self._figure_widgets:
+            widget.unobserve(self._update_figure_callback, 'value')
+
+    def _on_folder_submit(self, new):
+        """Called when folder is changed."""
+        fnames = _filter_fnames(self.wTextFolder.value)
+
+        if debug:
+            print("_on_folder_submit_called")
+        if debug > 1:
+            print("fnames:", fnames)
+
+        # The with is a workaround. I need it in the test functions,
+        # not the gui. Anyways, it doesn't quite work.
+        with self.wSelectFile.hold_trait_notifications():
+            self.wSelectFile.options = fnames
+        with self.wSelectBaseFile.hold_trait_notifications():
+            self.wSelectBaseFile.options = self.wSelectFile.options
 
     def _toggle_vis_wl(self, new=None):
         """Toggle the vis wl text box according to calibration axis.
@@ -359,13 +399,13 @@ class WidgetBase():
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_observer
-        self._unobserve()
+        self._unobserve_figure()
         self._configure_widgets()
-        self._init_observer()
+        self._init_figure_observers()
         self._update_figure()
 
     def _on_base_changed(self, new):
-        """Change the data of the baseline.
+        """Change the data file of the baseline.
 
         Resets all elements that need to be reseted on a baseline change."""
         fname = self.wTextFolder.value + "/" + self.wSelectBaseFile.value
@@ -381,9 +421,9 @@ class WidgetBase():
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_observer
-        self._unobserve()
+        self._unobserve_figure()
         self._configure_widgets()
-        self._init_observer()
+        self._init_figure_observers()
         self._update_figure()
 
     @property
@@ -394,9 +434,11 @@ class WidgetBase():
     def axes(self):
         return self._fig.axes
 
-    #TODO Find a better name.
-    def _prepare_x_data(self, data, wavelength=None, wavenumber=None):
-        """Apply transformations to data, that don't change shape"""
+    def _calibrate_x_axis(self, data, wavelength=None, wavenumber=None):
+        """Apply calibrations to x axis."""
+
+        # An importat feature of a calibration is, that it doesnt
+        # change the shape.
 
         # Need pixel as a possible default value.
         pixel = np.arange(data.shape[X_PIXEL_INDEX])
@@ -424,16 +466,13 @@ class WidgetBase():
 
     @property
     def x(self):
-        """X data of the *Signal* plot.
+        """X data of the *Signal* plot. """
 
-        Shape changing transformations belong in here."""
+        # Shape changing transformations belong in here.
 
-        # Its not guaranteed, that wavelength and wavenumber exist.
         wavelength = getattr(self.data, 'wavelength', None)
         wavenumber = getattr(self.data, 'wavenumber', None)
-        #x_slice = _slider_range_to_slice(self.wIntRangeSliderPixelX.value,
-        #                                 self.data.data.shape[X_PIXEL_INDEX])
-        ret = self._prepare_x_data(
+        ret = self._calibrate_x_axis(
             self.data.data,
             wavelength,
             wavenumber
@@ -502,7 +541,7 @@ class WidgetBase():
         """x data of the baseline in the *Signal* plot"""
         wavelength = getattr(self.data, 'wavelength', None)
         wavenumber = getattr(self.data, 'wavenumber', None)
-        x = self._prepare_x_data(
+        x = self._calibrate_x_axis(
             self.data_base,
             wavelength,
             wavenumber
@@ -546,27 +585,11 @@ class WidgetBase():
     def vis_wl(self):
         """The wavelength of the visible.
 
-        The visible wavelength is used as upconversion number during them
+        The visible wavelength is used as upconversion number during the
         calculation of the wavenumber values of the x axis of the *Signal* plot."""
         if self._vis_wl == None:
             return 0
         return self._vis_wl
-
-    def _on_folder_submit(self, new):
-        """Called when folder is changed."""
-        fnames = _filter_fnames(self.wTextFolder.value)
-
-        if debug:
-            print("_on_folder_submit_called")
-        if debug > 1:
-            print("fnames:", fnames)
-
-        # The with is a workaround. I need it in the test functions,
-        # not the gui. Anyways, it doesn't quite work.
-        with self.wSelectFile.hold_trait_notifications():
-            self.wSelectFile.options = fnames
-        with self.wSelectBaseFile.hold_trait_notifications():
-            self.wSelectBaseFile.options = self.wSelectFile.options
 
 
 class SpecAndBase(WidgetBase):
@@ -974,11 +997,11 @@ class PumpProbe(Dashboard):
 
         w2.data = w0.data.copy()
         w2.data.data = spec/ir
-        w2._unobserve()
+        w2._unobserve_figure()
         if self.w_tabs.selected_index is 2:
             w2._update_figure()
         w2._configure_widgets()
-        w2._init_observer()
+        w2._init_figure_observers()
 
     @property
     def _is_normalizable(self):

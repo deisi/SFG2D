@@ -1,19 +1,33 @@
 
 * Refactoring
 
-** Merge Widgets and Dashboards into one Module
+** DONE Merge Widgets and Dashboards into one Module
+   CLOSED: [2017-02-14 Tue 15:08]
 
-** Complete transition from AllYouCanEat to SfgRecord
+** DONE Complete transition from AllYouCanEat to SfgRecord
+   CLOSED: [2017-02-14 Tue 15:08]
 
-** Refactor Widgets for more seperation between data and view
+** TODO Refactor Widgets for more seperation between data and view
 
-** Make more use of the global variables from the utils module
+*** DONE Change Names
+    CLOSED: [2017-02-14 Tue 18:04]
 
-** imports/the api of the module
+*** DONE Change oder of functions
+    CLOSED: [2017-02-14 Tue 18:04]
 
-** Capitalize global variables
+*** Split up WidgetBase if possible
+    I start to think its impossible.
+** DONE Make more use of the global variables from the utils module
+   CLOSED: [2017-02-14 Tue 15:13]
 
-** Change widget margins
+** DONE imports/the api of the module
+   CLOSED: [2017-02-14 Tue 15:39]
+
+** DONE Capitalize global variables
+   CLOSED: [2017-02-14 Tue 15:39]
+
+** DONE Change widget margin
+   CLOSED: [2017-02-14 Tue 18:02]
 * Improvements
 
 ** Deprecation warnings for AllYouCanEat objects

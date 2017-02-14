@@ -20,7 +20,7 @@ for i in range(len(ffiles)-1):
     if ffile[0] + "AVG" == nffile[0]:
         rename[ffiles[i]] = ffiles[i].replace("AVG", "", 1)
         rename[ffiles[i+1]] = ffiles[i+1].replace("AVG", "", 1)
-                  
+
 print("renaming:/n")
 for key, value in rename:
     print("%s ----> %s" % (key, value))
