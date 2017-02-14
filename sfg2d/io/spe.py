@@ -3,6 +3,8 @@ import numpy as np
 import os
 from datetime import datetime, timedelta
 
+debug = 0
+
 class PrincetonSPEFile3():
     """Class to import and read spe files.
 
@@ -86,6 +88,7 @@ class PrincetonSPEFile3():
         #     raise IOError('%s does not exist' % fname)
 
         self._spe = open(fname, 'rb')
+        self._fname = fname
         self.readData()
 
     def readData(self):
@@ -131,12 +134,22 @@ class PrincetonSPEFile3():
         self.tempSet = self._readFromHeader('f', 36)[0]
         timeLocal = self._readFromHeader('6s', 172)[0].decode('utf-8')
         timeUTC = self._readFromHeader('6s', 179)[0].decode('utf-8')
-        self.date = datetime.strptime(
-            date + timeLocal, "%d%b%Y%H%M%S"
-        )
-        self.timeUTC = datetime.strptime(
-            date + timeUTC, "%d%b%Y%H%M%S"
-        )
+
+        # Try statement is a workaround, because sometimes date seems to be male formated
+        # and currently the program cant deal with it.
+        try:
+            self.date = datetime.strptime(
+                date + timeLocal, "%d%b%Y%H%M%S"
+            )
+            self.timeUTC = datetime.strptime(
+                date + timeUTC, "%d%b%Y%H%M%S"
+            )
+        except ValueError:
+            if debug:
+                print('Malformated date in %s' % self._fname)
+                print('date string is: %s' % date)
+            self.date = datetime.now()
+            self.timeUTC = datetime.now()
         self.gain = self._readFromHeader('I', 198)[0]
         self.comments = self._readFromHeader('400s', 200)[0].decode('utf-8')
         self.central_wl = self._readFromHeader('f', 72)[0] # in nm

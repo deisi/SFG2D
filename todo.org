@@ -42,5 +42,6 @@
 
 ** Save/load state of gui
 
+** Two Autoscale function
 ** List of last opened folders
 * Give a presentation about the tool and make it available on a server

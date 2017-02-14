@@ -253,7 +253,7 @@ class SfgRecord():
                 line = f.readline()
                 if line[0] == "#":
                     # First line is pixel then 3 spectra repeating
-                    if  (start_of_data.shape[1]-1)%3 == 0:
+                    if  (start_of_data.shape[1] - 1) % 3 == 0:
                         self._type = 'victor'
                         return True
                 else:

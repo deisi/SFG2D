@@ -88,7 +88,7 @@ def get_from_veronika(fpath):
             2 index number of y-pixel/spectra/bins
             3 index x-pixel number
     """
-    raw_data = np.genfromtxt(fpath, dtype='long')
+    raw_data = np.genfromtxt(fpath)
     pp_delays = np.array([0])
 
     # File is just a simple scan
@@ -134,6 +134,8 @@ def get_from_veronika(fpath):
             column_slice = slice(PIXEL*pp_delay_index, PIXEL*pp_delay_index + PIXEL)
             row_slice = slice(rep_index*SPECS, rep_index*SPECS+SPECS)
             ret[pp_delay_index, rep_index] = raw_data[column_slice, row_slice].T
+
+    ret = ret.astype('long')
     return ret, pp_delays
 
 

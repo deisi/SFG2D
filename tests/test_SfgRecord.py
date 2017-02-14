@@ -16,12 +16,12 @@ from click.testing import CliRunner
 
 import numpy as np
 from datetime import timedelta
-from sfg2d.io.allYouCanEat import AllYouCanEat
+from sfg2d import SfgRecord
 
 class TestQuartz(unittest.TestCase):
 
     def setUp(self):
-        self.data = AllYouCanEat(
+        self.data = SfgRecord(
             '../sfg2d/data/00_sp_quarz_w650_gcm_e20s_pr3000.dat')
         self.result_dict = {
             'shape_of_data' : (1, 1, 3, 1600),
@@ -92,7 +92,7 @@ class TestQuartz(unittest.TestCase):
 class TestSPE(TestQuartz):
 
     def setUp(self):
-        self.data = AllYouCanEat('../data/08_h2o_gcm_e10m_ssp_purged1_pr6150nm_background.spe')
+        self.data = SfgRecord('../data/08_h2o_gcm_e10m_ssp_purged1_pr6150nm_background.spe')
         self.result_dict = {
             'shape_of_data' : (1, 60, 1, 1600),
             'metadata' : {
@@ -115,7 +115,7 @@ class TestSPE(TestQuartz):
 
 class TestTs(unittest.TestCase):
     def setUp(self):
-        self.data = AllYouCanEat('../data/09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat')
+        self.data = SfgRecord('../data/09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat')
 
     def tearDown(self):
         del self.data

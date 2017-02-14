@@ -219,53 +219,6 @@ class WidgetBase():
         self._toggle_frame_slider()
         self._toggle_sum_over()
 
-    def _toggle_vis_wl(self, new=None):
-        """Toggle the vis wl text box according to calibration axis.
-
-        The new keyword exists, so it can also server as a callback function."""
-        if self.wDropdownCalib.value == 'wavenumber':
-            self.wTextVisWl.disabled = False
-        else:
-            self.wTextVisWl.disabled = True
-
-    def _toggle_central_wl(self, new=None):
-        """Toggle the central wl text box according to calibration axis.
-
-        The new keyword exists, so it can also server as a callback function."""
-        if self.wDropdownCalib.value == 'pixel' or self.data._type == 'spe':
-            self.wTextCentralWl.disabled = True
-        else:
-            self.wTextCentralWl.disabled = False
-
-    def _toggle_frame_slider(self, new=None):
-        """Toggle frame slider according to number of frames.
-
-        The new keyword exists, so it can also server as a callback function."""
-        if self.wCheckFrameMedian.value:
-            self.wSliderFrame.disabled = True
-        else:
-            self.wSliderFrame.disabled = False
-
-    def _toggle_frame_base_slider(self, new=None):
-        """Toggle frame slider of the base/background according to frames.
-
-        The new keyword exists, so it can also server as a callback function."""
-        if self.wCheckBaselineFrameMedian.value:
-            self.wSliderBaselineFrame.disabled = True
-        else:
-            self.wSliderBaselineFrame.disabled = False
-
-    def _toggle_sum_over(self, new=None):
-        if self.data.frames is 1:
-            self.wDropSumAxis.value = "pp_delays"
-            self.wDropSumAxis.disabled = True
-            return
-        if self.data.pp_delays.shape[0] is 1:
-            self.wDropSumAxis.value = "frames"
-            self.wDropSumAxis.disabled = True
-            return
-        self.wDropSumAxis.disabled = False
-
     def _init_figure(self):
         """Init figure.
 
@@ -283,47 +236,6 @@ class WidgetBase():
 
     def _update_figure_callback(self, new):
         """A callback version of _update_figer for usage in observers."""
-        self._update_figure()
-
-    def _update_data(self, new):
-        """Update the internal data objects.
-
-        The internal data objects are updated according to
-        *WidgetBase.wTextFolder.value* and *WidgetBase.wSelectFile.value*.
-        The *WidgetBase._central_wl* property gets reseted, and child
-        widget elements, like e.g. WidgetBase.wSliderPPDelay are checked for
-        correctness and reseted."""
-        fname = self.wTextFolder.value + "/" + self.wSelectFile.value
-        self.data = SfgRecord(fname)
-        self._central_wl = None
-        # Deactivating the observers here prevents flickering
-        # and unneeded calls of _update_figure. Thus we
-        # call it manually after a recall of _init_observer
-        self._unobserve()
-        self._configure_widgets()
-        self._init_observer()
-        self._update_figure()
-
-    def _on_base_changed(self, new):
-        """Change the data of the baseline.
-
-        Resets all elements that need to be reseted on a baseline change."""
-        fname = self.wTextFolder.value + "/" + self.wSelectBaseFile.value
-        # If we have already loaded the data to ram for the baseline,
-        # we just copy it from there. Thats a lot faster then reading
-        # it from the HDD again.
-        if self.wSelectBaseFile.value is self.wSelectFile.value:
-            if debug:
-                print("Copied new baseline data from ram.")
-            self.data_base = self.data.data.copy()
-        else:
-            self.data_base = SfgRecord(fname).data
-        # Deactivating the observers here prevents flickering
-        # and unneeded calls of _update_figure. Thus we
-        # call it manually after a recall of _init_observer
-        self._unobserve()
-        self._configure_widgets()
-        self._init_observer()
         self._update_figure()
 
     def _init_observer(self):
@@ -385,6 +297,94 @@ class WidgetBase():
         self.wCheckBaselineFrameMedian.unobserve_all()
         self.wDropSumAxis.unobserve_all()
         self.wVBoxBaseline.unobserve_all()
+
+    def _toggle_vis_wl(self, new=None):
+        """Toggle the vis wl text box according to calibration axis.
+
+        The new keyword exists, so it can also server as a callback function."""
+        if self.wDropdownCalib.value == 'wavenumber':
+            self.wTextVisWl.disabled = False
+        else:
+            self.wTextVisWl.disabled = True
+
+    def _toggle_central_wl(self, new=None):
+        """Toggle the central wl text box according to calibration axis.
+
+        The new keyword exists, so it can also server as a callback function."""
+        if self.wDropdownCalib.value == 'pixel' or self.data._type == 'spe':
+            self.wTextCentralWl.disabled = True
+        else:
+            self.wTextCentralWl.disabled = False
+
+    def _toggle_frame_slider(self, new=None):
+        """Toggle frame slider according to number of frames.
+
+        The new keyword exists, so it can also server as a callback function."""
+        if self.wCheckFrameMedian.value:
+            self.wSliderFrame.disabled = True
+        else:
+            self.wSliderFrame.disabled = False
+
+    def _toggle_frame_base_slider(self, new=None):
+        """Toggle frame slider of the base/background according to frames.
+
+        The new keyword exists, so it can also server as a callback function."""
+        if self.wCheckBaselineFrameMedian.value:
+            self.wSliderBaselineFrame.disabled = True
+        else:
+            self.wSliderBaselineFrame.disabled = False
+
+    def _toggle_sum_over(self, new=None):
+        if self.data.frames is 1:
+            self.wDropSumAxis.value = "pp_delays"
+            self.wDropSumAxis.disabled = True
+            return
+        if self.data.pp_delays.shape[0] is 1:
+            self.wDropSumAxis.value = "frames"
+            self.wDropSumAxis.disabled = True
+            return
+        self.wDropSumAxis.disabled = False
+
+    def _update_data(self, new):
+        """Update the internal data objects.
+
+        The internal data objects are updated according to
+        *WidgetBase.wTextFolder.value* and *WidgetBase.wSelectFile.value*.
+        The *WidgetBase._central_wl* property gets reseted, and child
+        widget elements, like e.g. WidgetBase.wSliderPPDelay are checked for
+        correctness and reseted."""
+        fname = self.wTextFolder.value + "/" + self.wSelectFile.value
+        self.data = SfgRecord(fname)
+        self._central_wl = None
+        # Deactivating the observers here prevents flickering
+        # and unneeded calls of _update_figure. Thus we
+        # call it manually after a recall of _init_observer
+        self._unobserve()
+        self._configure_widgets()
+        self._init_observer()
+        self._update_figure()
+
+    def _on_base_changed(self, new):
+        """Change the data of the baseline.
+
+        Resets all elements that need to be reseted on a baseline change."""
+        fname = self.wTextFolder.value + "/" + self.wSelectBaseFile.value
+        # If we have already loaded the data to ram for the baseline,
+        # we just copy it from there. Thats a lot faster then reading
+        # it from the HDD again.
+        if self.wSelectBaseFile.value is self.wSelectFile.value:
+            if debug:
+                print("Copied new baseline data from ram.")
+            self.data_base = self.data.data.copy()
+        else:
+            self.data_base = SfgRecord(fname).data
+        # Deactivating the observers here prevents flickering
+        # and unneeded calls of _update_figure. Thus we
+        # call it manually after a recall of _init_observer
+        self._unobserve()
+        self._configure_widgets()
+        self._init_observer()
+        self._update_figure()
 
     @property
     def fig(self):
@@ -561,8 +561,12 @@ class WidgetBase():
         if debug > 1:
             print("fnames:", fnames)
 
-        self.wSelectFile.options = fnames
-        self.wSelectBaseFile.options = self.wSelectFile.options
+        # The with is a workaround. I need it in the test functions,
+        # not the gui. Anyways, it doesn't quite work.
+        with self.wSelectFile.hold_trait_notifications():
+            self.wSelectFile.options = fnames
+        with self.wSelectBaseFile.hold_trait_notifications():
+            self.wSelectBaseFile.options = self.wSelectFile.options
 
 
 class SpecAndBase(WidgetBase):

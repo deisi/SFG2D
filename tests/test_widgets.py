@@ -63,10 +63,10 @@ class TestSpecAndBase(unittest.TestCase):
         setup_test_comm()
         self.widget = SpecAndBase()
         self.widget()
-        self.widget.w_folder.value = '/home/malte/SFG2D/data'
+        self.widget.wTextFolder.value = '../data'
         self.widget._on_folder_submit(None)
-        self.widget.w_file.value = '09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat'
-        self.widget.w_base.value = '09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat'
+        self.widget.wSelectFile.value = '09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat'
+        self.widget.wSelectBaseFile.value = '09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat'
 
     def tearDown(self):
         teardown_test_comm()
@@ -77,71 +77,71 @@ class TestSpecAndBase(unittest.TestCase):
                0.0, 25.0, 50.0, 100.0, 150.0, 200.0, 300.0, 400.0, 500.0, 700.0,
                900.0, 1100.0, 1300.0, 1500.0, 1700.0, 1900.0]
 
-        assert np.all(self.widget.w_pp_s.options == res)
+        assert np.all(self.widget.wSliderPPDelay.options == res)
 
     def test_frame_slider_max(self):
-        assert self.widget.w_frame.max == 2
+        assert self.widget.wSliderFrame.max == 2
 
     def test_x_pixel_range_max(self):
-        assert self.widget.w_x_pixel_range.max == 1600
+        assert self.widget.wIntRangeSliderPixelX.max == 1600
 
     def test_y_pixel_range_max(self):
-        assert self.widget.w_y_pixel_range.max == 3
+        assert self.widget.wIntRangeSliderPixelY.max == 3
 
     def test_frame_baseline_max(self):
-        assert self.widget.w_frame_baseline.max == 2
+        assert self.widget.wSliderBaselineFrame.max == 2
 
     def test_pp_baseline_slider_max(self):
-        assert self.widget.w_pp_baseline_slider.max == 30
+        assert self.widget.wSliderBaselinePPDelay.max == 30
 
     def test_spec_base_slider(self):
-        assert self.widget.w_spec_base_slider.max == 3
+        assert self.widget.wRangeSliderBaselineSpec.max == 3
 
     def test_sub_baseline_methods(self):
         # Activate the baseline substraction and
         # Change some properties of the baseline
-        self.widget.w_sub_base.value = True
-        self.widget.w_spec_base_slider.value = (0, 3)
-        self.widget.w_spec_base_slider.value = (0, 1)
-        self.widget.w_frame_baseline.value = 2
-        self.widget.w_frame_base_med.value = True
-        self.widget.w_sub_base.value = False
+        self.widget.wToggleSubBaseline.value = True
+        self.widget.wRangeSliderBaselineSpec.value = (0, 3)
+        self.widget.wRangeSliderBaselineSpec.value = (0, 1)
+        self.widget.wSliderBaselineFrame.value = 2
+        self.widget.wCheckBaselineFrameMedian.value = True
+        self.widget.wToggleSubBaseline.value = False
 
     def test_data_selection_methods(self):
-        self.widget.w_pp_s.value = 25.0
-        self.widget.w_frame.value = 2
-        self.widget.w_frame_median.value = True
-        self.widget.w_smooth_s.value = 5
+        self.widget.wSliderPPDelay.value = 25.0
+        self.widget.wSliderFrame.value = 2
+        self.widget.wCheckFrameMedian.value = True
+        self.widget.wIntSliderSmooth.value = 5
         assert self.widget.y.shape == (1600, 1)
-        self.widget.w_y_pixel_range.value = (0, 2)
+        self.widget.wIntRangeSliderPixelY.value = (0, 2)
         assert self.widget.y.shape == (1600, 2)
-        self.widget.w_x_pixel_range.value = (234, 1000)
+        self.widget.wIntRangeSliderPixelX.value = (234, 1000)
 
     def test_calibrations(self):
-        self.widget.w_calib.value = "nm"
-        self.widget.w_calib.value = "wavenumber"
-        self.widget.w_vis_wl.value = 800
+        self.widget.wDropdownCalib.value = "nm"
+        self.widget.wDropdownCalib.value = "wavenumber"
+        self.widget.wTextVisWl.value = 800
 
 class TestSpecAndSummed(unittest.TestCase):
     def setUp(self):
         setup_test_comm()
         self.widget = SpecAndSummed()
         self.widget()
-        self.widget.w_folder.value = '/home/malte/SFG2D/data'
+        self.widget.wTextFolder.value = '../data'
         self.widget._on_folder_submit(None)
-        self.widget.w_file.value = '09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat'
+        self.widget.wSelectFile.value = '09_ts_gold_w575_g1_e1s_ssp_pu1_pr1_vis1_gal1_chop1_purge1.dat'
 
     def tearDown(self):
         teardown_test_comm()
 
     def test_sum_over_toggle(self):
-        self.widget.w_sum_over.value = 'pp_delays'
-        assert all(self.widget.sum_x == self.widget.data.pp_delays)
-        assert self.widget.sum_y.size == self.widget.sum_x.size
+        self.widget.wDropSumAxis.value = 'pp_delays'
+        assert all(self.widget.x_sum == self.widget.data.pp_delays)
+        assert self.widget.y_sum.size == self.widget.x_sum.size
 
-        self.widget.w_sum_over.value = 'frames'
-        assert self.widget.sum_x.size == self.widget.data.data.shape[-3]
-        assert self.widget.sum_y.size == self.widget.sum_x.size
+        self.widget.wDropSumAxis.value = 'frames'
+        assert self.widget.x_sum.size == self.widget.data.data.shape[-3]
+        assert self.widget.y_sum.size == self.widget.x_sum.size
 
 
 class TestNormalized(unittest.TestCase):
