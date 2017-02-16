@@ -2,6 +2,8 @@ from os import path
 import warnings
 
 import numpy as np
+from scipy.signal import medfilt
+import matplotlib.pyplot as plt
 
 from . import scan
 from ..io.veronica import SPECS, pixel_to_nm, get_from_veronika
@@ -327,8 +329,43 @@ class SfgRecord():
         ret.pp_delays = self.pp_delays.copy()
         ret.metadata = self.metadata.copy()
         ret._fname = self._fname
-        ret._data = self._data
+        ret._data = self._data.copy()
         ret._type = self._type
         ret._dates = self._dates
-        ret.wavelength = self._wavelength.copy()
+        ret._wavelength = self.wavelength.copy()
+        ret._wavenumber = self.wavenumber.copy()
         return ret
+
+    def plot(self,
+            pp_delays=slice(None,None), frames=slice(None, None),
+            y_pixel=slice(None, None), x_pixel=slice(None, None),
+            fig=None, ax=None, x_axis="pixel", filter_kernel=(1,1,1,11), **kwargs):
+        """Plot the SfgRecord.
+
+        Parameters:
+        -----------
+
+        """
+
+
+        if not fig:
+            fig = plt.gcf()
+
+        if not ax:
+            ax = plt.gca()
+
+        if isinstance(x_axis, str):
+            x_axis = getattr(self, x_axis)
+
+        plot_data = medfilt(
+            self.data[pp_delays, frames, y_pixel, x_pixel], filter_kernel
+        )
+
+        lines = []
+        for per_delay in plot_data:
+            frame_lines = []
+            for per_frame in per_delay:
+                frame_lines.append(ax.plot(x_axis, per_frame.T, **kwargs))
+            lines.append(frame_lines)
+
+        return lines

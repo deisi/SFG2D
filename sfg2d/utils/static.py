@@ -51,7 +51,7 @@ def savefig(filename, **kwargs):
     '''save figure as pgf, pdf and png'''
     plt.savefig('{}.pgf'.format(filename), **kwargs)
     plt.savefig('{}.pdf'.format(filename), **kwargs)
-    plt.savefig('{}.png'.format(filename), **kwargs)
+    plt.savefig('{}.png'.format(filename), dpi=300, **kwargs)
 
 
 def Rs(ca, cb, n1, n2):

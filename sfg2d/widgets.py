@@ -32,8 +32,6 @@ class WidgetBase():
     *_init_figure_observers* function.
     If an observer is defined, also define an unobserver in the
     *_unobserver* function.
-
-    
     """
     def __init__(self, data=SfgRecord(), fig=None, ax=None,
                  central_wl=None, vis_wl=None, figsize=None):
