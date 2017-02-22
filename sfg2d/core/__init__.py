@@ -9,7 +9,7 @@ from . import scan
 from ..io.veronica import SPECS, pixel_to_nm, get_from_veronika
 from ..io.victor_controller import get_from_victor_controller
 from ..utils import nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX, \
-    SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX
+    SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX, X_PIXEL_INDEX
 
 class SfgRecord():
     """Class to load and manage SFG data in a 4D structure
@@ -62,7 +62,10 @@ class SfgRecord():
             self._fname = ""
         else:
             self._fname  = fname
-        self._data = np.zeros((1,1,1,PIXEL))
+        self._rawData = np.zeros((1, 1, 1, PIXEL))
+        self._data = self._rawData
+        self._base = np.zeros_like(self.rawData)
+        self.isBaselineSubed = False
         self._type = 'unknown'
         self._wavelength = None
         self._wavenumber = None
@@ -79,6 +82,31 @@ class SfgRecord():
         self._fname = path.abspath(fname)
         self._dates = None
         self._readData()
+
+    @property
+    def rawData(self):
+        return self._rawData
+
+    @rawData.setter
+    def rawData(self, value):
+        if not isinstance(value, np.ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._rawData = value
+        self._data = self._rawData
+        self.isBaselineSubed = False
+
+    @property
+    def base(self):
+        return self._base
+
+    @base.setter
+    def base(self, value):
+        if not self.isBaselineSubed:
+            self.add_base()
+            self.isBaselineSubed = False
+        self._base = value * np.ones_like(self.rawData)
 
     @property
     def data(self):
@@ -125,36 +153,79 @@ class SfgRecord():
         return np.arange(self.data.shape[X_PIXEL_INDEX])
 
     @property
+    def number_of_y_pixel(self):
+        return self.data.shape[Y_PIXEL_INDEX]
+
+    @property
+    def number_of_spectra(self):
+        return self.number_of_y_pixel
+
+    @property
+    def number_of_x_pixel(self):
+        return self.data.shape[X_PIXEL_INDEX]
+
+    @property
+    def number_of_pp_delays(self):
+        return self.data.shape[PP_INDEX]
+
+    @property
     def wavelength(self):
         if isinstance(self._wavelength, type(None)):
-            self._wavelength = self.pixel
-            cw = self.metadata.get('central_wl')
-            #TODO check the cw is None case better
-            if cw and cw >= 1:
-                self._wavelength = pixel_to_nm(
-                    np.arange(PIXEL),
-                    cw,
-                )
+            cw = self.metadata["central_wl"]
+            self._wavelength = self.get_wavelength(cw)
         return self._wavelength
 
     @wavelength.setter
     def wavelength(self, arg):
         self._wavelength = arg
 
+    def get_wavelength(self, cw):
+        """Get wavelength in nm.
+
+        Parameters:
+        -----------
+        cw: number
+            central wavelength of the camera.
+        """
+        ret = self.pixel.copy()
+        if isinstance(cw, type(None)) or cw < 1:
+            return ret
+        ret = pixel_to_nm(self.pixel, cw)
+        return ret
+
     @property
     def wavenumber(self):
         if isinstance(self._wavenumber, type(None)):
-            vis_wl = self.metadata.get("vis_wl", 1)
-            if vis_wl == 1:
-                self.metadata["vis_wl"] = 1
-            self._wavenumber = nm_to_ir_wavenumbers(
-                self.wavelength, vis_wl
-            )
+            vis_wl = self.metadata.get("vis_wl")
+            self._wavenumber = self.get_wavenumber(vis_wl)
         return self._wavenumber
 
     @wavenumber.setter
     def wavenumber(self, arg):
         self._wavenumber = arg
+
+    def get_wavenumber(self, vis_wl):
+        ret = self.pixel[::-1]
+        if isinstance(vis_wl, type(None)) or vis_wl < 1:
+            return ret
+        ret = nm_to_ir_wavenumbers(self.wavelength, vis_wl)
+        return ret
+
+    def sub_base(self, inplace=False):
+        """subsitute baseline of data"""
+        ret = self.data - self.base
+        if inplace and not self.isBaselineSubed:
+            self.data = ret
+            # Toggle to prevent multiple baseline substitutions
+            self.isBaselineSubed = True
+        return ret
+
+    def add_base(self, inplace=False):
+        """Add baseline to data"""
+        ret = self.data + self.base
+        if inplace and not self.isBaselineSubed:
+            self.data = ret
+        return ret
 
     @property
     def sum_argmax(self, frame_median=True, pixel_slice=slice(None,None)):
@@ -172,36 +243,84 @@ class SfgRecord():
     @property
     def bleach(self):
         if isinstance(self._bleach, type(None)):
-            self.calc_bleach()
+            self._bleach = self.get_bleach()
         return self._bleach
 
-    @property
-    def bleach_rel(self):
-        if isinstance(self._bleach_rel, type(None)):
-            self.calc_bleach_rel()
-        return self._bleach_rel
-
-    def calc_bleach(self, pumped=0, unpumped=1, sub_first=True):
+    def get_bleach(self, pumped=0, unpumped=1, sub_first=True):
         """Calculate bleach.
 
         sub_first : boolean
             substitute the first spectrum from the data to account for
             the constant offset."""
         #TODO catch the case when there is only one spectrum
-        self._bleach = self.data[:,:,pumped] - self.data[:, :, unpumped]
-        if sub_first:
-            self.zero_time = self._bleach[0].copy()
-            self._bleach -= self.zero_time
-        return self._bleach
 
-    def calc_bleach_rel(self, pumped=0, unpumped=1, sub_first=True):
-        """Calculate the relative bleach"""
-        self._bleach_rel = self.data[:, :, pumped] / self.data[:, :, unpumped]
+        # Init needed to prevent inplace overwriting of self.data
+        bleach = np.zeros((
+            self.number_of_pp_delays,
+            self.number_of_spectra,
+            self.number_of_x_pixel,
+        ))
+
+        if self.number_of_spectra < 2:
+            return bleach
+
+        bleach = self.data[:,:,pumped] - self.data[:, :, unpumped]
         if sub_first:
-            self.zero_time_rel = self._bleach_rel[0].copy()
-            self._bleach_rel -= self.zero_time_rel
+            # copy needed to prevent inplace overwriting of bleach
+            self.zero_time = bleach[0].copy()
+            bleach -= self.zero_time
+        return bleach
+
+    @property
+    def bleach_rel(self):
+        if isinstance(self._bleach_rel, type(None)):
+            self._bleach_rel = self.get_bleach_rel()
         return self._bleach_rel
 
+    def get_bleach_rel(self, pumped=0, unpumped=1, sub_first=True):
+        """Calculate the relative bleach"""
+        bleach_rel = np.zeros((
+            self.number_of_pp_delays,
+            self.number_of_spectra,
+            self.number_of_x_pixel,
+        ))
+        bleach_rel = self.data[:, :, pumped] / self.data[:, :, unpumped]
+        if sub_first:
+            self.zero_time_rel = bleach_rel[0].copy()
+            bleach_rel -= self.zero_time_rel
+        return bleach_rel
+
+    def get_trace_pp_delay(
+            self,
+            frame_slice=slice(None),
+            y_pixel_slice=slice(None),
+            x_pixel_slice=slice(None),
+            frame_median=True,
+            medfilt_kernel=None,
+    ):
+        """Calculate the pp_delay wise trace."""
+
+        ret = self.data[:, frame_slice, y_pixel_slice, x_pixel_slice]
+        if isinstance(medfilt_kernel, tuple):
+            ret = medfilt(ret, medfilt_kernel)
+        if frame_median:
+            ret = np.median(ret, FRAME_AXIS_INDEX)
+        return ret.sum(X_PIXEL_INDEX)
+
+    def get_trace_frame(
+            self,
+            pp_delay_slice=slice(None),
+            y_pixel_slice=slice(None),
+            x_pixel_slice=slice(None),
+            pp_delay_median=True,
+            medfilt_kernel=None
+    ):
+        ret = self.data[pp_delay_slice, :, y_pixel_slice, x_pixel_slice]
+        if isinstance(medfilt_kernel, tuple):
+            ret = medfilt(ret, medfilt_kernel)
+        if pp_delay_median:
+            ret = np.median(ret, PP_INDEX)
+        return ret.sum(X_PIXEL_INDEX)
 
     def median(self, ax=None):
         """Calculate the median for the given axis.
@@ -272,15 +391,15 @@ class SfgRecord():
         if self._type == "spe":
             from ..io.spe import PrincetonSPEFile3
             self._sp = PrincetonSPEFile3(self._fname)
-            self._data = self._sp.data.reshape(1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim)
+            self.rawData = self._sp.data.reshape(1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim)
             return
 
         if self._type == "veronica":
-            self._data, self.pp_delays = get_from_veronika(self._fname)
+            self.rawData, self.pp_delays = get_from_veronika(self._fname)
             return
 
         if self._type == "victor":
-            self._data, self.pp_delays = get_from_victor_controller(self._fname)
+            self.rawData, self.pp_delays = get_from_victor_controller(self._fname)
             return
 
         raise NotImplementedError("Uuuups this should never be reached."

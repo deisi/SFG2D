@@ -58,7 +58,7 @@ test_requirements = [
 
 setup(
     name='sfg2d',
-    version='0.5.0',
+    version='0.6.0',
     description="Python Toolkit for Analsys of 2d-sfg spectra",
     long_description=readme + '\n\n' + history,
     author="Malte Deiseroth",
@@ -79,6 +79,9 @@ setup(
         'console_scripts': [
             'sfg2d=sfg2d.cli:main'
         ]
+    },
+    package_data={
+        'sfg2d': ['data/calib/params_Ne_670.npy']
     },
     include_package_data=True,
     install_requires=requirements,
