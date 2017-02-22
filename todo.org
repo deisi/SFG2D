@@ -1,13 +1,33 @@
 
 * Refactoring
-
+** Move as much of the data handling into SfgRecord as pssible
+*** Make more use of SfgRecord internal members in the widgets
+     Move the handling of the baselinesubstraction from widgets into SfgRecords.
+*** SfgRecord Reset internal data method
+** Refactor Widgets with a 3rd class encapsulating the data handling
+** Make generic Selectors based on gui for arbitrary 4d-Data
+    This will seperate gui and data handling for the plot further.
+    The goal is to have a method, that is reusable throughout
+    raw data, baseline subtracted, bleach and if possible even summed.
+** Refactor _init_widgets to be more readable
+** Use plotgrid for figure init in widgets
+** Init for WidgetFigures
+** Rename WidgetFigures to MatplotlibFigures
+    When the seperation is done, I can exchange the plotting backend
+** Remove the _ functions form Widgets. They are too many
+** Combine the get_trace methods in SfgRecord
+** Introduce SfgRecord._rawData and SfgRecord._data
+** Apply medfilt globally in SfgRecord
+** Add more shapechecker in SfgRecod.base setter
+** DONE Rename the .x and .y data methods to something usefull
+   CLOSED: [2017-02-22 Mi 14:44]
 ** DONE Merge Widgets and Dashboards into one Module
    CLOSED: [2017-02-14 Tue 15:08]
-
 ** DONE Complete transition from AllYouCanEat to SfgRecord
    CLOSED: [2017-02-14 Tue 15:08]
 
-** TODO Refactor Widgets for more seperation between data and view
+** DONE Refactor Widgets for more seperation between data and view
+   CLOSED: [2017-02-21 Di 10:06]
 
 *** DONE Change Names
     CLOSED: [2017-02-14 Tue 18:04]
@@ -30,13 +50,19 @@
    CLOSED: [2017-02-14 Tue 18:02]
 * Improvements
 
-** Deprecation warnings for AllYouCanEat objects
+** DONE Median over frame selection
+   CLOSED: [2017-02-20 Mo 16:51]
 
 ** Bleach and Bleach Trace in gui
 
-** Make data snapable
+** Two Autoscale function
 
-** Median over frame selection
+** Save/load state of gui
+** Better labels
+
+** Deprecation warnings for AllYouCanEat objects
+
+** Make data snapable
 
 ** IIV Calibratior
 
@@ -53,9 +79,6 @@
 ** Merge fitter into the widget
 
 ** Plot Toolkit
-
-** Save/load state of gui
-
-** Two Autoscale function
 ** List of last opened folders
+** Img Viewer
 * Give a presentation about the tool and make it available on a server
