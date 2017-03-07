@@ -24,8 +24,20 @@ class SfgRecord():
       - .spe files from Andor version 2.5 and version 3
       - victor_controller .dat files
 
+    Parameters
+    ----------
+    fname: string
+        Path to input data
+    base: 4d castable array.
+        Data for the baseline
+    norm: 4d castable array
+        Data to normalize with
+
     Properties
     ----------
+    raw_data: 4 dim numpy array
+        Immutable version of the imported data. This should only be changed
+        upon initialization of the data. Else this should always stay the same.
     data : 4 dim numpy array
         Each axis seperates the data by:
         - axis 0: pump-probe time delay
@@ -54,8 +66,12 @@ class SfgRecord():
         Wavenumber calculated from the wavelength as described above.
         The effect of the up-conversion is calculated by using
         `SfgRecord.metadata["vis_wl"]` as wavelength of the visible.
+    basesubed: np.array
+        4 d baselinesubstracted array
+    normalized: np.array
+        4 d normalized array
     """
-    def __init__(self, fname=None):
+    def __init__(self, fname=None, base=None, norm=None):
         self.pp_delays = np.array([0])
         self.metadata = {}
         if not fname:
@@ -65,7 +81,11 @@ class SfgRecord():
         self._rawData = np.zeros((1, 1, 1, PIXEL))
         self._data = self._rawData
         self._base = np.zeros_like(self.rawData)
+        self._norm = np.ones_like(self.rawData)
         self.isBaselineSubed = False
+        self._basesubed = None
+        self.isNormalized = False
+        self._normalized = None
         self._type = 'unknown'
         self._wavelength = None
         self._wavenumber = None
@@ -81,6 +101,21 @@ class SfgRecord():
             fname = path.expanduser(fname)
         self._fname = path.abspath(fname)
         self._dates = None
+
+        if not isinstance(base, type(None)):
+            if isinstance(base, str):
+                base = SfgRecord(base).data
+                self.base = base
+            else:
+                self.base = base
+
+        if not isinstance(norm, type(None)):
+            if isinstance(norm, str):
+                norm = SfgRecord(norm).data
+                self.norm = norm
+            else:
+                self.norm = norm
+
         self._readData()
 
     @property
@@ -103,10 +138,21 @@ class SfgRecord():
 
     @base.setter
     def base(self, value):
-        if not self.isBaselineSubed:
+        if self.isBaselineSubed:
             self.add_base()
             self.isBaselineSubed = False
         self._base = value * np.ones_like(self.rawData)
+
+    @property
+    def norm(self):
+        return self._norm
+
+    @norm.setter
+    def norm(self, value):
+        if self.isNormalized:
+            self.un_normalize()
+            self.isNormalized = False
+        self._norm = value * np.ones_like(self.rawData)
 
     @property
     def data(self):
@@ -211,7 +257,28 @@ class SfgRecord():
         ret = nm_to_ir_wavenumbers(self.wavelength, vis_wl)
         return ret
 
-    def sub_base(self, inplace=False):
+    def reset_data(self):
+        """reset `SfgRecord.data` to `SfgRecord.rawData`"""
+        self.data = self.rawData
+        self.isBaselineSubed = False
+        self.isNormalized = False
+
+    @property
+    def basesubed(self):
+        """Baselinesubstracted data set."""
+        if isinstance(self._basesubed, type(None)):
+            self._basesubed = self.get_baselinesubed()
+        return self._basesubed
+
+    def get_baselinesubed(self, use_rawData=True):
+        """Get baselinesubstracted data"""
+        if use_rawData or self.isNormalized:
+            ret = self.rawData - self.base
+        else:
+            ret = self.data - self.base
+        return ret
+
+    def sub_base(self, inplace=False, use_rawData=False):
         """subsitute baseline of data
 
         Use SfgRecord.base and substitute it from SfgRecord.data.
@@ -221,10 +288,17 @@ class SfgRecord():
         inplace: boolean
             If true, subsitute SfgRecord.base from SfgRecord.data inplace.
 
+        use_rawData: boolean
+            Subtract baseline from `SfgRecord.rawData` and not `SfgRecord.data`.
+            If data is already normalized (`SfgRecord.isNormalized` is True) then,
+            this is always calculated from `SfgRecord.rawData`. So be carefull about
+            this when using filters, because they usually only work on `SfgRecord.data`
+            and not `SfgRecord.rawData`.
+
         Returns
         -------
         Numpy array with SfgRecod.data subsituted by SfgRecord.base"""
-        ret = self.data - self.base
+        ret = self.get_baselinesubed(use_rawData)
         if inplace and not self.isBaselineSubed:
             self.data = ret
             # Toggle to prevent multiple baseline substitutions
@@ -236,6 +310,58 @@ class SfgRecord():
         ret = self.data + self.base
         if inplace and not self.isBaselineSubed:
             self.data = ret
+            self.isBaselineSubed = False
+        return ret
+
+    @property
+    def normalized(self):
+        """Normalized data set"""
+        if isinstance(self._normalized, type(None)):
+            self._normalized = self.get_normalized()
+        return self._normalized
+
+    def get_normalized(self, use_rawData=True):
+        """Get normalized spectrum.
+        Parameters
+        ----------
+        use_rawData: boolean
+            Use `SfgRecod.rawData` to calculate result
+            else use `SfgRecod.data`
+        Return
+        ------
+        4d-numpy array with normalized data.
+        """
+
+        if use_rawData:
+            ret = (self.rawData - self.base) / self.norm
+        else:
+            ret = self.data / self.norm
+        return ret
+
+    def normalize(self, inplace=False, use_rawData=False):
+        if not self.isBaselineSubed:
+            warnings.warn(
+                "Normalizing data although baseline is not substracted."\
+                "Consider subtracting baseline with `SfgRecod.sub_base(inplace=True)`"\
+                "first."
+            )
+        ret = self.get_normalized(use_rawData)
+        if inplace and not self.isNormalized:
+            self.data = ret
+            self.isNormalized = True
+        return ret
+
+    def un_normalize(self, inplace=False):
+        if not self.isBaselineSubed:
+            warnings.warn(
+                "Normalizing data although baseline is not substracted."\
+                "Consider subtracting baseline with `SfgRecod.sub_base(inplace=True)`"\
+                "first."
+            )
+        ret = self.data * self.norm
+        if inplace and self.isNormalized:
+            self.data = ret
+            self.isNormalized = False
         return ret
 
     @property
@@ -338,6 +464,22 @@ class SfgRecord():
 
         np.median(self.data, ax) is calculated."""
         return np.median(self.data, ax)
+
+    def get_linear_baseline(self, start_slice=None, stop_slice=None, data_attr="rawData"):
+        """Calculate a linear baseline from data"""
+        data  = getattr(self, data_attr)
+
+        if isinstance(start_slice, type(None)):
+            start_slice = slice(0, 0.1*self.pixel)
+
+        if isinstance(stop_slice, type(None)):
+            stop_slice = slice(-0.1*self.pixel, None)
+
+        yp = np.array([np.median(data[:,:,:,start_slice], -1), np.median(data[:,:,:,stop_slice], -1)])
+        xp = [0, self.pixel]
+        x = np.arange(self.pixel)
+
+
 
     def _readData(self):
         """The central readData function.
@@ -469,6 +611,7 @@ class SfgRecord():
     def plot(self,
             pp_delays=slice(None,None), frames=slice(None, None),
             y_pixel=slice(None, None), x_pixel=slice(None, None),
+            attribute="data",
             fig=None, ax=None, x_axis="pixel", filter_kernel=(1,1,1,11), **kwargs):
         """Plot the SfgRecord.
 
@@ -487,8 +630,10 @@ class SfgRecord():
         if isinstance(x_axis, str):
             x_axis = getattr(self, x_axis)
 
+        data = getattr(self, attribute)
+
         plot_data = medfilt(
-            self.data[pp_delays, frames, y_pixel, x_pixel], filter_kernel
+            data[pp_delays, frames, y_pixel, x_pixel], filter_kernel
         )
 
         lines = []

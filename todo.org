@@ -53,6 +53,10 @@
 ** DONE Median over frame selection
    CLOSED: [2017-02-20 Mo 16:51]
 
+** String importer for base and norm spectra
+   I think this will make me Spit up the SfgRecord in an importer and the Core class
+   I must move SfgRecord._readData, SfgRecord._import_data and SfgRecord._read_metadata
+   into the io module
 ** Bleach and Bleach Trace in gui
 
 ** Two Autoscale function
