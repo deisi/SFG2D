@@ -558,14 +558,14 @@ class WidgetBase():
         if num_of_spec is not 1 or \
            num_of_spec is not self.data.number_of_spectra or \
            base.shape[0] is not self.data.number_of_spectra:
-            Warning("Cant substitute background from data, because shapes don't match.")
-            return
+            warnings.warn("Cant substitute background from data, because shapes don't match.")
+            return self.data.data
         if num_of_spec is 1 or \
            num_of_spec is self.data.number_of_spectra:
             base = base[spec_slice]
 
         self.data.base = base
-        self.data.sub_base()
+        return self.data.sub_base()
 
 
         # if self.wToggleSubBaseline.value:
@@ -636,7 +636,7 @@ class WidgetBase():
             y_slice,
         ]
         if self.wCheckFrameMedian.value:
-            ret = median(ret, FRAME_AXIS_INDEX)
+            ret = np.median(ret, FRAME_AXIS_INDEX)
         else:
             ret = ret[:, frame_slice.start]
         # ret =  self._sub_baseline(self.data.data)[pp_delay_index, :, :, :]

@@ -85,4 +85,5 @@
 ** Plot Toolkit
 ** List of last opened folders
 ** Img Viewer
+** Dedicated heder import function
 * Give a presentation about the tool and make it available on a server

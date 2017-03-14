@@ -3,37 +3,34 @@ import os, datetime
 
 import numpy as np
 
-from ..utils.consts import PIXEL # x-pixel of the camera
-from ..utils.metadata import MetaData
+from sfg2d.utils.consts import PIXEL # x-pixel of the camera
+from sfg2d.utils.metadata import MetaData
 SPECS = 3 # Number of binned spectra.
 
 def get_from_victor_controller(fpath):
-    raw_data = np.genfromtxt(fpath, dtype='long')
-    pp_delays = np.array([0])
+    raw_data = np.genfromtxt(fpath, dtype='long')[:, 1:]
+    with open(fpath) as file:
+        for line in file:
+            if '# Timedelay=' in line:
+                pp_delays = np.array(line[12:-1].split('\t'), dtype=int)
+                break
+            if line[0] is not '#':
+                break
 
     num_rows, num_columns = raw_data.shape
 
     # File is just a simple scan.
-    if num_rows == PIXEL and num_columns == 4:
-        return np.array([[raw_data.T[1:]]]), pp_delays
+    if num_rows == PIXEL and num_columns == 3:
+        return np.array([[raw_data.T]]), pp_delays
 
     # Check that we can read the data shape
-    if (num_columns)%(SPECS+1) != 0:
+    if (num_columns)%SPECS != 0:
         raise IOError("Cant read data in %s" % fpath)
 
-    num_pp_delays = num_rows%PIXEL
-    # The first colum is only pixel number
-    num_repetitions = num_columns//(SPECS+1)
+    num_pp_delays = num_rows//PIXEL
 
-    # Get pp_delay values
-    pp_delay_row_indexes = [i * PIXEL + i for i in range(num_pp_delays)]
-    # Get rows that count the pixels
-    pixel_column_indeces = [i*(SPECS+1) for i in range(num_repetitions)]
-    pp_delays = raw_data[pp_delay_row_indexes, 0]
-    # pp_delays rows are not needed any more
-    raw_data = np.delete(raw_data, pp_delay_row_indexes, 0)
-    # pixel columns are not needed any more
-    raw_data = np.delete(raw_data, pixel_column_indeces, 1)
+    # The first colum is only pixel number
+    num_repetitions = num_columns//SPECS
 
     # Init container for the result.
     ret = np.zeros((num_pp_delays, num_repetitions, SPECS, PIXEL))
