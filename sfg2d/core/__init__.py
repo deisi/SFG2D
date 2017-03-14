@@ -183,15 +183,26 @@ class SfgRecord():
     @property
     def times(self):
         ret = []
+        time_of_a_scan = self.metadata['exposure_time']
         for i in range(self.data.shape[1]):
-            ret.append(
-                i * self.metadata['exposure_time']
-            )
+            for j in range(self.data.shape[0]):
+                ret.append(
+                    (i * self.number_of_pp_delays + j) * time_of_a_scan
+                )
         return ret
 
     @property
     def frames(self):
         """Number of frames."""
+        warnings.warn(
+            "SfgRecord.frames is deprecated."\
+            " Use SfgRecord.numer_of_frames instead"
+        )
+        return self.data.shape[FRAME_AXIS_INDEX]
+
+    @property
+    def numer_of_frames(self):
+        """Number of frames"""
         return self.data.shape[FRAME_AXIS_INDEX]
 
     @property
@@ -478,7 +489,8 @@ class SfgRecord():
         yp = np.array([np.median(data[:,:,:,start_slice], -1), np.median(data[:,:,:,stop_slice], -1)])
         xp = [0, self.pixel]
         x = np.arange(self.pixel)
-
+        #TODO Make use of gridspec or any other multitimensional linear interpolation method.
+        raise NotImplementedError
 
 
     def _readData(self):

@@ -638,7 +638,10 @@ class WidgetBase():
         if self.wCheckFrameMedian.value:
             ret = np.median(ret, FRAME_AXIS_INDEX)
         else:
-            ret = ret[:, frame_slice.start]
+            ret = ret[frame_slice.start]
+
+        if self.wIntSliderSmooth.value is not 0:
+            ret = medfilt(ret, (1, self.wIntSliderSmooth.value))
         # ret =  self._sub_baseline(self.data.data)[pp_delay_index, :, :, :]
 
         # # We don't want to see multiple frame slices
@@ -783,14 +786,16 @@ class WidgetBase():
             self.wSliderPPDelay.value == pp_delays)[0][0]
         frame_slice = _rangeSlider_to_slice(self.wRangeSliderFrame)
         data = data[pp_delay_index]
+
+        if self.wIntSliderSmooth.value != 1:
+            data = medfilt(data, (1, self.wIntSliderSmooth.value))
+
         # TODO Baseline handling
         if self.wCheckFrameMedian.value:
-            data = np.median(data[frame_slice], FRAME_AXIS_INDEX)
+            data = np.median(data[frame_slice], 0)
         else:
             dat = data[frame_slice.start]
         # TODO use the not 2d version
-        if self.wIntSliderSmooth.value != 1:
-            data = medfilt2d(data, (1, self.wIntSliderSmooth.value))
         return data.T
 
 

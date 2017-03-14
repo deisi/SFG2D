@@ -3,8 +3,8 @@ import os, datetime
 
 import numpy as np
 
-from sfg2d.utils.consts import PIXEL # x-pixel of the camera
-from sfg2d.utils.metadata import MetaData
+from ..utils.consts import PIXEL # x-pixel of the camera
+from ..utils.metadata import MetaData
 SPECS = 3 # Number of binned spectra.
 
 def get_from_victor_controller(fpath):
