@@ -91,6 +91,8 @@ class SfgRecord():
         self._wavenumber = None
         self._bleach = None
         self._bleach_rel = None
+        self._pumped = None
+        self._unpumped = None
         self.zero_time = None
         self.zero_time_rel = None
 
@@ -389,6 +391,28 @@ class SfgRecord():
         return ret
 
     @property
+    def pumped(self):
+        return self._pumped
+
+    @pumped.setter
+    def pumped(self, value):
+        if isinstance(value, int):
+            self._pumped = self.data[:, :, value]
+        else:
+            raise NotImplemented
+
+    @property
+    def unpumped(self):
+        return self._unpumped
+
+    @unpumped.setter
+    def unpumped(self, value):
+        if isinstance(value, int):
+            self._unpumped = self.data[:, :, value]
+        else:
+            raise NotImplemented
+
+    @property
     def bleach(self):
         if isinstance(self._bleach, type(None)):
             self._bleach = self.get_bleach()
@@ -411,6 +435,11 @@ class SfgRecord():
 
         if self.number_of_spectra < 2:
             return bleach
+
+        if isinstance(self._pumped, type(None)):
+            self.pumped = pumped
+        if isinstance(self._unpumped, type(None)):
+            self.unpumped = unpumped
 
         bleach = self.data[:,:,pumped] - self.data[:, :, unpumped]
         if sub_first:
@@ -656,3 +685,17 @@ class SfgRecord():
             lines.append(frame_lines)
 
         return lines
+
+
+def concatenate_SfgRecords(list_of_records):
+    """Concatenate SfgRecords into one big SfgRecord."""
+    ret = SfgRecord()
+    ret.metadata["central_wl"] = None
+    ret.wavelength = list_of_records[0].wavelength
+    ret.rawData = list_of_records[0].rawData.copy()
+    ret.rawData =  np.concatenate([elm.rawData for elm in list_of_records], 1)
+    ret.dates = np.concatenate([elm.dates for elm in list_of_records]).tolist()
+    ret.pp_delays = list_of_records[0].pp_delays
+    ret.metadata["central_wl"] = list_of_records[0].metadata.get("central_wl")
+    ret.metadata["vis_wl"] = list_of_records[0].metadata.get("vis_wl")
+    return ret

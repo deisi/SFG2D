@@ -7,8 +7,15 @@ from ..utils.consts import PIXEL # x-pixel of the camera
 from ..utils.metadata import MetaData
 SPECS = 3 # Number of binned spectra.
 
-def get_from_victor_controller(fpath):
-    raw_data = np.genfromtxt(fpath, dtype='long')[:, 1:]
+def get_from_victor_controller(fpath, **kwargs):
+    """Import data from victor controller
+
+    kwargs are passed to np.genfromtxt"""
+    try:
+        raw_data = np.genfromtxt(fpath, dtype='long', **kwargs)[:, 1:]
+    except ValueError:
+        IOError("Scan was interrupted. Plz give usecols kwarg to genfromtxt.")
+
     with open(fpath) as file:
         for line in file:
             if '# Timedelay=' in line:

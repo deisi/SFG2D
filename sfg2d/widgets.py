@@ -638,7 +638,7 @@ class WidgetBase():
         if self.wCheckFrameMedian.value:
             ret = np.median(ret, FRAME_AXIS_INDEX)
         else:
-            ret = ret[frame_slice.start]
+            ret = ret[0]
 
         if self.wIntSliderSmooth.value is not 0:
             ret = medfilt(ret, (1, self.wIntSliderSmooth.value))
