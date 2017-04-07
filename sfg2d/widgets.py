@@ -424,6 +424,7 @@ class WidgetBase():
         self.wIntTextPumped.observe(self.y_bleach_renew, "value")
         self.wIntTextUnpumped.observe(self.y_bleach_renew, "value")
         self.wDropdownOperator.observe(self.y_bleach_renew, "value")
+        self.wDropdownCalib.observe(self.x_spec_renew, "value")
         self.wTextCentralWl.observe(self.x_spec_renew, "value")
         self.wTextVisWl.observe(self.x_spec_renew, "value")
         self._init_figure_observers()
@@ -541,6 +542,11 @@ class WidgetBase():
             self.data._wavenumber = self.data.get_wavenumber(vis_wl)
         elif owner is self.wTextVisWl and vis_wl > 0:
             self.data._wavenumber = self.data.get_wavenumber(vis_wl)
+        elif owner is self.wDropdownCalib:
+            if cw > 0:
+                self.data._wavelength = self.data.get_wavelength(cw)
+            if vis_wl > 0:
+                self.data._wavenumber = self.data.get_wavenumber(vis_wl)
 
     def _sub_baseline(self, data):
         """Substraction of the baseline"""
