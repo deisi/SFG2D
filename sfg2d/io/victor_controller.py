@@ -14,7 +14,7 @@ def get_from_victor_controller(fpath, **kwargs):
     try:
         raw_data = np.genfromtxt(fpath, dtype='long', **kwargs)[:, 1:]
     except ValueError:
-        IOError("Scan was interrupted. Plz give usecols kwarg to genfromtxt.")
+        raise IOError("Scan was interrupted. Plz give usecols kwarg to genfromtxt.")
 
     with open(fpath) as file:
         for line in file:

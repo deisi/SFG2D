@@ -46,11 +46,7 @@ class SfgRecord():
         - axis 3: x-pixels
 
     dates: list of dates
-        each element of the list is a datetime obj refering to the time
-        the data was recorded.
-
-    times: list of timedeltas
-        each element of the list is a relative timedelta obj, that refers
+        eaclist is a relative timedelta obj, that refers
         to the time 0 of the first frame.
     frames: int
         Number of frames of this obj.
@@ -550,6 +546,11 @@ class SfgRecord():
             self._type = 'spe'
             return True
 
+        # Compressed binary version.
+        if path.splitext(ftail)[1] ==  '.npz':
+            self._type = 'npz'
+            return True
+
         # We open the file and by looking at the
         # first view lines, we can see if that is a readable file
         # and what function is needed to read it.
@@ -580,12 +581,23 @@ class SfgRecord():
     def _import_data(self):
         """Import the data."""
 
-        # One needs to use the type, because we must pick the right import
-        # function. Otherwise errors occur.
+        # Pick import function according to data type automatically.
         if self._type == "spe":
             from ..io.spe import PrincetonSPEFile3
             self._sp = PrincetonSPEFile3(self._fname)
             self.rawData = self._sp.data.reshape(1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim)
+            return
+
+        if self._type == "npz":
+            imp = np.load(self._fname)
+            self.rawData = imp['rawdata']
+            self.wavenumber = imp['wavenumber']
+            self.wavelength = imp['wavelength']
+            self.base = imp['base']
+            self.metadata = imp['metadata'][()]
+            self.dates = imp['dates']
+            self.norm = imp['norm']
+            self.pp_delays = imp['pp_delays']
             return
 
         if self._type == "veronica":
@@ -604,6 +616,9 @@ class SfgRecord():
         """Read metadata of the file"""
 
         from ..utils.metadata import get_metadata_from_filename
+
+        if self._type == "npz":
+            return
 
         try:
             metadata = get_metadata_from_filename(self._fname)
@@ -630,7 +645,8 @@ class SfgRecord():
             # Dont need the spe datatype object any more.
             del self._sp
 
-        self.metadata = metadata
+        for key in metadata:
+            self.metadata[key] = metadata[key]
 
     def copy(self):
         """Make a copy of the SfgRecord obj.
@@ -648,6 +664,20 @@ class SfgRecord():
         ret._wavelength = self.wavelength.copy()
         ret._wavenumber = self.wavenumber.copy()
         return ret
+
+    def save(self, file, *args, **kwargs):
+        """Save the SfgRecord into a compressed numpy array."""
+        np.savez_compressed(
+            file,
+            rawdata = self.rawData,
+            norm = self.norm,
+            base = self.base,
+            pp_delays = self.pp_delays,
+            wavelength = self.wavelength,
+            wavenumber = self.wavenumber,
+            metadata = self.metadata,
+            dates = self.dates,
+        )
 
     def plot(self,
             pp_delays=slice(None,None), frames=slice(None, None),
