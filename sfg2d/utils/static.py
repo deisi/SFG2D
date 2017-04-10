@@ -1,5 +1,5 @@
 """static functions go here """
-from numpy import sqrt, power, cos, sin, arcsin, square, array, ones, shape, sum
+from numpy import sqrt, power, cos, sin, arcsin, square, array, ones, shape, sum, argmax, argmin
 
 
 def wavenumbers_to_nm(wavenumbers):
@@ -24,7 +24,6 @@ def nm_to_ir_wavenumbers(x, up_wl):
         wavelength of the upconvertion pulse in nm"""
     return nm_to_wavenumbers(1/(1/x - 1/up_wl))
 
-
 def ir_wavenumbers_to_nm(x, up_wl):
     """Translate ir wavenumbers to upconverted nm.
 
@@ -45,6 +44,18 @@ def ir_wavenumbers_to_nm(x, up_wl):
     """
     return (1/(1/wavenumbers_to_nm(x) + 1/up_wl))
 
+def get_interval_index(array, min, max):
+    """Helper function to get index positioins from an sorted array.
+
+    Parameters
+    ----------
+    array: sorted iterable
+         array to search in
+    min: int
+        lower wavenumber boundary
+    max: int
+        uppper wavenumber boundary"""
+    return argmax(array>min), argmin(array<max)
 
 def savefig(filename, **kwargs):
     import matplotlib.pyplot as plt

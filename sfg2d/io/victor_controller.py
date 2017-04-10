@@ -73,7 +73,6 @@ def translate_header_to_metadata(header_dict):
             _, unit = key.split(" ")
             if "[s]" in unit:
                 unit = "seconds"
-            print(unit, value)
             ret["exposure_time"] = datetime.timedelta(**{unit : float(value)})
 
         if 'Syringe Pos' in key:

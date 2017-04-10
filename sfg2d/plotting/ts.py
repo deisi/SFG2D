@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+
+##### DEPRECATED
+# Below this point all will be deleted
 def sum_of_spectra(ts, spec, ax=None):
     """plot the sum of spectra per time delay
 
