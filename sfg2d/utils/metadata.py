@@ -22,6 +22,8 @@ MetaData = {
     "chopper": None,
     "purge": None,
     "date": None,
+    "pump_freq": 0, # frequency of the pump in 1/cm
+    "pump_width": 0, # width of the pump in 1/cm
 }
 
 

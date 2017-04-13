@@ -7,8 +7,15 @@ from ..utils.consts import PIXEL # x-pixel of the camera
 from ..utils.metadata import MetaData
 SPECS = 3 # Number of binned spectra.
 
-def get_from_victor_controller(fpath):
-    raw_data = np.genfromtxt(fpath, dtype='long')[:, 1:]
+def get_from_victor_controller(fpath, **kwargs):
+    """Import data from victor controller
+
+    kwargs are passed to np.genfromtxt"""
+    try:
+        raw_data = np.genfromtxt(fpath, dtype='long', **kwargs)[:, 1:]
+    except ValueError:
+        raise IOError("Scan was interrupted. Plz give usecols kwarg to genfromtxt.")
+
     with open(fpath) as file:
         for line in file:
             if '# Timedelay=' in line:
@@ -66,7 +73,6 @@ def translate_header_to_metadata(header_dict):
             _, unit = key.split(" ")
             if "[s]" in unit:
                 unit = "seconds"
-            print(unit, value)
             ret["exposure_time"] = datetime.timedelta(**{unit : float(value)})
 
         if 'Syringe Pos' in key:

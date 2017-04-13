@@ -1,4 +1,10 @@
 
+* Bugs
+
+** DONE frames selection is not correct.
+   CLOSED: [2017-03-17 Fr 16:34]
+   Test data is /mnt/viktor/deiseroth/2017/03/16/02_sc_na2co3-005_ssp_purged1_gal1_pr1_pu0.dat
+   Choos a frame bigger 15 it failes
 * Refactoring
 ** Move as much of the data handling into SfgRecord as pssible
 *** Make more use of SfgRecord internal members in the widgets

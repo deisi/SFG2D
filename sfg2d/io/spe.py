@@ -212,7 +212,6 @@ class PrincetonSPEFile3():
             dataArr.resize((self.ydim, self.xdim))
             self.data.append(dataArr)
         self.data = np.array(self.data)
-            
         return self.data
 
     def _readFooter(self):

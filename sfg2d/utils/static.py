@@ -1,5 +1,5 @@
 """static functions go here """
-from numpy import sqrt, power, cos, sin, arcsin, square, array, ones, shape, sum
+from numpy import sqrt, power, cos, sin, arcsin, square, array, ones, shape, sum, argmax, argmin, e, where
 
 
 def wavenumbers_to_nm(wavenumbers):
@@ -24,7 +24,6 @@ def nm_to_ir_wavenumbers(x, up_wl):
         wavelength of the upconvertion pulse in nm"""
     return nm_to_wavenumbers(1/(1/x - 1/up_wl))
 
-
 def ir_wavenumbers_to_nm(x, up_wl):
     """Translate ir wavenumbers to upconverted nm.
 
@@ -45,13 +44,26 @@ def ir_wavenumbers_to_nm(x, up_wl):
     """
     return (1/(1/wavenumbers_to_nm(x) + 1/up_wl))
 
+def get_interval_index(array, min, max):
+    """Helper function to get index positioins from an sorted array.
 
-def savefig(filename, **kwargs):
+    Parameters
+    ----------
+    array: sorted iterable
+         array to search in
+    min: int
+        lower wavenumber boundary
+    max: int
+        uppper wavenumber boundary"""
+    return argmax(array>min), argmin(array<max)
+
+def savefig(filename, dpi=150, pgf=False, **kwargs):
     import matplotlib.pyplot as plt
-    '''save figure as pgf, pdf and png'''
-    plt.savefig('{}.pgf'.format(filename), **kwargs)
+    '''save figure as pdf and png'''
+    if pgf:
+        plt.savefig('{}.pgf'.format(filename), **kwargs)
     plt.savefig('{}.pdf'.format(filename), **kwargs)
-    plt.savefig('{}.png'.format(filename), dpi=300, **kwargs)
+    plt.savefig('{}.png'.format(filename), dpi=dpi, **kwargs)
 
 
 def Rs(ca, cb, n1, n2):
@@ -268,3 +280,35 @@ def sfg2r(x, nr, phase,
             amplitude1, pos1, width1
           )
     return ret
+
+def heat_time(t, H0, tau=1000, c=0):
+    """Function to model the time dependecy of the heat
+    ----------------
+    Parameters
+    t:        array type
+        t time points
+
+    H0:        number
+        Amlitude or max heat of the model
+
+    tau:     number
+        time constant of the heat model
+
+    c:        number
+        time offset of the model
+
+    ----------------
+    return
+        array of resulting values
+    """
+    HM = lambda x: H0*(1-e**(-1*x/tau))+c
+    if hasattr(t, '__iter__'):
+        ret = array([HM(time) for time in t])
+        # need to remove negative times, because
+        # model is unphysical in this region
+        mask = where(t <= 0)
+        ret[mask] = 0
+        return ret
+    if t <= 0:
+        return 0
+    return HM(t)

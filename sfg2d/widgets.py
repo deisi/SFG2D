@@ -424,6 +424,7 @@ class WidgetBase():
         self.wIntTextPumped.observe(self.y_bleach_renew, "value")
         self.wIntTextUnpumped.observe(self.y_bleach_renew, "value")
         self.wDropdownOperator.observe(self.y_bleach_renew, "value")
+        self.wDropdownCalib.observe(self.x_spec_renew, "value")
         self.wTextCentralWl.observe(self.x_spec_renew, "value")
         self.wTextVisWl.observe(self.x_spec_renew, "value")
         self.wToggleSubBaseline.observe(self.on_subBaseline_toggled, 'value')
@@ -544,6 +545,11 @@ class WidgetBase():
             self.data._wavenumber = self.data.get_wavenumber(vis_wl)
         elif owner is self.wTextVisWl and vis_wl > 0:
             self.data._wavenumber = self.data.get_wavenumber(vis_wl)
+        elif owner is self.wDropdownCalib:
+            if cw > 0:
+                self.data._wavelength = self.data.get_wavelength(cw)
+            if vis_wl > 0:
+                self.data._wavenumber = self.data.get_wavenumber(vis_wl)
 
     #TODO restet to set_baseline
     def _sub_baseline(self, **kwargs):
@@ -632,7 +638,7 @@ class WidgetBase():
         if self.wCheckFrameMedian.value:
             ret = np.median(ret, FRAME_AXIS_INDEX)
         else:
-            ret = ret[frame_slice.start]
+            ret = ret[0]
 
         if self.wIntSliderSmooth.value is not 0:
             ret = medfilt(ret, (1, self.wIntSliderSmooth.value))

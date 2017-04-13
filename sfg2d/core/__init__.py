@@ -15,8 +15,8 @@ class SfgRecord():
     """Class to load and manage SFG data in a 4D structure
 
     It is ment to encapsulate raw SFG data in a unifying manner.
-    For dimensions are needed to cope pump-probe delay, frames(repetitions),
-    y-pixel and x-pixel.
+    Four dimensions are needed to cope with pump-probe delay,
+    frames(repetitions), y-pixel and x-pixel.
 
     Reads
     -----
@@ -46,11 +46,7 @@ class SfgRecord():
         - axis 3: x-pixels
 
     dates: list of dates
-        each element of the list is a datetime obj refering to the time
-        the data was recorded.
-
-    times: list of timedeltas
-        each element of the list is a relative timedelta obj, that refers
+        eaclist is a relative timedelta obj, that refers
         to the time 0 of the first frame.
     frames: int
         Number of frames of this obj.
@@ -91,6 +87,11 @@ class SfgRecord():
         self._wavenumber = None
         self._bleach = None
         self._bleach_rel = None
+        self._pumped = None
+        self._unpumped = None
+        self._pumped_index = 0
+        self._unpumped_index =  1
+        self._dates = None
         self.zero_time = None
         self.zero_time_rel = None
 
@@ -252,6 +253,8 @@ class SfgRecord():
 
     @property
     def wavenumber(self):
+        """wavenumber propertie."""
+
         if isinstance(self._wavenumber, type(None)):
             vis_wl = self.metadata.get("vis_wl")
             self._wavenumber = self.get_wavenumber(vis_wl)
@@ -259,9 +262,13 @@ class SfgRecord():
 
     @wavenumber.setter
     def wavenumber(self, arg):
+        """Setter for wavenumber propertie."""
+
         self._wavenumber = arg
 
     def get_wavenumber(self, vis_wl):
+        """return calculated wavenumbers."""
+
         ret = self.pixel[::-1]
         if isinstance(vis_wl, type(None)) or vis_wl < 1:
             return ret
@@ -270,6 +277,7 @@ class SfgRecord():
 
     def reset_data(self):
         """reset `SfgRecord.data` to `SfgRecord.rawData`"""
+
         self.data = self.rawData
         self.isBaselineSubed = False
         self.isNormalized = False
@@ -277,12 +285,14 @@ class SfgRecord():
     @property
     def basesubed(self):
         """Baselinesubstracted data set."""
+
         if isinstance(self._basesubed, type(None)):
             self._basesubed = self.get_baselinesubed()
         return self._basesubed
 
     def get_baselinesubed(self, use_rawData=True):
         """Get baselinesubstracted data"""
+
         if use_rawData or self.isNormalized:
             ret = self.rawData - self.base
         else:
@@ -389,12 +399,40 @@ class SfgRecord():
         return ret
 
     @property
+    def pumped(self):
+        if isinstance(self._pumped, type(None)):
+            self.pumped = self._pumped_index
+        return self._pumped
+
+    @pumped.setter
+    def pumped(self, value):
+        if isinstance(value, int) or isinstance(value, np.integer):
+            self._pumped = self.data[:, :, value]
+            self._pumped_index = value
+        else:
+            raise NotImplemented()
+
+    @property
+    def unpumped(self):
+        if isinstance(self._unpumped, type(None)):
+            self.unpumped = self._unpumped_index
+        return self._unpumped
+
+    @unpumped.setter
+    def unpumped(self, value):
+        if isinstance(value, int) or isinstance(value, np.integer):
+            self._unpumped = self.data[:, :, value]
+            self._unpumped_index = value
+        else:
+            raise NotImplemented()
+
+    @property
     def bleach(self):
         if isinstance(self._bleach, type(None)):
             self._bleach = self.get_bleach()
         return self._bleach
 
-    def get_bleach(self, pumped=0, unpumped=1, sub_first=True):
+    def get_bleach(self, pumped=None, unpumped=None, sub_first=True):
         """Calculate bleach.
 
         sub_first : boolean
@@ -412,7 +450,19 @@ class SfgRecord():
         if self.number_of_spectra < 2:
             return bleach
 
-        bleach = self.data[:,:,pumped] - self.data[:, :, unpumped]
+        if isinstance(pumped, type(None)):
+            pumped = self.pumped
+        else:
+            # Uses the setter of SfgRecord.pumped to recast pumped to an array
+            self.pumped = pumped
+            pumped = self.pumped
+        if isinstance(unpumped, type(None)):
+            unpumped = self.unpumped
+        else:
+            self.unpumped = unpumped
+            unpumped = self.unpumped
+
+        bleach = pumped - unpumped
         if sub_first:
             # copy needed to prevent inplace overwriting of bleach
             self.zero_time = bleach[0].copy()
@@ -425,18 +475,43 @@ class SfgRecord():
             self._bleach_rel = self.get_bleach_rel()
         return self._bleach_rel
 
-    def get_bleach_rel(self, pumped=0, unpumped=1, sub_first=True):
-        """Calculate the relative bleach"""
+    def get_bleach_rel(self, pumped=None, unpumped=None, sub_first=True):
+        """Calculate the relative bleach
+
+        Parameters
+        ----------
+        pumped: index or None
+            y_pixel/spectra index of the pumped spectrum. Default is None,
+            and will make it use `SfgRecord._pumped_index`
+        unpumped: index or None
+            like pumped only for unpumped None defaults to `SfgRecord._unpumped_index`
+        sub_first: bollean default true
+            subtract the 0th pp_delay index. This corrects for constant
+            offset between pumped and unpumped data.
+        """
         bleach_rel = np.zeros((
             self.number_of_pp_delays,
             self.number_of_spectra,
             self.number_of_x_pixel,
         ))
+
+        if self.number_of_spectra < 2:
+            return bleach
+
+        if isinstance(pumped, type(None)):
+            pumped = self._pumped_index
+        if isinstance(unpumped, type(None)):
+            unpumped = self._unpumped_index
+
         bleach_rel = self.data[:, :, pumped] / self.data[:, :, unpumped]
         if sub_first:
             self.zero_time_rel = bleach_rel[0].copy()
             bleach_rel -= self.zero_time_rel
         return bleach_rel
+
+    @property
+    def trace_pp_delay(self):
+        return self.get_trace_pp_delay()
 
     def get_trace_pp_delay(
             self,
@@ -454,6 +529,10 @@ class SfgRecord():
         if frame_median:
             ret = np.median(ret, FRAME_AXIS_INDEX)
         return ret.sum(X_PIXEL_INDEX)
+
+    @property
+    def trace_frame(self):
+        return self.get_trace_frame()
 
     def get_trace_frame(
             self,
@@ -492,6 +571,17 @@ class SfgRecord():
         #TODO Make use of gridspec or any other multitimensional linear interpolation method.
         raise NotImplementedError
 
+    def get_trace_bleach(
+            self, attr="bleach", pp_delay_slice=slice(None), frame_slice=slice(None),
+            x_pixel_slice=slice(None), medfilt_kernel=None,
+    ):
+        ret = getattr(self, attr)
+        if not isinstance(medfilt_kernel, type(None)):
+            ret = medfilt(ret, medfilt_kernel)
+
+        ret = ret[pp_delay_slice, frame_slice, x_pixel_slice].sum(-1)
+
+        return ret
 
     def _readData(self):
         """The central readData function.
@@ -519,6 +609,11 @@ class SfgRecord():
         # spe is binary and we hope its not named wrongly
         if path.splitext(ftail)[1] == '.spe':
             self._type = 'spe'
+            return True
+
+        # Compressed binary version.
+        if path.splitext(ftail)[1] ==  '.npz':
+            self._type = 'npz'
             return True
 
         # We open the file and by looking at the
@@ -551,12 +646,25 @@ class SfgRecord():
     def _import_data(self):
         """Import the data."""
 
-        # One needs to use the type, because we must pick the right import
-        # function. Otherwise errors occur.
+        # Pick import function according to data type automatically.
         if self._type == "spe":
             from ..io.spe import PrincetonSPEFile3
             self._sp = PrincetonSPEFile3(self._fname)
             self.rawData = self._sp.data.reshape(1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim)
+            return
+
+        if self._type == "npz":
+            imp = np.load(self._fname)
+            self.rawData = imp['rawdata']
+            self.wavenumber = imp['wavenumber']
+            self.wavelength = imp['wavelength']
+            self.base = imp['base']
+            self.metadata = imp['metadata'][()]
+            self.dates = imp['dates']
+            self.norm = imp['norm']
+            self.pp_delays = imp['pp_delays']
+            self._unpumped_index = imp['_unpumped_index'][()]
+            self._pumped_index = imp['_pumped_index'][()]
             return
 
         if self._type == "veronica":
@@ -575,6 +683,9 @@ class SfgRecord():
         """Read metadata of the file"""
 
         from ..utils.metadata import get_metadata_from_filename
+
+        if self._type == "npz":
+            return
 
         try:
             metadata = get_metadata_from_filename(self._fname)
@@ -601,7 +712,8 @@ class SfgRecord():
             # Dont need the spe datatype object any more.
             del self._sp
 
-        self.metadata = metadata
+        for key in metadata:
+            self.metadata[key] = metadata[key]
 
     def copy(self):
         """Make a copy of the SfgRecord obj.
@@ -618,18 +730,69 @@ class SfgRecord():
         ret._dates = self._dates
         ret._wavelength = self.wavelength.copy()
         ret._wavenumber = self.wavenumber.copy()
+        ret._unpumped_index = self._unpumped_index
+        ret._pumped_index = self._pumped_index
+        return ret
+
+    def save(self, file, *args, **kwargs):
+        """Save the SfgRecord into a compressed numpy array."""
+        np.savez_compressed(
+            file,
+            rawdata = self.rawData,
+            norm = self.norm,
+            base = self.base,
+            pp_delays = self.pp_delays,
+            wavelength = self.wavelength,
+            wavenumber = self.wavenumber,
+            metadata = self.metadata,
+            dates = self.dates,
+            _pumped_index = self._pumped_index,
+            _unpumped_index = self._unpumped_index
+        )
+
+    def make_avg(self):
+        """Returns an frame wise averaged SfgRecord."""
+        ret = SfgRecord()
+        ret.metadata = self.metadata
+        ret.wavelength = self.wavelength
+        ret.wavenumber = self.wavenumber
+        ret.dates = [self.dates[0]]
+        ret._unpumped_index = self._unpumped_index
+        ret._pumped_index = self._pumped_index
+        ret.pp_delays = self.pp_delays
+        for key in ("rawData", "norm", "base"):
+            setattr(
+                ret, key, np.expand_dims(np.median(getattr(self, key), 1), 1)
+            )
         return ret
 
     def plot(self,
             pp_delays=slice(None,None), frames=slice(None, None),
             y_pixel=slice(None, None), x_pixel=slice(None, None),
-            attribute="data",
+             attribute="data", frame_med_slice=slice(None, None),
             fig=None, ax=None, x_axis="pixel", filter_kernel=(1,1,1,11), **kwargs):
         """Plot the SfgRecord.
 
         Parameters:
         -----------
-
+        pp_delays: slice or array
+            index of interesting pp_delays
+        frames: slice or array
+            index of relevant frames
+        y_pixel: slice or array
+            index of spectra of y_pixel
+        x_pixel: slice or array
+            index of x_pixel
+        attribute: string
+            attribute of SfgRecord to plot. Default is 'data'
+        frame_med_slice: slice or array
+            not impltemented yet
+        fig: matplotlib figure obj,
+        x_axis: string
+            name of the x_axis parameter to use. Default is "pixel"
+        filter_kernel: 4d tuple or list
+            kernel of the med_filter function. default is (1,1,1,11)
+            meaning filter 11 pixel and leve the rest untouched.
         """
 
 
@@ -645,8 +808,8 @@ class SfgRecord():
         data = getattr(self, attribute)
 
         plot_data = medfilt(
-            data[pp_delays, frames, y_pixel, x_pixel], filter_kernel
-        )
+            data, filter_kernel
+        )[pp_delays, frames, y_pixel, x_pixel]
 
         lines = []
         for per_delay in plot_data:
@@ -656,3 +819,72 @@ class SfgRecord():
             lines.append(frame_lines)
 
         return lines
+
+    def plot_bleach(self, attribute="bleach", filter_kernel=(1,1,11),
+                    pp_delays=slice(None,None), frames=slice(None,None),
+                    x_pixel=slice(None, None), fig=None, ax=None,
+                    x_axis="pixel",
+                    **kwargs):
+        """Called when attribute is 'bleach' in plot."""
+        if not fig:
+            fig = plt.gcf()
+
+        if not ax:
+            ax = plt.gca()
+
+        if isinstance(x_axis, str):
+            x_axis = getattr(self, x_axis)
+
+        data = getattr(self, attribute)
+
+        plot_data = medfilt(
+            data, filter_kernel
+        )[pp_delays, frames, x_pixel]
+
+        lines = []
+        for per_delay in plot_data:
+            frame_lines = []
+            for per_frame in per_delay:
+                frame_lines.append(ax.plot(x_axis, per_frame.T, **kwargs))
+            lines.append(frame_lines)
+
+        return lines
+
+    def plot_trace(
+            self,
+            x_axis="pp_delays",
+            fig = None, ax = None,
+            **kwargs
+    ):
+        """
+
+        kwargs are passes to SfgRecord.get_trace_pp_delays
+
+        """
+        if not fig:
+            fig = plt.gcf()
+
+        if not ax:
+            ax = plt.gca()
+
+        x_axis = getattr(self, x_axis)
+
+        plot_data = self.get_trace_pp_delay(**kwargs)
+
+        lines = ax.plot(x_axis, plot_data, "-o")
+
+        return lines
+
+
+def concatenate_SfgRecords(list_of_records):
+    """Concatenate SfgRecords into one big SfgRecord."""
+    ret = SfgRecord()
+    ret.metadata["central_wl"] = None
+    ret.wavelength = list_of_records[0].wavelength
+    ret.rawData = list_of_records[0].rawData.copy()
+    ret.rawData =  np.concatenate([elm.rawData for elm in list_of_records], 1)
+    ret.dates = np.concatenate([elm.dates for elm in list_of_records]).tolist()
+    ret.pp_delays = list_of_records[0].pp_delays
+    ret.metadata["central_wl"] = list_of_records[0].metadata.get("central_wl")
+    ret.metadata["vis_wl"] = list_of_records[0].metadata.get("vis_wl")
+    return ret
