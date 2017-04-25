@@ -191,7 +191,7 @@ class WidgetBase():
 
         # Checkbox to toggle the calculation of a frame wise median of then
         # baseline.
-        self.wCheckBaselineFrameMedian = wi.Checkbox(
+        self.wCheckBaselineMedian = wi.Checkbox(
             description='median', value=False
         )
 
@@ -289,7 +289,7 @@ class WidgetBase():
                     self.wSliderBaselinePPDelay,
                     self.wRangeSliderBaselineFrame,
                     self.wRangeSliderBaselineSpec,
-                    self.wCheckBaselineFrameMedian,
+                    self.wCheckBaselineMedian,
                 ]),
                 self.wTextBaselineOffset
             ],
@@ -316,7 +316,7 @@ class WidgetBase():
             self.wSliderBaselinePPDelay,
             self.wRangeSliderBaselineFrame,
             self.wRangeSliderBaselineSpec,
-            self.wCheckBaselineFrameMedian,
+            self.wCheckBaselineMedian,
             self.wDropSumAxis,
             self.wTextBaselineOffset,
             self.wIntTextPumped,
@@ -470,7 +470,7 @@ class WidgetBase():
             self.wTextCentralWl.disabled = False
 
     def _toggle_sum_over(self, new=None):
-        if self.data.frames is 1:
+        if self.data.number_of_frames is 1:
             self.wDropSumAxis.value = "pp_delays"
             self.wDropSumAxis.disabled = True
             return
@@ -548,54 +548,18 @@ class WidgetBase():
             if vis_wl > 0:
                 self.data._wavenumber = self.data.get_wavenumber(vis_wl)
 
-    def _sub_baseline(self, data):
-        """Substraction of the baseline"""
-        pp_delay_index = self.wSliderBaselinePPDelay.value
-        frame_slice = _rangeSlider_to_slice(self.wRangeSliderBaselineFrame)
+    def _sub_baseline(self):
         spec_slice = _rangeSlider_to_slice(self.wRangeSliderBaselineSpec)
         num_of_spec = spec_slice.stop - spec_slice.start
-        base = self.data_base
-        if self.wCheckBaselineFrameMedian.value:
-            base = np.median(base, FRAME_AXIS_INDEX)
-        else:
-            base = base[:, 0]
-        if self.wIntSliderSmoothBase.value != 1:
-            base = medfilt(base, (1, self.wIntSliderSmoothBase.value))
-        if num_of_spec is not 1 or \
-           num_of_spec is not self.data.number_of_spectra or \
-           base.shape[0] is not self.data.number_of_spectra:
-            warnings.warn("Cant substitute background from data, because shapes don't match.")
-            return self.data.data
-        if num_of_spec is 1 or \
-           num_of_spec is self.data.number_of_spectra:
-            base = base[spec_slice]
-
+        if num_of_spec is not 1 and \
+           num_of_spec is not self.data.number_of_spectra:
+            msg = "Cant set new background data, because shapes don't match.\n"
+            msg += "Keeping old background data."
+            warnings.warn(msg)
+            return self.data.sub_base()
+        base = self.y_base.T
         self.data.base = base
         return self.data.sub_base()
-
-
-        # if self.wToggleSubBaseline.value:
-        #     if len(self.y_base.shape) == 1:
-        #         y -= np.ones_like(y) * self.y_base
-        #     elif self.y_base.shape[1] == 1:
-        #         y -= np.ones_like(y) * self.y_base[:, 0]
-        #     else:
-        #         # Check if this is possible
-        #         if self.data_base.shape[SPEC_INDEX] is not self.data.data.shape[SPEC_INDEX]:
-        #             message = 'Cant subtract baseline spectra wise due to' \
-        #                       'unmatched dimensions. Data shape is %s, but' \
-        #                       'baseline shape is %s' %\
-        #                        (self.data.data.shape, self.data_base.shape)
-        #             warnings.warn(message)
-        #             self.wToggleSubBaseline.value = False
-        #             return y
-        #         base = self.data_base[self.wSliderBaselinePPDelay.value, :]
-        #         if self.wCheckBaselineFrameMedian.value:
-        #             base = np.median(base[frame_slice], 0)
-        #         else:
-        #             base = base[frame_slice.start]
-        #         y -= base[None, None, :] + self.wTextBaselineOffset.value
-        # return y
 
     @property
     def central_wl(self):
@@ -648,23 +612,9 @@ class WidgetBase():
 
         if self.wIntSliderSmooth.value is not 0:
             ret = medfilt(ret, (1, self.wIntSliderSmooth.value))
-        # ret =  self._sub_baseline(self.data.data)[pp_delay_index, :, :, :]
 
-        # # We don't want to see multiple frame slices
-        # # Its either one specific frame, or the median.
-        # if self.wCheckFrameMedian.value:
-        #     ret = np.median(ret[frame_slice], FRAME_AXIS_INDEX)
-        # else:
-        #     ret = ret[
-        #         frame_slice.start,
-        #         :,
-        #         :
-        #     ]
-        # ret = ret[y_slice, :]
-        # # Must be done here, because it works only on 2d data.
-        # # TODO I could use the not 2d version
-        # if self.wIntSliderSmooth.value != 1:
-        #     ret = medfilt2d(ret, (1, self.wIntSliderSmooth.value))
+        if self.wToggleSubBaseline.value:
+            ret -= self.y_base.T
         return ret.T
 
     @property
@@ -680,20 +630,21 @@ class WidgetBase():
         spec_slice = _rangeSlider_to_slice(
             self.wRangeSliderBaselineSpec
         )
-        ret = self.data_base
-        if self.wCheckBaselineFrameMedian.value:
-            data = self.data_base[
-                self.wSliderBaselinePPDelay.value,
+        if self.wCheckBaselineMedian.value:
+            y = self.data_base[
+                :,
                 frame_slice,
                 spec_slice,
                 :]
-            y = np.median(data, 0) + self.wTextBaselineOffset.value
+            y = np.median(y, 0)
+            y = np.median(y, 0)
         else:
             y = self.data_base[
                     self.wSliderBaselinePPDelay.value,
                     frame_slice.start,
                     spec_slice,
-                    :] + self.wTextBaselineOffset.value
+                    :]
+        y = y + self.wTextBaselineOffset.value
         return y.T
 
     #TODO Remove this
@@ -703,7 +654,7 @@ class WidgetBase():
         if 'pp_delays' in self.wDropSumAxis.value:
             return self.data.pp_delays
         elif 'frames' in self.wDropSumAxis.value:
-            return np.arange(self.data.frames)
+            return np.arange(self.data.number_of_frames)
         raise NotImplementedError('got %s for wDropSumAxis' % self.wDropSumAxis.value)
 
     #TODO split up in two methods. One for pp_delays and one for frames
@@ -716,7 +667,7 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.wSliderPPDelay.value == pp_delays)[0][0]
 
-        y = self._sub_baseline(self.data.data)
+        y = self._sub_baseline()
         y = y[:, :, y_slice, x_slice]
 
         if 'pp_delays' in self.wDropSumAxis.value:
@@ -736,7 +687,10 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.wSliderPPDelay.value == pp_delays)[0][0]
 
-        y = self._sub_baseline(self.data.data)
+        if self.wToggleSubBaseline.value:
+            y = self._sub_baseline()
+        else:
+            y = self.data.data
         y = y[:, :, y_slice, x_slice]
 
         if 'pp_delays' in self.wDropSumAxis.value:
@@ -1271,6 +1225,7 @@ class PumpProbe(Dashboard):
             return
 
         w0, w1, w2, *_ = self.widgets
+        raise NotImplemented("I need to fix this.")
         spec = w0._sub_baseline(w0.data.data)
         #TODO add frame_med filter here.
         ir = np.ones_like(spec) * w1.y_sepc.T
