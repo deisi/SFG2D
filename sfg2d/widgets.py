@@ -97,9 +97,10 @@ class WidgetBase():
         )
 
         # Checkbox to toggle the visibility of raw spectra data
-        self.wCheckShowSpectra = wi.Checkbox(
+        self.wDropShowSpectra = wi.Dropdown(
+            options=["Raw", "Normalized", "None"],
             description='Spectra',
-            value=True,
+            value="Raw",
         )
 
         # Checkbox to toggle the visibility of the baseline data
@@ -112,12 +113,6 @@ class WidgetBase():
         self.wCheckShowBleach = wi.Checkbox(
             description='Bleach',
             value=True,
-        )
-
-        # Checkbox to toggle between view of normalized and rawdata
-        self.wCheckShowNormalized = wi.Checkbox(
-            description='Normalized',
-            value=False,
         )
 
         # Slider to select the width of the smoothing kernel
@@ -253,11 +248,10 @@ class WidgetBase():
                 wi.HBox([
                     wi.VBox([
                         self.wToggleSubBaseline,
-                        self.wCheckShowSpectra,
+                        self.wDropShowSpectra,
                         self.wCheckShowBaseline,
                         self.wCheckShowBleach,
                         self.wCheckAutoscale,
-                        self.wCheckShowNormalized,
                     ]),
                     self.wSelectFile,
                     self.wSelectBaseFile,
@@ -326,8 +320,7 @@ class WidgetBase():
             self.wToggleSubBaseline,
             self.wCheckShowBaseline,
             self.wCheckShowBleach,
-            self.wCheckShowSpectra,
-            self.wCheckShowNormalized,
+            self.wDropShowSpectra,
             self.wSliderBaselinePPDelay,
             self.wRangeSliderBaselineFrame,
             self.wRangeSliderBaselineSpec,
@@ -410,6 +403,8 @@ class WidgetBase():
         if self.wIntTextPumped.value == self.wIntTextUnpumped.value:
             self.wIntTextUnpumped.value += 1
 
+        self.wDropShowSpectra.value = "Raw"
+
         self._toggle_central_wl()
         self._toggle_vis_wl()
         self._toggle_sum_over()
@@ -436,9 +431,6 @@ class WidgetBase():
         self.wDropdownCalib.observe(self._toggle_vis_wl, 'value')
         self.wDropdownCalib.observe(self._toggle_central_wl, 'value')
         self.wSelectBaseFile.observe(self._on_base_changed, 'value')
-        self.wIntTextPumped.observe(self.y_bleach_renew, "value")
-        self.wIntTextUnpumped.observe(self.y_bleach_renew, "value")
-        self.wDropdownOperator.observe(self.y_bleach_renew, "value")
         self.wDropdownCalib.observe(self.x_spec_renew, "value")
         self.wTextCentralWl.observe(self.x_spec_renew, "value")
         self.wTextVisWl.observe(self.x_spec_renew, "value")
@@ -499,8 +491,8 @@ class WidgetBase():
         """Update the internal data objects.
 
         The internal data objects are updated according to
-        *WidgetBase.wTextFolder.value* and *WidgetBase.wSelectFile.value*.
-        The *WidgetBase._central_wl* property gets reseted, and child
+        `WidgetBase.wTextFolder.value` and `WidgetBase.wSelectFile.value`.
+        The `WidgetBase._central_wl` property gets reseted, and child
         widget elements, like e.g. WidgetBase.wSliderPPDelay are checked for
         correctness and reseted."""
         fname = self.wTextFolder.value + "/" + self.wSelectFile.value
@@ -535,17 +527,6 @@ class WidgetBase():
         self._configure_widgets()
         self._init_figure_observers()
         self._update_figure()
-
-    def y_bleach_renew(self, new=None):
-        """Recalculate bleach data according to gui setup."""
-        self.data._bleach = self.data.get_bleach(
-            self.wIntTextPumped.value,
-            self.wIntTextUnpumped.value
-        )
-        self.data._bleach_rel = self.data.get_bleach_rel(
-            self.wIntTextPumped.value,
-            self.wIntTextUnpumped.value
-        )
 
     def x_spec_renew(self, new={}):
         """Renew calibration according to gui."""
@@ -611,10 +592,10 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.wSliderPPDelay.value == pp_delays)[0][0]
 
-        #if self.wCheckShowNormalized.value:
-        #    ret = self.data.get_normalized()
+        if self.wDropShowSpectra.value == "Normalized":
+            ret = self.data.get_normalized(use_rawData=True)
 
-        if self.wToggleSubBaseline.value:
+        elif self.wToggleSubBaseline.value:
             # Keep the old baseline if we cant set it.
             try:
                 self.data.base = self.y_base.T
@@ -760,9 +741,15 @@ class WidgetBase():
 
         y_slice_inds = self.wIntTextPumped.value, self.wIntTextUnpumped.value
         if self.wDropdownOperator.value == "-":
-            data = self.data.bleach
-        if self.wDropdownOperator.value == "/":
-            data = self.data.bleach_rel
+            data = self.data.get_bleach(
+                self.wIntTextPumped.value,
+                self.wIntTextUnpumped.value
+            )
+        elif self.wDropdownOperator.value == "/":
+            data = self.data.get_bleach_rel(
+                self.wIntTextPumped.value,
+                self.wIntTextUnpumped.value
+            )
         # bleach data is 3d with[pp_delay, frame, x_pixel]
 
         pp_delays = getattr(self.data, 'pp_delays')
@@ -834,7 +821,7 @@ class WidgetFigures():
             ax.set_ylim(*self._ax_ylim)
 
     def plot_spec(self, ax):
-        if self.wCheckShowSpectra.value:
+        if self.wDropShowSpectra.value != "None":
             lines = ax.plot(self.x_spec, self.y_spec)
             _set_rangeSlider_num_to_label(
                 lines, self.wIntRangeSliderPixelY, "Spec"
