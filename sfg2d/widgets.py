@@ -99,19 +99,25 @@ class WidgetBase():
         # Checkbox to toggle the visibility of raw spectra data
         self.wCheckShowSpectra = wi.Checkbox(
             description='Spectra',
-            value=True
+            value=True,
         )
 
         # Checkbox to toggle the visibility of the baseline data
         self.wCheckShowBaseline = wi.Checkbox(
             description='Baseline',
-            value=True
+            value=True,
         )
 
         # Checkbox to toggle the visibility of bleach data
         self.wCheckShowBleach = wi.Checkbox(
             description='Bleach',
-            value=True
+            value=True,
+        )
+
+        # Checkbox to toggle between view of normalized and rawdata
+        self.wCheckShowNormalized = wi.Checkbox(
+            description='Normalized',
+            value=False,
         )
 
         # Slider to select the width of the smoothing kernel
@@ -245,8 +251,16 @@ class WidgetBase():
                 wi.Label("Data:"),
                 folder_box,
                 wi.HBox([
-                    wi.VBox([self.wToggleSubBaseline, self.wCheckShowBaseline, self.wCheckAutoscale,]),
-                    self.wSelectFile, self.wSelectBaseFile,
+                    wi.VBox([
+                        self.wToggleSubBaseline,
+                        self.wCheckShowSpectra,
+                        self.wCheckShowBaseline,
+                        self.wCheckShowBleach,
+                        self.wCheckAutoscale,
+                        self.wCheckShowNormalized,
+                    ]),
+                    self.wSelectFile,
+                    self.wSelectBaseFile,
                 ]),
             ],
             layout=wi.Layout(margin = '2px 0px 16px 0px')
@@ -313,6 +327,7 @@ class WidgetBase():
             self.wCheckShowBaseline,
             self.wCheckShowBleach,
             self.wCheckShowSpectra,
+            self.wCheckShowNormalized,
             self.wSliderBaselinePPDelay,
             self.wRangeSliderBaselineFrame,
             self.wRangeSliderBaselineSpec,
@@ -549,16 +564,12 @@ class WidgetBase():
                 self.data._wavenumber = self.data.get_wavenumber(vis_wl)
 
     def _sub_baseline(self):
-        spec_slice = _rangeSlider_to_slice(self.wRangeSliderBaselineSpec)
-        num_of_spec = spec_slice.stop - spec_slice.start
-        if num_of_spec is not 1 and \
-           num_of_spec is not self.data.number_of_spectra:
-            msg = "Cant set new background data, because shapes don't match.\n"
-            msg += "Keeping old background data."
-            warnings.warn(msg)
-            return self.data.sub_base()
-        base = self.y_base.T
-        self.data.base = base
+        # Keep old baseline if new is invalid.
+        try:
+            base = self.y_base.T
+            self.data.base = base
+        except ValueError:
+            pass
         return self.data.sub_base()
 
     @property
@@ -600,11 +611,26 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.wSliderPPDelay.value == pp_delays)[0][0]
 
-        ret = self.data.data[
-            pp_delay_index,
-            frame_slice,
-            y_slice,
-        ]
+        #if self.wCheckShowNormalized.value:
+        #    ret = self.data.get_normalized()
+
+        if self.wToggleSubBaseline.value:
+            # Keep the old baseline if we cant set it.
+            try:
+                self.data.base = self.y_base.T
+            except ValueError:
+                pass
+            ret = self.data.get_baselinesubed()
+
+        else:
+            ret = self.data.rawData
+
+        ret = ret[
+                pp_delay_index,
+                frame_slice,
+                y_slice,
+              ]
+
         if self.wCheckFrameMedian.value:
             ret = np.median(ret, FRAME_AXIS_INDEX)
         else:
@@ -613,8 +639,6 @@ class WidgetBase():
         if self.wIntSliderSmooth.value is not 0:
             ret = medfilt(ret, (1, self.wIntSliderSmooth.value))
 
-        if self.wToggleSubBaseline.value:
-            ret -= self.y_base.T
         return ret.T
 
     @property
@@ -894,7 +918,7 @@ class SpecAndBase(WidgetBase, WidgetFigures):
         """Is called on all gui element changes.
 
         This function renders the plot. When ever you want to make changes
-        visible in the figure you need to run this."""
+        visible in the figure you need to call this."""
         self._init_figure()
         ax = self.axes[0]
         ax.clear()
@@ -909,6 +933,7 @@ class SpecAndBase(WidgetBase, WidgetFigures):
         self.redraw_figure()
 
 
+# TODO Find Better name
 class SpecAndSummed(WidgetBase, WidgetFigures):
     def __init__(self, central_wl=None, vis_wl=810, figsize=(10, 4), **kwargs):
         """Plotting gui based on the SfgRecord class as a data backend.
@@ -956,6 +981,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
                 self.wVBoxData,
                 self.wVBoxSignal,
                 self.wVBoxBaseline,
+                self.wHBoxBleach,
                 wi.HBox([self.wDropdownCalib, self.wTextCentralWl, self.wTextVisWl]),
                 self.wDropSumAxis,
         ])
@@ -969,6 +995,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
         ax.clear()
         self.plot_spec(ax)
         self.plot_base(ax)
+        self.plot_bleach(ax)
         ax.vlines(self.x_vlines, *ax.get_ylim(),
                   linestyle="dashed")
         ax.set_xticklabels(ax.get_xticks(), fontsize=fontsize)
@@ -992,9 +1019,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
 
         self.redraw_figure()
 
-
-
-# TODO Find Better name
+# I think this is bad class structure here.
 class Normalized(SpecAndSummed):
     """Widget to visualize data after normalization."""
     def __init__(self, **kwargs):
@@ -1005,10 +1030,8 @@ class Normalized(SpecAndSummed):
         super()._init_widget()
         self.wCheckShowBaseline.value = False
         self.children = wi.VBox([
-            #self.w_reload,
             wi.HBox([self.wSliderPPDelay, self.wIntSliderSmooth, self.wCheckAutoscale]),
             wi.HBox([self.wRangeSliderFrame, self.wIntRangeSliderPixelY, self.wIntRangeSliderPixelX, self.wCheckFrameMedian,
-                  #self.wIntRangeSliderPixelX
             ]),
             wi.HBox([self.wDropdownCalib, self.wDropSumAxis]),
             self.wTextCentralWl, self.wTextVisWl,
@@ -1096,25 +1119,6 @@ class Bleach(WidgetBase, WidgetFigures):
         folder_box = wi.HBox([wi.Label("Folder",
                               layout=wi.Layout(margin='0px 123px 0px 0px'))
                               , self.wTextFolder])
-        self.wVBoxData = wi.VBox(
-            [
-                wi.Label("Data:"),
-                folder_box,
-                wi.HBox([
-                    wi.VBox([
-                        self.wToggleSubBaseline,
-                        self.wCheckShowSpectra,
-                        self.wCheckShowBaseline,
-                        self.wCheckShowBleach,
-                        self.wCheckAutoscale,
-                    ]),
-                    self.wSelectFile,
-                    self.wSelectBaseFile,
-                ]),
-            ],
-            layout=wi.Layout(margin = '2px 0px 16px 0px')
-        )
-
         self.children = wi.VBox([
                 self.wVBoxData,
                 self.wVBoxSignal,
@@ -1221,22 +1225,22 @@ class PumpProbe(Dashboard):
     def _on_normalize(self, new):
         if debug:
             print("Normalize._on_normalize called.")
-        if not self._is_normalizable:
-            return
+        #if not self._is_normalizable:
+        #    return
 
-        w0, w1, w2, *_ = self.widgets
-        raise NotImplemented("I need to fix this.")
-        spec = w0._sub_baseline(w0.data.data)
+        w0, w1, *_ = self.widgets
+        w0.data.norm = w1.y_spec.T
+        #spec = w0._sub_baseline()
         #TODO add frame_med filter here.
-        ir = np.ones_like(spec) * w1.y_sepc.T
+        #ir = np.ones_like(spec) * w1.y_sepc.T
 
-        w2.data = w0.data.copy()
-        w2.data.data = spec/ir
-        w2._unobserve_figure()
-        if self.w_tabs.selected_index is 2:
-            w2._update_figure()
-        w2._configure_widgets()
-        w2._init_figure_observers()
+        #w2.data = w0.data.copy()
+        #w2.data.data = spec/ir
+        #w2._unobserve_figure()
+        #if self.w_tabs.selected_index is 2:
+        #    w2._update_figure()
+        #w2._configure_widgets()
+        #w2._init_figure_observers()
 
     @property
     def _is_normalizable(self):
