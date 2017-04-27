@@ -126,13 +126,13 @@ class WidgetBase():
         )
 
         # Slider to select the visible y-pixel/spectra range
-        self.wIntRangeSliderPixelY = wi.IntRangeSlider(
-            continuous_update=False, description="y_pixels"
+        self.wIntRangeSliderPixelY = IntRangeSliderGap(
+            continuous_update=True, description="y_pixels"
         )
 
         # Slider to select the x-pixel range used within traces
-        self.wIntRangeSliderPixelX = wi.IntRangeSlider(
-            continuous_update=False, description="x_pixels",
+        self.wIntRangeSliderPixelX = IntRangeSliderGap(
+            continuous_update=True, description="x_pixels",
             max = PIXEL, value=(int(PIXEL*0.25), int(PIXEL*0.75)),
         )
 
@@ -163,8 +163,8 @@ class WidgetBase():
         )
 
         # Slider to select range of frames used for median calculation.
-        self.wRangeSliderFrame = wi.IntRangeSlider(
-            continuous_update=False, description="frame"
+        self.wRangeSliderFrame = IntRangeSliderGap(
+            continuous_update=True, description="frame"
         )
 
         # Checkbox to toggle the frame wise calculation of a median spectrum.
@@ -178,8 +178,8 @@ class WidgetBase():
         )
 
         # Slider to select frames for median calculation.
-        self.wRangeSliderBaselineFrame = wi.IntRangeSlider(
-            description='frame', continuous_update=False
+        self.wRangeSliderBaselineFrame = IntRangeSliderGap(
+            description='frame', continuous_update=True
         )
 
         # Checkbox to toggle the calculation of a frame wise median of then
@@ -189,8 +189,8 @@ class WidgetBase():
         )
 
         # Slider to select the visible baseline y-pixel/spectra
-        self.wRangeSliderBaselineSpec = wi.IntRangeSlider(
-            description='spectrum', continuous_update=False
+        self.wRangeSliderBaselineSpec = IntRangeSliderGap(
+            description='spectrum', continuous_update=True
         )
 
         # Select the x-axis of the summed plot.
@@ -1291,8 +1291,7 @@ def _slider_range_to_slice(range_value_tuple, max):
 
 def _rangeSlider_to_slice(rangedSlider):
     """Get a slice from a ranged slider."""
-    res = _slider_range_to_slice(rangedSlider.value, rangedSlider.max)
-    return res
+    return slice(*rangedSlider.value)
 
 def to_slice(attribute):
     # This can be used as a decorator, to get slices from Rangedwidgets
@@ -1320,4 +1319,30 @@ def _set_rangeSlider_num_to_label(lines, rangeSlider, label_base=""):
         # while i can start from any number
         line = lines[i - y_slice.start]
         line.set_label(label)
+
+try:
+    from traitlets import validate
+    from ipywidgets import IntRangeSlider
+
+    class IntRangeSliderGap(IntRangeSlider):
+        @validate('value')
+        def enforce_gap(self, proposal):
+            gap=1
+            min, max = proposal.value
+            oldmin, oldmax = self.value
+
+            if min == self.max:
+                min -= 1
+
+            if (max-min) < gap:
+                if oldmin == min:
+                    # max changed
+                    max = min + gap
+                else:
+                    min = max - gap
+            return (min, max)
+except ImportError:
+    pass
 #### End of helper functions
+
+
