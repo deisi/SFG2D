@@ -202,7 +202,7 @@ class SfgRecord():
         return self.data.shape[FRAME_AXIS_INDEX]
 
     @property
-    def numer_of_frames(self):
+    def number_of_frames(self):
         """Number of frames"""
         return self.data.shape[FRAME_AXIS_INDEX]
 

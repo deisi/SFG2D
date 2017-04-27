@@ -75,43 +75,34 @@ class WidgetBase():
 
         # Widget to enter a folder path as string
         self.wTextFolder = wi.Text(
-            layout = wi.Layout(width='80%'),
+            layout = wi.Layout(width='90%'),
         )
 
         # Selection dialogue to select data from a list of files
         self.wSelectFile = wi.Select(
-            descripion='Files',
-            layout = wi.Layout(width='100%'),
+            layout = wi.Layout(width='41%'),
         )
 
         # Selection dialogue to select baseline data from a list of files
         self.wSelectBaseFile = wi.Select(
-            description='Base',
-            layout=self.wSelectFile.layout,
+            layout = wi.Layout(width='42%'),
         )
 
         # Toggle button to toggle the subtraction of the baseline data
         self.wToggleSubBaseline = wi.ToggleButton(
             description='Sub Baseline',
-            layout=wi.Layout(width='70%'),
-        )
-
-        # Checkbox to toggle the visibility of raw spectra data
-        self.wCheckShowSpectra = wi.Checkbox(
-            description='Spectra',
-            value=True
         )
 
         # Checkbox to toggle the visibility of the baseline data
         self.wCheckShowBaseline = wi.Checkbox(
             description='Baseline',
-            value=True
+            value=True,
         )
 
         # Checkbox to toggle the visibility of bleach data
         self.wCheckShowBleach = wi.Checkbox(
             description='Bleach',
-            value=True
+            value=True,
         )
 
         # Slider to select the width of the smoothing kernel
@@ -148,13 +139,15 @@ class WidgetBase():
         # Textbox to enter central wavelength of the camera in nm
         self.wTextCentralWl = wi.FloatText(
             description='central wl', value=self.central_wl,
-            layout=wi.Layout(width='10%', margin='2px 50px 2px 0px')
+            layout=wi.Layout(
+                width='180px',
+            ),
         )
 
         # Dropdown menu to select x-axis calibration.
         self.wDropdownCalib = wi.Dropdown(
             description='x-axis', options=['pixel', 'nm', 'wavenumber'],
-            layout=wi.Layout(width='60px', margin = "0px 130px 0px 0px"),
+            layout=self.wTextCentralWl.layout,
         )
 
         # Textbox to enter the wavelength of the upconversion photon
@@ -191,7 +184,7 @@ class WidgetBase():
 
         # Checkbox to toggle the calculation of a frame wise median of then
         # baseline.
-        self.wCheckBaselineFrameMedian = wi.Checkbox(
+        self.wCheckBaselineMedian = wi.Checkbox(
             description='median', value=False
         )
 
@@ -204,13 +197,13 @@ class WidgetBase():
         self.wDropSumAxis = wi.Dropdown(
             description='sum x-axis',
             options=('pp_delays', 'frames'),
-            layout=wi.Layout(width='60px'),
+            layout=self.wTextCentralWl.layout,
         )
 
         # Textbox to enter an additional constant offset to the baseline.
         self.wTextBaselineOffset = wi.FloatText(
             description='Offset', value=0,
-            layout=wi.Layout(widht = "10px"),
+            layout=wi.Layout(width='180px'),
         )
 
         # Textbox to enter the index of the pumped spectrum.
@@ -218,7 +211,8 @@ class WidgetBase():
             value=0,
             min=0,
             max=400, # Number of spectra/ypixels
-            description='Pumped:'
+            description='Pumped:',
+            layout=wi.Layout(width='180px'),
         )
 
         # Textbox to enter the index of the unpumped spectrum.
@@ -227,35 +221,45 @@ class WidgetBase():
             min=0,
             max=400,
             description='Unpumped:',
+            layout=self.wIntTextPumped.layout,
         )
 
         # Select operation to calculate bleach with.
         self.wDropdownOperator = wi.Dropdown(
             value = "-",
             options = ["-", "/"],
-            description = "Operator"
+            description = "Operator",
+            layout=self.wIntTextPumped.layout,
+        )
+
+        # Checkbox to toggle the visibility of raw spectra data
+        self.wDropShowSpectra = wi.Dropdown(
+            options=["Raw", "Normalized", "None"],
+            description='Spectra',
+            value="Raw",
+            layout=self.wTextCentralWl.layout,
         )
 
         ### Aligning boxers ###
-        folder_box = wi.HBox([wi.Label("Folder",
-                              layout=wi.Layout(margin='0px 123px 0px 0px'))
-                              , self.wTextFolder])
-        self.wVBoxData = wi.VBox(
-            [
-                wi.Label("Data:"),
-                folder_box,
-                wi.HBox([
-                    wi.VBox([self.wToggleSubBaseline, self.wCheckShowBaseline, self.wCheckAutoscale,]),
-                    self.wSelectFile, self.wSelectBaseFile,
-                ]),
-            ],
-            layout=wi.Layout(margin = '2px 0px 16px 0px')
-        )
-        #self.wVBoxData.border = '1px black solid'
+        folder_box = wi.HBox([
+            wi.Label("Folder"),
+            self.wTextFolder,
+        ])
+        self.wVBoxData = wi.VBox([
+            folder_box,
+            wi.HBox([
+                wi.Label('File'),
+                self.wSelectFile,
+                wi.Label(
+                    'Base',
+                    layout=wi.Layout(margin='0px 0px 10px 10px'),
+                ),
+                self.wSelectBaseFile,
+            ]),
+        ])
 
         self.wVBoxSignal = wi.VBox(
             [
-                wi.Label("Spectrum:"),
                 wi.HBox([
                     self.wSliderPPDelay,
                     self.wIntSliderSmooth,
@@ -266,35 +270,37 @@ class WidgetBase():
                     self.wIntRangeSliderPixelY,
                     self.wIntRangeSliderPixelX
                 ]),
+                self.wToggleSubBaseline,
             ],
-            layout=self.wVBoxData.layout
         )
-        #self.wVBoxSignal.border = "1px black solid"
 
         self.wHBoxBleach = wi.HBox(
             [
-                wi.Label("Bleach:"),
                 self.wIntTextPumped,
                 self.wDropdownOperator,
                 self.wIntTextUnpumped,
             ],
-            layout=self.wVBoxData.layout
         )
 
 
         self.wVBoxBaseline = wi.VBox(
             [
-                wi.Label("Baseline:"),
                 wi.HBox([
                     self.wSliderBaselinePPDelay,
                     self.wRangeSliderBaselineFrame,
                     self.wRangeSliderBaselineSpec,
-                    self.wCheckBaselineFrameMedian,
+                    self.wCheckBaselineMedian,
                 ]),
                 self.wTextBaselineOffset
             ],
-            layout=self.wVBoxData.layout
         )
+
+        # Accordions from boxes
+        self.wAccordionData = wi.Accordion(children = [self.wVBoxData, self.wVBoxSignal, self.wVBoxBaseline, self.wHBoxBleach])
+        self.wAccordionData.set_title(0, 'Data')
+        self.wAccordionData.set_title(1, 'Spectrum')
+        self.wAccordionData.set_title(2, 'Baseline')
+        self.wAccordionData.set_title(3, 'Bleach')
 
         # List of widgets that update the figure on value change
         self._figure_widgets = [
@@ -312,11 +318,11 @@ class WidgetBase():
             self.wToggleSubBaseline,
             self.wCheckShowBaseline,
             self.wCheckShowBleach,
-            self.wCheckShowSpectra,
+            self.wDropShowSpectra,
             self.wSliderBaselinePPDelay,
             self.wRangeSliderBaselineFrame,
             self.wRangeSliderBaselineSpec,
-            self.wCheckBaselineFrameMedian,
+            self.wCheckBaselineMedian,
             self.wDropSumAxis,
             self.wTextBaselineOffset,
             self.wIntTextPumped,
@@ -395,6 +401,8 @@ class WidgetBase():
         if self.wIntTextPumped.value == self.wIntTextUnpumped.value:
             self.wIntTextUnpumped.value += 1
 
+        self.wDropShowSpectra.value = "Raw"
+
         self._toggle_central_wl()
         self._toggle_vis_wl()
         self._toggle_sum_over()
@@ -421,9 +429,6 @@ class WidgetBase():
         self.wDropdownCalib.observe(self._toggle_vis_wl, 'value')
         self.wDropdownCalib.observe(self._toggle_central_wl, 'value')
         self.wSelectBaseFile.observe(self._on_base_changed, 'value')
-        self.wIntTextPumped.observe(self.y_bleach_renew, "value")
-        self.wIntTextUnpumped.observe(self.y_bleach_renew, "value")
-        self.wDropdownOperator.observe(self.y_bleach_renew, "value")
         self.wDropdownCalib.observe(self.x_spec_renew, "value")
         self.wTextCentralWl.observe(self.x_spec_renew, "value")
         self.wTextVisWl.observe(self.x_spec_renew, "value")
@@ -471,7 +476,7 @@ class WidgetBase():
             self.wTextCentralWl.disabled = False
 
     def _toggle_sum_over(self, new=None):
-        if self.data.frames is 1:
+        if self.data.number_of_frames is 1:
             self.wDropSumAxis.value = "pp_delays"
             self.wDropSumAxis.disabled = True
             return
@@ -485,8 +490,8 @@ class WidgetBase():
         """Update the internal data objects.
 
         The internal data objects are updated according to
-        *WidgetBase.wTextFolder.value* and *WidgetBase.wSelectFile.value*.
-        The *WidgetBase._central_wl* property gets reseted, and child
+        `WidgetBase.wTextFolder.value` and `WidgetBase.wSelectFile.value`.
+        The `WidgetBase._central_wl` property gets reseted, and child
         widget elements, like e.g. WidgetBase.wSliderPPDelay are checked for
         correctness and reseted."""
         fname = self.wTextFolder.value + "/" + self.wSelectFile.value
@@ -524,17 +529,6 @@ class WidgetBase():
         self._init_figure_observers()
         self._update_figure()
 
-    def y_bleach_renew(self, new=None):
-        """Recalculate bleach data according to gui setup."""
-        self.data._bleach = self.data.get_bleach(
-            self.wIntTextPumped.value,
-            self.wIntTextUnpumped.value
-        )
-        self.data._bleach_rel = self.data.get_bleach_rel(
-            self.wIntTextPumped.value,
-            self.wIntTextUnpumped.value
-        )
-
     def x_spec_renew(self, new={}):
         """Renew calibration according to gui."""
         cw = self.wTextCentralWl.value
@@ -552,42 +546,21 @@ class WidgetBase():
                 self.data._wavenumber = self.data.get_wavenumber(vis_wl)
 
     #TODO restet to set_baseline
-    def _sub_baseline(self, **kwargs):
-        """Substraction of the baseline"""
-        pp_delay_index = self.wSliderBaselinePPDelay.value
-        frame_slice = _rangeSlider_to_slice(self.wRangeSliderBaselineFrame)
-        spec_slice = _rangeSlider_to_slice(self.wRangeSliderBaselineSpec)
-        num_of_spec = spec_slice.stop - spec_slice.start
-        base = self.data_base[self.wSliderBaselinePPDelay.value]
-        if self.wCheckBaselineFrameMedian.value:
-            base = np.median(base, FRAME_AXIS_INDEX)
-        else:
-            base = base[frame_slice.start]
-        if self.wIntSliderSmoothBase.value != 1:
-            base = medfilt(base, (1, self.wIntSliderSmoothBase.value))
-        if num_of_spec is not 1 and \
-           num_of_spec is not self.data.number_of_spectra and \
-           base.shape[0] is not self.data.number_of_spectra:
-            warnings.warn(
-                "Cant substitute background from data, because shapes don't match."\
-                "Baseline shape: %s\ndata shape: %s"%(base.shape, self.data.data.shape)
-            )
-            return self.data.data
-        if num_of_spec is 1 or \
-           num_of_spec is self.data.number_of_spectra:
-            base = base[spec_slice]
-
-        self.data.base = base
-        #TODO make shure this is only run if needed.
-        return self.data.sub_base(**kwargs)
-
     def on_subBaseline_toggled(self, new={}):
         """Callback function for the baseline toggle."""
         if self.wToggleSubBaseline.value:
-            self._sub_baseline(inplace=True, use_rawData=True)
+            self._sub_baseline()
         else:
             self.data.data = self.data.rawData
 
+    def _sub_baseline(self):
+        # Keep old baseline if new is invalid.
+        try:
+            base = self.y_base.T
+            self.data.base = base
+        except ValueError:
+            pass
+        return self.data.sub_base()
 
     @property
     def central_wl(self):
@@ -628,13 +601,26 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.wSliderPPDelay.value == pp_delays)[0][0]
 
-        ret = self.data.data
+        if self.wDropShowSpectra.value == "Normalized":
+            ret = self.data.get_normalized(use_rawData=True)
+
+        elif self.wToggleSubBaseline.value:
+            # Keep the old baseline if we cant set it.
+            try:
+                self.data.base = self.y_base.T
+            except ValueError:
+                pass
+            ret = self.data.get_baselinesubed()
+
+        else:
+            ret = self.data.rawData
 
         ret = ret[
-            pp_delay_index,
-            frame_slice,
-            y_slice,
-        ]
+                pp_delay_index,
+                frame_slice,
+                y_slice,
+              ]
+
         if self.wCheckFrameMedian.value:
             ret = np.median(ret, FRAME_AXIS_INDEX)
         else:
@@ -657,20 +643,21 @@ class WidgetBase():
         spec_slice = _rangeSlider_to_slice(
             self.wRangeSliderBaselineSpec
         )
-        ret = self.data_base
-        if self.wCheckBaselineFrameMedian.value:
-            data = self.data_base[
-                self.wSliderBaselinePPDelay.value,
+        if self.wCheckBaselineMedian.value:
+            y = self.data_base[
+                :,
                 frame_slice,
                 spec_slice,
                 :]
-            y = np.median(data, 0) + self.wTextBaselineOffset.value
+            y = np.median(y, 0)
+            y = np.median(y, 0)
         else:
             y = self.data_base[
                     self.wSliderBaselinePPDelay.value,
                     frame_slice.start,
                     spec_slice,
-                    :] + self.wTextBaselineOffset.value
+                    :]
+        y = y + self.wTextBaselineOffset.value
         return y.T
 
     #TODO Remove this
@@ -680,7 +667,7 @@ class WidgetBase():
         if 'pp_delays' in self.wDropSumAxis.value:
             return self.data.pp_delays
         elif 'frames' in self.wDropSumAxis.value:
-            return np.arange(self.data.frames)
+            return np.arange(self.data.number_of_frames)
         raise NotImplementedError('got %s for wDropSumAxis' % self.wDropSumAxis.value)
 
     #TODO split up in two methods. One for pp_delays and one for frames
@@ -693,7 +680,7 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.wSliderPPDelay.value == pp_delays)[0][0]
 
-        y = self.data.data
+        y = self._sub_baseline()
         y = y[:, :, y_slice, x_slice]
 
         if 'pp_delays' in self.wDropSumAxis.value:
@@ -713,7 +700,10 @@ class WidgetBase():
         pp_delay_index = np.where(
             self.wSliderPPDelay.value == pp_delays)[0][0]
 
-        y = self.data.data
+        if self.wToggleSubBaseline.value:
+            y = self._sub_baseline()
+        else:
+            y = self.data.data
         y = y[:, :, y_slice, x_slice]
 
         if 'pp_delays' in self.wDropSumAxis.value:
@@ -759,9 +749,15 @@ class WidgetBase():
 
         y_slice_inds = self.wIntTextPumped.value, self.wIntTextUnpumped.value
         if self.wDropdownOperator.value == "-":
-            data = self.data.bleach
-        if self.wDropdownOperator.value == "/":
-            data = self.data.bleach_rel
+            data = self.data.get_bleach(
+                self.wIntTextPumped.value,
+                self.wIntTextUnpumped.value
+            )
+        elif self.wDropdownOperator.value == "/":
+            data = self.data.get_bleach_rel(
+                self.wIntTextPumped.value,
+                self.wIntTextUnpumped.value
+            )
         # bleach data is 3d with[pp_delay, frame, x_pixel]
 
         pp_delays = getattr(self.data, 'pp_delays')
@@ -833,7 +829,7 @@ class WidgetFigures():
             ax.set_ylim(*self._ax_ylim)
 
     def plot_spec(self, ax):
-        if self.wCheckShowSpectra.value:
+        if self.wDropShowSpectra.value != "None":
             lines = ax.plot(self.x_spec, self.y_spec)
             _set_rangeSlider_num_to_label(
                 lines, self.wIntRangeSliderPixelY, "Spec"
@@ -917,7 +913,7 @@ class SpecAndBase(WidgetBase, WidgetFigures):
         """Is called on all gui element changes.
 
         This function renders the plot. When ever you want to make changes
-        visible in the figure you need to run this."""
+        visible in the figure you need to call this."""
         self._init_figure()
         ax = self.axes[0]
         ax.clear()
@@ -932,6 +928,7 @@ class SpecAndBase(WidgetBase, WidgetFigures):
         self.redraw_figure()
 
 
+# TODO Find Better name
 class SpecAndSummed(WidgetBase, WidgetFigures):
     def __init__(self, central_wl=None, vis_wl=810, figsize=(10, 4), **kwargs):
         """Plotting gui based on the SfgRecord class as a data backend.
@@ -976,11 +973,19 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
         # self.children is the widget we are rendering up on call.
 
         self.children = wi.VBox([
-                self.wVBoxData,
-                self.wVBoxSignal,
-                self.wVBoxBaseline,
-                wi.HBox([self.wDropdownCalib, self.wTextCentralWl, self.wTextVisWl]),
-                self.wDropSumAxis,
+                self.wAccordionData,
+                wi.HBox([
+                    self.wDropdownCalib,
+                    self.wTextCentralWl,
+                    self.wTextVisWl
+                ]),
+                wi.HBox([
+                    self.wDropSumAxis,
+                    self.wDropShowSpectra,
+                    self.wCheckShowBaseline,
+                    self.wCheckShowBleach,
+                    self.wCheckAutoscale,
+                ])
         ])
 
     def _update_figure(self):
@@ -992,6 +997,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
         ax.clear()
         self.plot_spec(ax)
         self.plot_base(ax)
+        self.plot_bleach(ax)
         ax.vlines(self.x_vlines, *ax.get_ylim(),
                   linestyle="dashed")
         ax.set_xticklabels(ax.get_xticks(), fontsize=fontsize)
@@ -1015,9 +1021,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
 
         self.redraw_figure()
 
-
-
-# TODO Find Better name
+# I think this is bad class structure here.
 class Normalized(SpecAndSummed):
     """Widget to visualize data after normalization."""
     def __init__(self, **kwargs):
@@ -1028,10 +1032,8 @@ class Normalized(SpecAndSummed):
         super()._init_widget()
         self.wCheckShowBaseline.value = False
         self.children = wi.VBox([
-            #self.w_reload,
             wi.HBox([self.wSliderPPDelay, self.wIntSliderSmooth, self.wCheckAutoscale]),
             wi.HBox([self.wRangeSliderFrame, self.wIntRangeSliderPixelY, self.wIntRangeSliderPixelX, self.wCheckFrameMedian,
-                  #self.wIntRangeSliderPixelX
             ]),
             wi.HBox([self.wDropdownCalib, self.wDropSumAxis]),
             self.wTextCentralWl, self.wTextVisWl,
@@ -1116,28 +1118,13 @@ class Bleach(WidgetBase, WidgetFigures):
     def _init_widget(self):
         import ipywidgets as wi
         super()._init_widget()
-        folder_box = wi.HBox([wi.Label("Folder",
-                              layout=wi.Layout(margin='0px 123px 0px 0px'))
-                              , self.wTextFolder])
-        self.wVBoxData = wi.VBox(
-            [
-                wi.Label("Data:"),
-                folder_box,
-                wi.HBox([
-                    wi.VBox([
-                        self.wToggleSubBaseline,
-                        self.wCheckShowSpectra,
-                        self.wCheckShowBaseline,
-                        self.wCheckShowBleach,
-                        self.wCheckAutoscale,
-                    ]),
-                    self.wSelectFile,
-                    self.wSelectBaseFile,
-                ]),
-            ],
-            layout=wi.Layout(margin = '2px 0px 16px 0px')
-        )
-
+        folder_box = wi.HBox([
+            wi.Label(
+                "Folder",
+                #layout=wi.Layout(margin='0px 123px 0px 0px')
+            ),
+            self.wTextFolder
+        ])
         self.children = wi.VBox([
                 self.wVBoxData,
                 self.wVBoxSignal,
@@ -1244,21 +1231,22 @@ class PumpProbe(Dashboard):
     def _on_normalize(self, new):
         if debug:
             print("Normalize._on_normalize called.")
-        if not self._is_normalizable:
-            return
+        #if not self._is_normalizable:
+        #    return
 
-        w0, w1, w2, *_ = self.widgets
-        spec = w0._sub_baseline()
+        w0, w1, *_ = self.widgets
+        w0.data.norm = w1.y_spec.T
+        #spec = w0._sub_baseline()
         #TODO add frame_med filter here.
-        ir = np.ones_like(spec) * w1.y_sepc.T
+        #ir = np.ones_like(spec) * w1.y_sepc.T
 
-        w2.data = w0.data.copy()
-        w2.data.data = spec/ir
-        w2._unobserve_figure()
-        if self.w_tabs.selected_index is 2:
-            w2._update_figure()
-        w2._configure_widgets()
-        w2._init_figure_observers()
+        #w2.data = w0.data.copy()
+        #w2.data.data = spec/ir
+        #w2._unobserve_figure()
+        #if self.w_tabs.selected_index is 2:
+        #    w2._update_figure()
+        #w2._configure_widgets()
+        #w2._init_figure_observers()
 
     @property
     def _is_normalizable(self):
