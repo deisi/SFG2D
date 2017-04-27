@@ -440,7 +440,7 @@ class SfgRecord():
             the constant offset."""
         #TODO catch the case when there is only one spectrum
 
-        # Init needed to prevent inplace overwriting of self.data
+        # needed to prevent inplace overwriting of self.data
         bleach = np.zeros((
             self.number_of_pp_delays,
             self.number_of_spectra,

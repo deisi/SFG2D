@@ -47,6 +47,8 @@ class WidgetBase():
         self._vis_wl = vis_wl
         self._figsize = figsize
         self._figure_widgets = [] # List of widgets that update the figure
+        self._autoscale_buffer = [None, None] # Buffer to save autoscale values with.
+        self._autoscale_buffer_2 = [None, None]
         self.children = [] # List of widgets to display
 
         # Setup all widgets
@@ -122,6 +124,12 @@ class WidgetBase():
         # Checkbox to toggle the Autoscale functionality of matplotlib
         self.wCheckAutoscale = wi.Checkbox(
             description="Autoscale",
+            value=True,
+        )
+
+        # Checkbox to toggle the Autoscale functionality of matplotlib
+        self.wCheckAutoscaleSum = wi.Checkbox(
+            description="Autoscale Sum",
             value=True,
         )
 
@@ -314,6 +322,7 @@ class WidgetBase():
             self.wTextVisWl,
             self.wTextCentralWl,
             self.wCheckAutoscale,
+            self.wCheckAutoscaleSum,
             self.wIntSliderSmooth,
             self.wToggleSubBaseline,
             self.wCheckShowBaseline,
@@ -819,14 +828,6 @@ class WidgetFigures():
                 self._fig.add_subplot(122)
             ]])
 
-    def autoscale(self, ax):
-        if self.wCheckAutoscale.value:
-            self._ax_xlim = ax.get_xlim()
-            self._ax_ylim = ax.get_ylim()
-        if not isinstance(self._ax_xlim, type(None)):
-            ax.set_xlim(*self._ax_xlim)
-        if not isinstance(self._ax_ylim, type(None)):
-            ax.set_ylim(*self._ax_ylim)
 
     def plot_spec(self, ax):
         if self.wDropShowSpectra.value != "None":
@@ -868,15 +869,14 @@ class WidgetFigures():
         for ax in self.axes:
             ax.figure.canvas.draw()
 
-    def _on_xlim_changed(self, new=None):
+    def _on_ax0_lim_changed(self, new=None):
         """Callback for the *Signal* axis."""
-        # Called when the xlim of the *Signal* plot is changed
-        self._ax_xlim = self.axes[0].get_xlim()
+        # Called when the xlim of the `Signal` plot is changed
+        self._autoscale_buffer = _lims2buffer(self.axes[0])
 
-    def _on_ylim_changed(self, new=None):
-        # Called when the ylim of the *Signal* plot is cahnged
-        self._ax_ylim = self.axes[0].get_ylim()
-
+    def _on_ax1_lim_changed(self, new=None):
+        # Called when the ylim of the `Signal` plot is cahnged
+        self._autoscale_buffer_2 = _lims2buffer(self.axes[1])
 
 class SpecAndBase(WidgetBase, WidgetFigures):
     """A widget that allows for selection of a spectrum and baseline plus visualization."""
@@ -922,9 +922,12 @@ class SpecAndBase(WidgetBase, WidgetFigures):
         ax.legend(framealpha=0.5)
         ax.set_xlabel(self.wDropdownCalib.value)
         ax.set_title('Spectrum')
-        ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
-        ax.callbacks.connect('ylim_changed', self._on_ylim_changed)
-        self.autoscale(ax)
+        ax.callbacks.connect('xlim_changed', self._on_ax0_lim_changed)
+        ax.callbacks.connect('ylim_changed', self._on_ax0_lim_changed)
+        if self.wCheckAutoscale.value:
+            self._autoscale_buffer_2 = _lims2buffer(ax)
+        else:
+            _buffer2lims(ax, self._autoscale_buffer_2)
         self.redraw_figure()
 
 
@@ -985,6 +988,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
                     self.wCheckShowBaseline,
                     self.wCheckShowBleach,
                     self.wCheckAutoscale,
+                    self.wCheckAutoscaleSum,
                 ])
         ])
 
@@ -1005,10 +1009,13 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
         #ax.set_title("Signal")
         ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.2e'))
         ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
-        ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
-        ax.callbacks.connect('ylim_changed', self._on_ylim_changed)
+        ax.callbacks.connect('xlim_changed', self._on_ax0_lim_changed)
+        ax.callbacks.connect('ylim_changed', self._on_ax0_lim_changed)
+        if self.wCheckAutoscale.value:
+            self._autoscale_buffer = _lims2buffer(ax)
+        else:
+            _buffer2lims(ax, self._autoscale_buffer)
         ax.legend(framealpha=0.5)
-        self.autoscale(ax)
 
         ax = self.axes[1]
         ax.clear()
@@ -1018,6 +1025,12 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
         ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.3g'))
         ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
         ax.yaxis.tick_right()
+        ax.callbacks.connect('xlim_changed', self._on_ax1_lim_changed)
+        ax.callbacks.connect('ylim_changed', self._on_ax1_lim_changed)
+        if self.wCheckAutoscaleSum.value:
+            self._autoscale_buffer_2 = _lims2buffer(ax)
+        else:
+            _buffer2lims(ax, self._autoscale_buffer_2)
 
         self.redraw_figure()
 
@@ -1142,9 +1155,12 @@ class Bleach(WidgetBase, WidgetFigures):
         self.plot_base(ax)
         self.plot_bleach(ax)
         ax.legend(framealpha=0.5)
-        ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
-        ax.callbacks.connect('ylim_changed', self._on_ylim_changed)
-        self.autoscale(ax)
+        ax.callbacks.connect('xlim_changed', self._on_ax0_lim_changed)
+        ax.callbacks.connect('ylim_changed', self._on_ax0_lim_changed)
+        if self.wCheckAutoscale.value:
+            self._autoscale_buffer_2 = _lims2buffer(ax)
+        else:
+            _buffer2lims(ax, self._autoscale_buffer_2)
 
         self.redraw_figure()
 
@@ -1305,6 +1321,19 @@ def to_slice(attribute):
         return wrapper
     return _to_slice
 
+def _lims2buffer(ax):
+    """Set buffer values according to axis"""
+    buffer = [None, None]
+    buffer[0] = list(ax.get_xlim())
+    buffer[1] = list(ax.get_ylim())
+    return buffer
+
+def _buffer2lims(ax, buffer):
+    if not isinstance(buffer[0], type(None)):
+        ax.set_xlim(*buffer[0])
+    if not isinstance(buffer[1], type(None)):
+        ax.set_ylim(*buffer[1])
+
 def _set_rangeSlider_num_to_label(lines, rangeSlider, label_base=""):
     """Use a rangeSlider, to add rangeSlider values to label_base
 
@@ -1320,29 +1349,26 @@ def _set_rangeSlider_num_to_label(lines, rangeSlider, label_base=""):
         line = lines[i - y_slice.start]
         line.set_label(label)
 
-try:
-    from traitlets import validate
-    from ipywidgets import IntRangeSlider
+from traitlets import validate
+from ipywidgets import IntRangeSlider
 
-    class IntRangeSliderGap(IntRangeSlider):
-        @validate('value')
-        def enforce_gap(self, proposal):
-            gap=1
-            min, max = proposal.value
-            oldmin, oldmax = self.value
+class IntRangeSliderGap(IntRangeSlider):
+    @validate('value')
+    def enforce_gap(self, proposal):
+        gap=1
+        min, max = proposal.value
+        oldmin, oldmax = self.value
 
-            if min == self.max:
-                min -= 1
+        if min == self.max:
+            min -= 1
 
-            if (max-min) < gap:
-                if oldmin == min:
-                    # max changed
-                    max = min + gap
-                else:
-                    min = max - gap
-            return (min, max)
-except ImportError:
-    pass
+        if (max-min) < gap:
+            if oldmin == min:
+                # max changed
+                max = min + gap
+            else:
+                min = max - gap
+        return (min, max)
 #### End of helper functions
 
 
