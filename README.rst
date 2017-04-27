@@ -222,6 +222,25 @@ Jupuyter notebooks and virtualenvs
     
       ln -s /usr/lib/python3.5/site-packages/PyQt4 ~/.virtualenv/sfg2d/lib/python3.5/site-packages/
 
+Officesetup
+-----------
+Requirements are installed into the home folder with pip3 using::
+
+    pip3 install --user --upgrade -r requirements.txt
+    pip3 install --user --upgrade -r requirements_dev.txt
+
+Then created a virtual env with::
+
+    mkvirtualenv --system-site-packages --python=/usr/bin/python3.5 -a ~/sfg2d -r ~/sfg2d/requirements.txt sfg2d
+
+And installed sfg2d from within the virtualenv::
+
+    pip install -e .
+
+Because requirements are installed into the user folder outside of the virtualenv,
+we need to install the javascript nbextensions with::
+
+    jupyter nbextension enable --py --user widgetsnbextension
 
 Description
 -----------
