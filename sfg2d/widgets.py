@@ -6,6 +6,8 @@ from collections import Counter
 
 import numpy as np
 from scipy.signal import medfilt2d, medfilt
+from json import dump, load
+from traitlets import TraitError
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
@@ -240,10 +242,18 @@ class WidgetBase():
             layout=self.wIntTextPumped.layout,
         )
 
-        # Checkbox to toggle the visibility of raw spectra data
+        # Dropdown to toggle the visibility of Raw Normalized or None Spectra
         self.wDropShowSpectra = wi.Dropdown(
             options=["Raw", "Normalized", "None"],
             description='Spectra',
+            value="Raw",
+            layout=self.wTextCentralWl.layout,
+        )
+
+        # Dropdown to toggle the visibility of Summed Spectra
+        self.wDropShowSummed = wi.Dropdown(
+            options=["Raw", "Normalized", "Bleach"],
+            description='Summed',
             value="Raw",
             layout=self.wTextCentralWl.layout,
         )
@@ -328,6 +338,7 @@ class WidgetBase():
             self.wCheckShowBaseline,
             self.wCheckShowBleach,
             self.wDropShowSpectra,
+            self.wDropShowSummed,
             self.wSliderBaselinePPDelay,
             self.wRangeSliderBaselineFrame,
             self.wRangeSliderBaselineSpec,
@@ -338,6 +349,10 @@ class WidgetBase():
             self.wIntTextUnpumped,
             self.wDropdownOperator,
         ]
+
+        # List of widgets that have a changeable state.
+        # Upon saving the gui state these widgets get saved
+        self._state_widgets = [self.wTextFolder, self.wSelectBaseFile] + self._figure_widgets
 
     def _configure_widgets(self):
         """Set all widget options. And default values."""
@@ -409,8 +424,6 @@ class WidgetBase():
         self.wIntTextUnpumped.max = self.wIntTextPumped.max
         if self.wIntTextPumped.value == self.wIntTextUnpumped.value:
             self.wIntTextUnpumped.value += 1
-
-        self.wDropShowSpectra.value = "Raw"
 
         self._toggle_central_wl()
         self._toggle_vis_wl()
@@ -509,11 +522,17 @@ class WidgetBase():
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_observer
-        self._unobserve_figure()
+        # Try needed to allow for double call of this function.
+        try:
+            self._unobserve_figure()
+            keep_figure_unobserved = False
+        except ValueError:
+            keep_figure_unobserved = True
         self._configure_widgets()
         self.on_subBaseline_toggled()
-        self._init_figure_observers()
-        self._update_figure()
+        if not keep_figure_unobserved:
+            self._init_figure_observers()
+            self._update_figure()
 
     def _on_base_changed(self, new):
         """Change the data file of the baseline.
@@ -532,11 +551,19 @@ class WidgetBase():
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_figure_observer
-        self._unobserve_figure()
+        # Try needed to allow for double call of this function.
+        try:
+            # TODO This is hacky, Maybe I can get around this
+            # by using the new dict.
+            keep_figure_unobserved = False
+            self._unobserve_figure()
+        except ValueError:
+            keep_figure_unobserved = True
         self._configure_widgets()
         self.on_subBaseline_toggled()
-        self._init_figure_observers()
-        self._update_figure()
+        if not keep_figure_unobserved:
+            self._init_figure_observers()
+            self._update_figure()
 
     def x_spec_renew(self, new={}):
         """Renew calibration according to gui."""
@@ -679,30 +706,28 @@ class WidgetBase():
             return np.arange(self.data.number_of_frames)
         raise NotImplementedError('got %s for wDropSumAxis' % self.wDropSumAxis.value)
 
-    #TODO split up in two methods. One for pp_delays and one for frames
     @property
     def sum_pp_delays(self):
+        """Returns the pp_delay wise sum off the baseline subed data."""
         frame_slice = _rangeSlider_to_slice(self.wRangeSliderFrame)
         y_slice = _rangeSlider_to_slice(self.wIntRangeSliderPixelY)
         x_slice = _rangeSlider_to_slice(self.wIntRangeSliderPixelX)
-        pp_delays = getattr(self.data, 'pp_delays')
-        pp_delay_index = np.where(
-            self.wSliderPPDelay.value == pp_delays)[0][0]
-
-        y = self._sub_baseline()
-        y = y[:, :, y_slice, x_slice]
-
-        if 'pp_delays' in self.wDropSumAxis.value:
-            if self.wCheckFrameMedian.value:
-                y = np.median(y[:, frame_slice], FRAME_AXIS_INDEX)
-            else:
-                y = y[:, frame_slice.start]
-
+        frame_median = self.wCheckFrameMedian.value
+        medfilt_kernel = (1, 1, 1, self.wIntSliderSmooth.value)
+        ret = self.data.get_trace_pp_delay(
+            frame_slice,
+            y_slice,
+            x_slice,
+            frame_median,
+            medfilt_kernel,
+        )
+        # Pics the first selected frame
+        if not frame_median:
+            ret = ret[:, 0]
+        return ret
 
     @property
-    def y_sum(self):
-        """y data of the summed plot."""
-        frame_slice = _rangeSlider_to_slice(self.wRangeSliderFrame)
+    def sum_frames(self):
         y_slice = _rangeSlider_to_slice(self.wIntRangeSliderPixelY)
         x_slice = _rangeSlider_to_slice(self.wIntRangeSliderPixelX)
         pp_delays = getattr(self.data, 'pp_delays')
@@ -713,29 +738,34 @@ class WidgetBase():
             y = self._sub_baseline()
         else:
             y = self.data.data
-        y = y[:, :, y_slice, x_slice]
+        y = y[pp_delay_index, :, y_slice, x_slice]
 
-        if 'pp_delays' in self.wDropSumAxis.value:
-            if self.wCheckFrameMedian.value:
-                y = np.median(y[:, frame_slice], FRAME_AXIS_INDEX)
-            else:
-                y = y[:, frame_slice.start]
-
-        elif 'frames' in self.wDropSumAxis.value:
-            y = y[pp_delay_index]
-
-        # The median caltulation is the most expencive calculation
-        # here, to keep it as fast as possible, we do it on the
-        # least amount of data possible.
         if self.wIntSliderSmooth.value is not 1:
             y = medfilt(y, (1, 1, self.wIntSliderSmooth.value))
 
-        return y.sum(X_PIXEL_INDEX)
+        y = np.sum(y, -1)
+        return y
+
+    @property
+    def y_sum(self):
+        """y data of the summed plot."""
+        if 'pp_delays' in self.wDropSumAxis.value:
+            if 'Raw' in self.wDropShowSummed.value:
+                self.data.data = self.data.get_baselinesubed(use_rawData=True)
+                y = self.sum_pp_delays
+            elif 'Normalized' in self.wDropShowSummed.value:
+                self.data.data = self.data.get_normalized(use_rawData=True)
+                y = self.sum_pp_delays
+            elif 'Bleach' in self.wDropShowSummed.value:
+                y = self.y_sum_bleach
+        elif 'frames' in self.wDropSumAxis.value:
+            y = self.sum_frames
+        return y
 
     @property
     def sum_x(self):
         warnings.warn("sum_x is deprecated. Use x_sum")
-        return x_sum
+        return self.x_sum
 
     @property
     def sum_y(self):
@@ -775,17 +805,37 @@ class WidgetBase():
         frame_slice = _rangeSlider_to_slice(self.wRangeSliderFrame)
         data = data[pp_delay_index]
 
-        if self.wIntSliderSmooth.value != 1:
-            data = medfilt(data, (1, self.wIntSliderSmooth.value))
-
         # TODO Baseline handling
         if self.wCheckFrameMedian.value:
             data = np.median(data[frame_slice], 0)
         else:
-            dat = data[frame_slice.start]
-        # TODO use the not 2d version
+            data = data[frame_slice.start]
+
+        if self.wIntSliderSmooth.value != 1:
+            data = medfilt(data, self.wIntSliderSmooth.value)
+
         return data.T
 
+    @property
+    def y_sum_bleach(self):
+        frame_slice = _rangeSlider_to_slice(self.wRangeSliderFrame)
+        x_slice = _rangeSlider_to_slice(self.wIntRangeSliderPixelX)
+
+        if self.wDropdownOperator.value == "-":
+            data = self.data.bleach
+        elif self.wDropdownOperator.value == "/":
+            data = self.data.bleach_rel
+
+        if self.wCheckFrameMedian.value:
+            data = np.median(data[:, frame_slice], 1)
+        else:
+            data = data[:, frame_slice.start]
+
+        if self.wIntSliderSmooth.value != 1:
+            data = medfilt(data, (1, self.wIntSliderSmooth.value))
+
+        data = np.sum(data[:,x_slice], -1)
+        return data.T
 
 class WidgetFigures():
     """Collect figure init and update functions within this class"""
@@ -980,12 +1030,13 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
                 wi.HBox([
                     self.wDropdownCalib,
                     self.wTextCentralWl,
-                    self.wTextVisWl
+                    self.wTextVisWl,
+                    self.wCheckShowBaseline,
                 ]),
                 wi.HBox([
                     self.wDropSumAxis,
                     self.wDropShowSpectra,
-                    self.wCheckShowBaseline,
+                    self.wDropShowSummed,
                     self.wCheckShowBleach,
                     self.wCheckAutoscale,
                     self.wCheckAutoscaleSum,
@@ -1033,24 +1084,6 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
             _buffer2lims(ax, self._autoscale_buffer_2)
 
         self.redraw_figure()
-
-# I think this is bad class structure here.
-class Normalized(SpecAndSummed):
-    """Widget to visualize data after normalization."""
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def _init_widget(self):
-        import ipywidgets as wi
-        super()._init_widget()
-        self.wCheckShowBaseline.value = False
-        self.children = wi.VBox([
-            wi.HBox([self.wSliderPPDelay, self.wIntSliderSmooth, self.wCheckAutoscale]),
-            wi.HBox([self.wRangeSliderFrame, self.wIntRangeSliderPixelY, self.wIntRangeSliderPixelX, self.wCheckFrameMedian,
-            ]),
-            wi.HBox([self.wDropdownCalib, self.wDropSumAxis]),
-            self.wTextCentralWl, self.wTextVisWl,
-        ])
 
 # This is broken
 class ImgView(WidgetBase):
@@ -1120,51 +1153,6 @@ class ImgView(WidgetBase):
         super()._init_observer()
         self.w_interpolate.observe(self._update_figure_callback, "value")
 
-class Bleach(WidgetBase, WidgetFigures):
-    def __init__(self, *args, figsize=(10,5), **kwargs):
-        super().__init__(*args, figsize=figsize, **kwargs)
-        self.axes_grid = np.array([[]])
-
-    def _init_figure(self):
-        self.init_single_figure()
-
-    def _init_widget(self):
-        import ipywidgets as wi
-        super()._init_widget()
-        folder_box = wi.HBox([
-            wi.Label(
-                "Folder",
-                #layout=wi.Layout(margin='0px 123px 0px 0px')
-            ),
-            self.wTextFolder
-        ])
-        self.children = wi.VBox([
-                self.wVBoxData,
-                self.wVBoxSignal,
-                self.wHBoxBleach,
-                self.wVBoxBaseline,
-                wi.HBox([self.wDropdownCalib, self.wTextCentralWl, self.wTextVisWl]),
-                self.wDropSumAxis,
-        ])
-
-    def _update_figure(self):
-        self._init_figure()
-        ax = self.axes[0]
-        ax.clear()
-        self.plot_spec(ax)
-        self.plot_base(ax)
-        self.plot_bleach(ax)
-        ax.legend(framealpha=0.5)
-        ax.callbacks.connect('xlim_changed', self._on_ax0_lim_changed)
-        ax.callbacks.connect('ylim_changed', self._on_ax0_lim_changed)
-        if self.wCheckAutoscale.value:
-            self._autoscale_buffer_2 = _lims2buffer(ax)
-        else:
-            _buffer2lims(ax, self._autoscale_buffer_2)
-
-        self.redraw_figure()
-
-
 class Dashboard():
     def __init__(self, *args, **kwargs):
         self.widgets = args
@@ -1200,6 +1188,7 @@ class PumpProbe(Dashboard):
         super().__init__(*args, **kwargs)
         children = []
         self.wi_fig = plt.figure()
+        #TODO rename widgets to tabs
         for widget in args:
             widget._configure_widgets()
             children.append(widget.children)
@@ -1207,8 +1196,17 @@ class PumpProbe(Dashboard):
 
         self.w_tabs = wi.Tab(children=children)
         self.children = self.w_tabs
-        self.w_normalize = wi.Button(description='Normalize')
-        self.children = wi.VBox([self.w_tabs, self.w_normalize])
+        self.wButtonNormalize = wi.Button(description='Normalize')
+        self.wButtonSaveGui = wi.Button(description='Save Gui')
+        self.wButtonLoadGui = wi.Button(description='Load Gui')
+        self.children = wi.VBox([
+            self.w_tabs,
+            wi.HBox([
+                self.wButtonNormalize,
+                self.wButtonSaveGui,
+                self.wButtonLoadGui,
+            ])
+        ])
 
     def __call__(self):
         from IPython.display import display
@@ -1222,7 +1220,7 @@ class PumpProbe(Dashboard):
         if debug:
             print("Dasboards._init_observer called")
         self.w_tabs.observe(self._on_tab_changed, 'selected_index')
-        self.w_normalize.on_click(self._on_normalize)
+        self.wButtonNormalize.on_click(self._on_normalize)
 
         # observers to w? must be re initiated on each data change.
         w0, w1, *_ = self.widgets
@@ -1230,6 +1228,8 @@ class PumpProbe(Dashboard):
         # When the shape of the data allows for normalization
         w0.wIntRangeSliderPixelY.observe(self._is_normalizable_callback, "value")
         w1.wIntRangeSliderPixelY.observe(self._is_normalizable_callback, "value")
+        self.wButtonSaveGui.on_click(self._on_save_gui_clicked)
+        self.wButtonLoadGui.on_click(self._on_load_gui_clicked)
 
     def _on_tab_changed(self, new):
         if debug:
@@ -1239,44 +1239,63 @@ class PumpProbe(Dashboard):
              self.wi_fig.delaxes(ax)
         page = self.w_tabs.selected_index
         widget = self.widgets[page]
-        if page == 3:
-            self.widgets[3].data = self.widgets[0].data
-            self.widgets[3]._configure_widgets()
         widget._update_figure()
 
     def _on_normalize(self, new):
         if debug:
             print("Normalize._on_normalize called.")
-        #if not self._is_normalizable:
-        #    return
-
         w0, w1, *_ = self.widgets
         w0.data.norm = w1.y_spec.T
-        #spec = w0._sub_baseline()
-        #TODO add frame_med filter here.
-        #ir = np.ones_like(spec) * w1.y_sepc.T
 
-        #w2.data = w0.data.copy()
-        #w2.data.data = spec/ir
-        #w2._unobserve_figure()
-        #if self.w_tabs.selected_index is 2:
-        #    w2._update_figure()
-        #w2._configure_widgets()
-        #w2._init_figure_observers()
+    def _on_save_gui_clicked(self, new):
+        """Save gui status to a json text file.
+
+        Each tab of the dashboard gets a separate list entry. Each widget value
+        is saved as an element of a list of a list."""
+        save_file = self.widgets[0].wTextFolder.value + '/.last_state.json'
+        with open(save_file, 'w') as outfile:
+            save_list = []
+            for i in range(len(self.widgets[:2])):
+                w = self.widgets[i]
+                save_list.append([widget.value for widget in w._state_widgets]),
+            dump(save_list, outfile)
+
+    def _on_load_gui_clicked(self, new):
+        folder = self.widgets[0].wTextFolder.value
+        with open(folder + '/.last_state.json', 'r') as infile:
+            imp = load(infile)
+            for i in range(len(self.widgets[:2])):
+                w = self.widgets[i]
+                w._unobserve_figure()
+                for j in range(len(w._state_widgets)):
+                    widget = w._state_widgets[j]
+                    try:
+                        widget.value = imp[i][j]
+                        # We need to call the folder manually. Otherwise changes
+                        # are not recognized.
+                        if j == 0:
+                            w._on_folder_submit(None)
+                    except TraitError:
+                        msg = "Count load value %s of widget %s"%(imp[i][j],
+                                                                 widget)
+                        print(msg)
+                        break
+                w._init_figure_observers()
+        self._on_tab_changed(None)
 
     @property
     def _is_normalizable(self):
         w0, w1, *_  = self.widgets
         if w0.y_spec.shape[0] != w1.y_spec.shape[0]:
-            self.w_normalize.disable = True
+            self.wButtonNormalize.disable = True
             return False
         if w1.y_spec.shape[1] is 1:
-            self.w_normalize.disabled = False
+            self.wButtonNormalize.disabled = False
             return True
         if w0.y_spec.shape[1] != w1.y_spec.shape[1]:
-            self.w_normalize.disabled = True
+            self.wButtonNormalize.disabled = True
             return False
-        self.w_normalize.disabled = False
+        self.wButtonNormalize.disabled = False
         return True
 
     def _is_normalizable_callback(self, new):

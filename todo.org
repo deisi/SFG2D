@@ -1,16 +1,7 @@
 
 * Bugs
 
-** DONE frames selection is not correct.
-   CLOSED: [2017-03-17 Fr 16:34]
-   Test data is /mnt/viktor/deiseroth/2017/03/16/02_sc_na2co3-005_ssp_purged1_gal1_pr1_pu0.dat
-   Choos a frame bigger 15 it failes
 * Refactoring
-** Move as much of the data handling into SfgRecord as pssible
-*** Make more use of SfgRecord internal members in the widgets
-     Move the handling of the baselinesubstraction from widgets into SfgRecords.
-*** SfgRecord Reset internal data method
-** Refactor Widgets with a 3rd class encapsulating the data handling
 ** Make generic Selectors based on gui for arbitrary 4d-Data
     This will seperate gui and data handling for the plot further.
     The goal is to have a method, that is reusable throughout
@@ -20,67 +11,26 @@
 ** Init for WidgetFigures
 ** Rename WidgetFigures to MatplotlibFigures
     When the seperation is done, I can exchange the plotting backend
-** Remove the _ functions form Widgets. They are too many
 ** Combine the get_trace methods in SfgRecord
 ** Introduce SfgRecord._rawData and SfgRecord._data
 ** Apply medfilt globally in SfgRecord
 ** Add more shapechecker in SfgRecod.base setter
-** DONE Rename the .x and .y data methods to something usefull
-   CLOSED: [2017-02-22 Mi 14:44]
-** DONE Merge Widgets and Dashboards into one Module
-   CLOSED: [2017-02-14 Tue 15:08]
-** DONE Complete transition from AllYouCanEat to SfgRecord
-   CLOSED: [2017-02-14 Tue 15:08]
-
-** DONE Refactor Widgets for more seperation between data and view
-   CLOSED: [2017-02-21 Di 10:06]
-
-*** DONE Change Names
-    CLOSED: [2017-02-14 Tue 18:04]
-
-*** DONE Change oder of functions
-    CLOSED: [2017-02-14 Tue 18:04]
-
-*** Split up WidgetBase if possible
-    I start to think its impossible.
-** DONE Make more use of the global variables from the utils module
-   CLOSED: [2017-02-14 Tue 15:13]
-
-** DONE imports/the api of the module
-   CLOSED: [2017-02-14 Tue 15:39]
-
-** DONE Capitalize global variables
-   CLOSED: [2017-02-14 Tue 15:39]
-
-** DONE Change widget margin
-   CLOSED: [2017-02-14 Tue 18:02]
 * Improvements
 
-** DONE Median over frame selection
-   CLOSED: [2017-02-20 Mo 16:51]
-
 ** String importer for base and norm spectra
-   I think this will make me Spit up the SfgRecord in an importer and the Core class
+   I think this will make me Split up the SfgRecord in an importer and the Core class
    I must move SfgRecord._readData, SfgRecord._import_data and SfgRecord._read_metadata
    into the io module
 ** Bleach and Bleach Trace in gui
-
-** Two Autoscale function
-
+   
 ** Save/load state of gui
 ** Better labels
 
-** Deprecation warnings for AllYouCanEat objects
-
 ** Make data snapable
-
-** IIV Calibratior
 
 ** More tests for SfgRecord and Widgets
 
 ** Metadata viewer
-
-** Test importfunction of new data structure
 
 ** Transformer from new to old data structure
 

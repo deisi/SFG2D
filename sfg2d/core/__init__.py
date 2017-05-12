@@ -435,6 +435,11 @@ class SfgRecord():
     def get_bleach(self, pumped=None, unpumped=None, sub_first=True):
         """Calculate bleach.
 
+        pumped: None, index or array
+            If None SfgReco.pump is used. Else SfgRecord.pump is setted
+            by pumped
+        unpumped: None, index or array
+            Same as pumped only for unpumped
         sub_first : boolean
             substitute the first spectrum from the data to account for
             the constant offset."""
@@ -525,7 +530,8 @@ class SfgRecord():
 
         ret = self.data[:, frame_slice, y_pixel_slice, x_pixel_slice]
         if isinstance(medfilt_kernel, tuple):
-            ret = medfilt(ret, medfilt_kernel)
+            if np.all(frame_median) != 1:
+                ret = medfilt(ret, medfilt_kernel)
         if frame_median:
             ret = np.median(ret, FRAME_AXIS_INDEX)
         return ret.sum(X_PIXEL_INDEX)
