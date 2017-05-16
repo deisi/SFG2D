@@ -2,7 +2,7 @@ __version__ = '0.6.0'
 
 from . import io, utils, plotting, widgets, fit
 
-from .core import SfgRecord
+from .core import SfgRecord, concatenate_list_of_SfgRecords
 from .core.scan import Scan, TimeScan
 
 #import .fit

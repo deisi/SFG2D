@@ -94,6 +94,7 @@ class SfgRecord():
         self._dates = None
         self.zero_time = None
         self.zero_time_rel = None
+        self._static_corr = None
 
         if isinstance(fname, type(None)):
             return
@@ -480,7 +481,7 @@ class SfgRecord():
             self._bleach_rel = self.get_bleach_rel()
         return self._bleach_rel
 
-    def get_bleach_rel(self, pumped=None, unpumped=None, sub_first=True):
+    def get_bleach_rel(self, pumped=None, unpumped=None, sub_first=True, raw_data=True,):
         """Calculate the relative bleach
 
         Parameters
@@ -493,6 +494,8 @@ class SfgRecord():
         sub_first: bollean default true
             subtract the 0th pp_delay index. This corrects for constant
             offset between pumped and unpumped data.
+        raw_data: boolean default True
+            Use raw data to calculate relative bleach.
         """
         bleach_rel = np.zeros((
             self.number_of_pp_delays,
@@ -501,14 +504,18 @@ class SfgRecord():
         ))
 
         if self.number_of_spectra < 2:
-            return bleach
+            return self._bleach_rel
 
         if isinstance(pumped, type(None)):
             pumped = self._pumped_index
         if isinstance(unpumped, type(None)):
             unpumped = self._unpumped_index
 
-        bleach_rel = self.data[:, :, pumped] / self.data[:, :, unpumped]
+        if raw_data:
+            bleach_rel = self.rawData[:, :, pumped] / self.rawData[:, :, unpumped]
+        else:
+            bleach_rel = self.data[:, :, pumped] / self.data[:, :, unpumped]
+
         if sub_first:
             self.zero_time_rel = bleach_rel[0].copy()
             bleach_rel -= self.zero_time_rel
@@ -525,16 +532,32 @@ class SfgRecord():
             x_pixel_slice=slice(None),
             frame_median=True,
             medfilt_kernel=None,
+            as_mean=False,
     ):
-        """Calculate the pp_delay wise trace."""
+        """Calculate the pp_delay wise trace.
 
+        frame_slice: slice
+          slice of frames to take into account
+        y_pixel_slice: slice
+          slice of y_pixel/spectra to take into account
+        frame_median: boolean True
+          Calculate frame wise median before calculating the sum
+        medfilt_kernel: None or Tuple with len 4
+          kernel for the median filter to apply before calculating the sum.
+        as_mean: boolean default False
+          returns the mean over the given area instead of the sum
+        """
         ret = self.data[:, frame_slice, y_pixel_slice, x_pixel_slice]
+        x_pixel_length = ret.shape[-1]
         if isinstance(medfilt_kernel, tuple):
             if np.all(frame_median) != 1:
                 ret = medfilt(ret, medfilt_kernel)
         if frame_median:
             ret = np.median(ret, FRAME_AXIS_INDEX)
-        return ret.sum(X_PIXEL_INDEX)
+        ret = ret.sum(X_PIXEL_INDEX)
+        if as_mean:
+            ret /= x_pixel_length
+        return ret
 
     @property
     def trace_frame(self):
@@ -578,16 +601,51 @@ class SfgRecord():
         raise NotImplementedError
 
     def get_trace_bleach(
-            self, attr="bleach", pp_delay_slice=slice(None), frame_slice=slice(None),
-            x_pixel_slice=slice(None), medfilt_kernel=None,
+            self, attr="bleach", pp_delay_slice=slice(None),
+            frame_slice=slice(None), x_pixel_slice=slice(None),
+            medfilt_kernel=None, frame_mean=False,
     ):
         ret = getattr(self, attr)
         if not isinstance(medfilt_kernel, type(None)):
             ret = medfilt(ret, medfilt_kernel)
 
-        ret = ret[pp_delay_slice, frame_slice, x_pixel_slice].sum(-1)
-
+        ret = ret[pp_delay_slice, frame_slice, x_pixel_slice].mean(-1)
+        if frame_mean:
+            ret = ret.mean(1)
         return ret
+
+    @property
+    def static_corr(self):
+        if isinstance(self._static_corr, type(None)):
+            self._static_corr = self.get_static_corr()
+        return self._static_corr
+
+    def get_static_corr(self):
+        """Correction factors assuming area per pump sfg is constant.
+
+        Assuming the area per pump sfg is constant, one can deduce correction
+        faktors. That cope with the drifting of the Laser and height to some
+        extend.
+
+        Returns
+        -------
+        Correction factors in the same shape as SfgRecord.rawData
+        """
+        if not self.isBaselineSubed:
+            msg = "Baseline not Subtracted. Cant calculate static sfg"\
+                  "correction factors. Returning unity."
+            warnings.warn(msg)
+            return np.ones_like(self.rawData)
+        # Medfilt makes algorithm robust agains Spikes.
+        medfilt_kernel = (1, 1, 9)
+        data = medfilt(self.unpumped, medfilt_kernel)
+        area = data.sum(X_PIXEL_INDEX)
+        # Correction factor is deviation from the mean value
+        correction_factors = area / area.mean()
+        correction_factors = correction_factors.reshape((
+            self.number_of_pp_delays, self.number_of_frames, 1, 1
+        )) * np.ones_like(self.rawData)
+        return correction_factors
 
     def _readData(self):
         """The central readData function.
@@ -618,7 +676,7 @@ class SfgRecord():
             return True
 
         # Compressed binary version.
-        if path.splitext(ftail)[1] ==  '.npz':
+        if path.splitext(ftail)[1] == '.npz':
             self._type = 'npz'
             return True
 
@@ -640,11 +698,11 @@ class SfgRecord():
                 line = f.readline()
                 if line[0] == "#":
                     # First line is pixel then 3 spectra repeating
-                    if  (start_of_data.shape[1] - 1) % 3 == 0:
+                    if (start_of_data.shape[1] - 1) % 3 == 0:
                         self._type = 'victor'
                         return True
                 else:
-                    if start_of_data.shape[1]%6 == 0:
+                    if start_of_data.shape[1] % 6 == 0:
                         self._type = 'veronica'
                         return True
         raise IOError("Cant understand data in %f" % self._fname)
@@ -756,8 +814,13 @@ class SfgRecord():
             _unpumped_index = self._unpumped_index
         )
 
-    def make_avg(self):
-        """Returns an frame wise averaged SfgRecord."""
+    def make_avg(self, correct_static=True):
+        """Returns an frame wise averaged SfgRecord.
+
+        correct_static: boolean
+           Toggle to use the area of the unpumped SFG signal
+           as a correction factor to all spectra recorded at the same time.
+        """
         ret = SfgRecord()
         ret.metadata = self.metadata
         ret.wavelength = self.wavelength
@@ -770,7 +833,43 @@ class SfgRecord():
             setattr(
                 ret, key, np.expand_dims(np.median(getattr(self, key), 1), 1)
             )
+        if correct_static:
+            pass
         return ret
+
+    def make_static_corr(self):
+        """Return a SfgRecord, that is corrected with the Static SFG assumption.
+
+        The static SFG Assumption is, that in a Pump-Probe Experiment, the area
+        of the static SFG Spectrum should be constant. A correction factor is
+        calculated based on this assumption and applied on the data.
+
+        This works only correctly if the baseline is set properly, and the
+        unpumped index is set correctly.
+
+        Returns
+        -------
+            SfgRecord with corrected data.
+        """
+
+        ret = SfgRecord()
+        ret.rawData = self.rawData.copy()
+        ret.metadata = self.metadata
+        ret.wavelength = self.wavelength
+        ret.wavenumber = self.wavenumber
+        ret.dates = self.dates
+        ret._unpumped_index = self._unpumped_index
+        ret._pumped_index = self._pumped_index
+        ret.pp_delays = self.pp_delays
+        ret.base = self.base
+        ret.norm = self.norm
+
+        # Manipulate rawData
+        delta = self.basesubed - (self.basesubed * self.static_corr)
+        ret._rawData += delta
+        # Reset internal properties so we leave with a clean SfgRecord
+        return ret
+
 
     def plot(self,
             pp_delays=slice(None,None), frames=slice(None, None),
@@ -831,7 +930,9 @@ class SfgRecord():
                     x_pixel=slice(None, None), fig=None, ax=None,
                     x_axis="pixel",
                     **kwargs):
-        """Called when attribute is 'bleach' in plot."""
+        """Called when attribute is 'bleach' in plot.
+
+        **kwargs gets passed to matplotlib plot funk"""
         if not fig:
             fig = plt.gcf()
 
@@ -858,13 +959,20 @@ class SfgRecord():
 
     def plot_trace(
             self,
+            y_axis='get_trace_pp_delay',
             x_axis="pp_delays",
             fig = None, ax = None,
             **kwargs
     ):
         """
-
+        y_axis: str
+          The function to get the data from. Possible options are
+            'get_trace_pp_delay', 'get_trace_bleach' and every other
+            function name in SfgRecord, that returns a proper shaped
+            array. (num_of_ppelays, num_of_spectra)
         kwargs are passes to SfgRecord.get_trace_pp_delays
+          most notable is the
+          *x_pixel_slice*
 
         """
         if not fig:
@@ -875,14 +983,15 @@ class SfgRecord():
 
         x_axis = getattr(self, x_axis)
 
-        plot_data = self.get_trace_pp_delay(**kwargs)
+        plot_data = getattr(self, y_axis)(**kwargs)
+        #plot_data = self.get_trace_pp_delay(**kwargs)
 
         lines = ax.plot(x_axis, plot_data, "-o")
 
         return lines
 
 
-def concatenate_SfgRecords(list_of_records):
+def concatenate_list_of_SfgRecords(list_of_records):
     """Concatenate SfgRecords into one big SfgRecord."""
     ret = SfgRecord()
     ret.metadata["central_wl"] = None

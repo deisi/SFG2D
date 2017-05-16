@@ -42,4 +42,6 @@
 ** List of last opened folders
 ** Img Viewer
 ** Dedicated heder import function
+** Add a global vis_wl default
+   Thes vis_wl default can get overwritten and will then  be used during the import
 * Give a presentation about the tool and make it available on a server

@@ -137,7 +137,7 @@ def contour(x, y, z, N=30, fig=None,
     fig: figure to draw on.
     x_slice / y_slice: slice or iterable.
         If slice, the slice is directly applied to the summation.
-        of slice is a iterable it will be used as edges of a slice in
+        If slice is a iterable it will be used as edges of a slice in
         plot coordinates
     show_y_lines / show_x_lines: Boolean default True
         if True and x_slice or y_slice is given, lines that show the slices are
@@ -173,12 +173,8 @@ def contour(x, y, z, N=30, fig=None,
     if show_colorbar:
         plt.colorbar(CS, ax=ax)
     if x_slice != slice(None) and show_x_lines:
-        print("x still ture")
-        print(x_slice)
         ax.vlines(x[[x_slice.start, x_slice.stop]], y.min(), y.max(), linestyles="dashed")
     if y_slice != slice(None) and show_y_lines:
-        print("y still ture")
-        print(y_slice)
         ax.hlines(y[[y_slice.start, y_slice.stop]], x.min(), x.max(), linestyles="dashed")
 
     xl_data = z[x_slice].sum(0)
@@ -208,8 +204,8 @@ def img(x, y, z, *args, fig=None, ax=None, extent=None, aspect=20, method='cubic
 
     y :
 
-    z : 
-    
+    z :
+
     *args
         Passed to `matplotlib.pyplot.imshow`
     extent : Optional [tuple with (xmin, xmax, ymin, ymax)]

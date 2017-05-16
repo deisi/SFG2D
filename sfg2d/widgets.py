@@ -522,8 +522,10 @@ class WidgetBase():
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_observer
-        # Try needed to allow for double call of this function.
         try:
+            # Try needed to allow for double call of this function.
+            # TODO This is hacky, Maybe I can get around this
+            # by using the new dict.
             self._unobserve_figure()
             keep_figure_unobserved = False
         except ValueError:
@@ -551,8 +553,8 @@ class WidgetBase():
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_figure_observer
-        # Try needed to allow for double call of this function.
         try:
+            # Try needed to allow for double call of this function.
             # TODO This is hacky, Maybe I can get around this
             # by using the new dict.
             keep_figure_unobserved = False
@@ -728,6 +730,7 @@ class WidgetBase():
 
     @property
     def sum_frames(self):
+        """Summes of given pixel range frame wise."""
         y_slice = _rangeSlider_to_slice(self.wIntRangeSliderPixelY)
         x_slice = _rangeSlider_to_slice(self.wIntRangeSliderPixelX)
         pp_delays = getattr(self.data, 'pp_delays')

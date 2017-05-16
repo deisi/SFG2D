@@ -44,18 +44,22 @@ def ir_wavenumbers_to_nm(x, up_wl):
     """
     return (1/(1/wavenumbers_to_nm(x) + 1/up_wl))
 
-def get_interval_index(array, min, max):
-    """Helper function to get index positioins from an sorted array.
+def get_interval_index(input_array, min, max):
+    """Helper function to get index positioins from an sorted input_array.
 
     Parameters
     ----------
-    array: sorted iterable
+    input_array: sorted iterable
          array to search in
     min: int
         lower wavenumber boundary
     max: int
         uppper wavenumber boundary"""
-    return argmax(array>min), argmin(array<max)
+    if input_array[0] < input_array[-1]:
+        return argmax(input_array > min), argmin(input_array < max)
+    else:
+        return argmax(input_array < max), argmin(input_array > min)
+
 
 def savefig(filename, dpi=150, pgf=False, **kwargs):
     import matplotlib.pyplot as plt
