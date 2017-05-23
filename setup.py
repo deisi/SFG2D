@@ -66,11 +66,9 @@ setup(
     url='https://github.com/deisi/sfg2d',
     packages=[
         'sfg2d',
-        'sfg2d.core',
         'sfg2d.data',
         'sfg2d.data.calib',
         'sfg2d.io',
-        'sfg2d.plotting',
         'sfg2d.utils',
     ],
     package_dir={'sfg2d':

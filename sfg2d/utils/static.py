@@ -1,4 +1,5 @@
 """static functions go here """
+from os import path
 from numpy import sqrt, power, cos, sin, arcsin, square, array, ones, shape, sum, argmax, argmin, e, where
 
 
@@ -68,6 +69,7 @@ def savefig(filename, dpi=150, pgf=False, **kwargs):
         plt.savefig('{}.pgf'.format(filename), **kwargs)
     plt.savefig('{}.pdf'.format(filename), **kwargs)
     plt.savefig('{}.png'.format(filename), dpi=dpi, **kwargs)
+    print("Saved figure to: {}".format(path.abspath(filename)))
 
 
 def Rs(ca, cb, n1, n2):

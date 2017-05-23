@@ -166,8 +166,6 @@ class PrincetonSPEFile3():
         if len(params) > 1:
             self.calib_poly = np.poly1d(params)
             self.wavelength = self.calib_poly(np.arange(self.xdim))
-        
-        
 
     def _readData(self):
         """Reads the actual data from the binary file.

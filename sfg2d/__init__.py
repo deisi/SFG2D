@@ -3,13 +3,8 @@ __version__ = '0.6.0'
 from . import io, utils, plotting, widgets, fit
 
 from .core import SfgRecord, concatenate_list_of_SfgRecords
-from .core.scan import Scan, TimeScan
-
-#import .fit
 
 from .io.veronica import read_auto, read_time_scan, read_scan_stack, read_save
-# Deprecated use SfgRecord
-from .io.allYouCanEat import AllYouCanEat
 
 from .utils import detect_peaks, consts, get_metadata_from_filename, \
     wavenumbers_to_nm, nm_to_wavenumbers, nm_to_ir_wavenumbers, \

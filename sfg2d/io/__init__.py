@@ -1,20 +1,6 @@
 from . import veronica, victor_controller
 from .spe import PrincetonSPEFile3
-from .allYouCanEat import AllYouCanEat, normalization,\
-    concatenate_data_sets, get_AllYouCanEat_scan, save_data_set,\
-    save_frame_mean, get_frame_mean, load_npz_to_Scan
 from .ntb import NtbFile
-from ..core.scan import Scan, ScanBase
-
-def read_dpt(fname, **kwargs):
-    """Wrapper for pandas read_csv, to read .dpt spectra files"""
-    from pandas import read_csv
-    ret = read_csv(fname, sep=",", names=['absorption'], **kwargs)
-    ret.index.name = 'wavenumber'
-    ret = Scan(df=ret)
-    ret.metadata = {'uri' : fname}
-
-    return ret
 
 def load_fitarg(fp):
     """load the fit results from fp"""
@@ -95,11 +81,3 @@ def load_fitarg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
         **kwargs
     )
     return fitarg, minuit, chi2
-
-def save_scan(fname, scan):
-    """Save a scan to fname"""
-    if not isinstance(scan, ScanBase):
-        raise ValueError(
-            'Cannot save %s to %s' % (scan, fname))
-
-    scan.df.to_pickle(fname)

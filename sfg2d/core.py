@@ -5,11 +5,11 @@ import numpy as np
 from scipy.signal import medfilt
 import matplotlib.pyplot as plt
 
-from . import scan
-from ..io.veronica import SPECS, pixel_to_nm, get_from_veronika
-from ..io.victor_controller import get_from_victor_controller
-from ..utils import nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX, \
+from .io.veronica import SPECS, pixel_to_nm, get_from_veronika
+from .io.victor_controller import get_from_victor_controller
+from .utils import nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX, \
     SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX, X_PIXEL_INDEX
+from .utils.consts import VIS_WL
 
 class SfgRecord():
     """Class to load and manage SFG data in a 4D structure
@@ -195,12 +195,8 @@ class SfgRecord():
 
     @property
     def frames(self):
-        """Number of frames."""
-        warnings.warn(
-            "SfgRecord.frames is deprecated."\
-            " Use SfgRecord.numer_of_frames instead"
-        )
-        return self.data.shape[FRAME_AXIS_INDEX]
+        """Iterable list of frames."""
+        return np.arange(self.data.shape[FRAME_AXIS_INDEX])
 
     @property
     def number_of_frames(self):
@@ -414,6 +410,21 @@ class SfgRecord():
             raise NotImplemented()
 
     @property
+    def pumped_index(self):
+        if not np.all(self.pumped == self.data[:, :, self._pumped_index]):
+            warnings.warn("Not sure if pumped index is correct.")
+        return self._pumped_index
+
+    @pumped_index.setter
+    def pumped_index(self, value):
+        if not value <= self.number_of_y_pixel:
+            raise IOError("Cant set pumped index bigger then data dim.")
+        self._pumped_index = value
+        # Because we set a new pumped index bleach and pumped must be recalculated.
+        self._pumped = None
+        self._bleach = None
+        self._bleach_rel = None
+    @property
     def unpumped(self):
         if isinstance(self._unpumped, type(None)):
             self.unpumped = self._unpumped_index
@@ -426,6 +437,23 @@ class SfgRecord():
             self._unpumped_index = value
         else:
             raise NotImplemented()
+
+    @property
+    def unpumped_index(self):
+        if not np.all(self.unpumped == self.data[:, :, self._unpumped_index]):
+            warnings.warn("Not sure if unpumped index is correct.")
+        return self._unpumped_index
+
+    @unpumped_index.setter
+    def unpumped_index(self, value):
+        if not value <= self.number_of_x_pixel:
+            raise IOError("Cant set unpumped index bigger then data dim.")
+        self._unpumped_index = value
+        # Beacause we setted a new index on the unpumped spectrum we can right away
+        # reset the bleach because its not correct any more.
+        self._unpumped = None
+        self._bleach = None
+        self._bleach_rel = None
 
     @property
     def bleach(self):
@@ -522,6 +550,14 @@ class SfgRecord():
         return bleach_rel
 
     @property
+    def bleach_abs(self):
+        """Absolute bleach is always calculated from SfgRecord.basesubed data."""
+        ret = self.basesubed[:, :, self._pumped_index] - self.basesubed[:, :, self._unpumped_index]
+        zero_time = ret[0].copy()
+        ret -= zero_time
+        return ret
+
+    @property
     def trace_pp_delay(self):
         return self.get_trace_pp_delay()
 
@@ -569,9 +605,13 @@ class SfgRecord():
             y_pixel_slice=slice(None),
             x_pixel_slice=slice(None),
             pp_delay_median=True,
-            medfilt_kernel=None
+            medfilt_kernel=None,
+            raw_data=False,
     ):
-        ret = self.data[pp_delay_slice, :, y_pixel_slice, x_pixel_slice]
+        if raw_data:
+            ret = self.rawData[pp_delay_slice, :, y_pixel_slice, x_pixel_slice]
+        else:
+            ret = self.data[pp_delay_slice, :, y_pixel_slice, x_pixel_slice]
         if isinstance(medfilt_kernel, tuple):
             ret = medfilt(ret, medfilt_kernel)
         if pp_delay_median:
@@ -712,7 +752,7 @@ class SfgRecord():
 
         # Pick import function according to data type automatically.
         if self._type == "spe":
-            from ..io.spe import PrincetonSPEFile3
+            from .io.spe import PrincetonSPEFile3
             self._sp = PrincetonSPEFile3(self._fname)
             self.rawData = self._sp.data.reshape(1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim)
             return
@@ -746,9 +786,11 @@ class SfgRecord():
     def _read_metadata(self):
         """Read metadata of the file"""
 
-        from ..utils.metadata import get_metadata_from_filename
+        from .utils.metadata import get_metadata_from_filename
 
         if self._type == "npz":
+            # We skipp this step here, bacuse metadata is extracted from the file
+            # Directly.
             return
 
         try:
@@ -760,7 +802,7 @@ class SfgRecord():
 
         if self._type == "victor":
             # Read metadata from file header.
-            from ..io.victor_controller import read_header, translate_header_to_metadata
+            from .io.victor_controller import read_header, translate_header_to_metadata
             header = read_header(self._fname)
             metadata = {**metadata, **translate_header_to_metadata(header)}
 
@@ -778,6 +820,10 @@ class SfgRecord():
 
         for key in metadata:
             self.metadata[key] = metadata[key]
+
+        # Add default VIS_WL if nothing there yet
+        if isinstance(self.metadata.get("vis_wl"), type(None)):
+            self.metadata["vis_wl"] = VIS_WL
 
     def copy(self):
         """Make a copy of the SfgRecord obj.
@@ -932,7 +978,7 @@ class SfgRecord():
                     **kwargs):
         """Called when attribute is 'bleach' in plot.
 
-        **kwargs gets passed to matplotlib plot funk"""
+        **kwargs gets passed to matplotlib plot func"""
         if not fig:
             fig = plt.gcf()
 

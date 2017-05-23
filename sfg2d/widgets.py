@@ -250,9 +250,9 @@ class WidgetBase():
             layout=self.wTextCentralWl.layout,
         )
 
-        # Dropdown to toggle the visibility of Summed Spectra
+        # Dropdown to toggle view of the summed spectra
         self.wDropShowSummed = wi.Dropdown(
-            options=["Raw", "Normalized", "Bleach"],
+            options=["Raw", "Normalized", "Bleach", "Bleach"],
             description='Summed',
             value="Raw",
             layout=self.wTextCentralWl.layout,
@@ -440,6 +440,11 @@ class WidgetBase():
         for widget in self._figure_widgets:
             widget.observe(self._update_figure_callback, "value")
 
+    def _unobserve_figure(self):
+        """Unobserver figure observers."""
+        for widget in self._figure_widgets:
+            widget.unobserve(self._update_figure_callback, 'value')
+
     def _init_observer(self):
         """Set all observer of all subwidgets."""
         # This registers the callback functions to the gui elements.
@@ -455,12 +460,9 @@ class WidgetBase():
         self.wTextCentralWl.observe(self.x_spec_renew, "value")
         self.wTextVisWl.observe(self.x_spec_renew, "value")
         self.wToggleSubBaseline.observe(self.on_subBaseline_toggled, 'value')
+        self.wIntTextPumped.observe(self._on_pumped_index_changed, "value")
+        self.wIntTextUnpumped.observe(self._on_unpumped_index_changed, "value")
         self._init_figure_observers()
-
-    def _unobserve_figure(self):
-        """Unobserver figure observers."""
-        for widget in self._figure_widgets:
-            widget.unobserve(self._update_figure_callback, 'value')
 
     def _on_folder_submit(self, new):
         """Called when folder is changed."""
@@ -599,6 +601,13 @@ class WidgetBase():
         except ValueError:
             pass
         return self.data.sub_base()
+
+    def _on_pumped_index_changed(self, new=None):
+        """Reset Bleach related properties."""
+        self.data.pumped_index = self.wIntTextPumped.value
+
+    def _on_unpumped_index_changed(self, new=None):
+        self.data.unpumped_index = self.wIntTextUnpumped.value
 
     @property
     def central_wl(self):

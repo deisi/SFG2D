@@ -1,10 +1,10 @@
+from os import path
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 
-from . import ts
-from . import scan
-from ..utils import get_interval_index
+from .utils import get_interval_index
 
 # decorator function to save loopable plot in multipage pdf
 def multipage_pdf(plot_func):
@@ -49,6 +49,7 @@ def multipage_pdf(plot_func):
                 pdf.savefig()
                 plt.close()
 
+        print("Saved figure to: {}".format(path.abspath(name)))
     return make_multipage_pdf
 
 def plot(*args, **kwargs):
@@ -192,54 +193,3 @@ def contour(x, y, z, N=30, fig=None,
 
     plt.tight_layout()
     return fig, ax, axl, axb
-
-
-def img(x, y, z, *args, fig=None, ax=None, extent=None, aspect=20, method='cubic',
-        **kwargs):
-    """
-    BROKEN
-    Parameters
-    ----------
-    x :
-
-    y :
-
-    z :
-
-    *args
-        Passed to `matplotlib.pyplot.imshow`
-    extent : Optional [tuple with (xmin, xmax, ymin, ymax)]
-        extent of imshow
-    aspect : Optional [int]
-        aspect of imshow
-    method : str
-        interpolation method used by griddata to interpolate points of the
-        image inbetween measurment points valid options are:
-        'nearest', 'linear' and 'cubic'.
-        See SFG.example_analysis.AnalyseATimeResolvedSpectrum for examples.
-    **kwargs      are passed to matplotlib.pyplot.imshow
-
-    Returns
-    -------
-    matplotlib.fig
-        The figure of the plot
-    tuple of matpotlib.axes
-        The three axes of the three subplots."""
-    from itertools import product
-    from scipy.interpolate import griddata
-
-    if not fig:
-        fig = plt.gcf()
-    if not ax:
-        ax = plt.gca()
-    # Coordinates into the right form
-    if not extent:
-        ext = (x.min(), x.max(), y.min(), y.max())  # correct ticklabels
-    points = np.array(list(product(x, y)))
-    values = z.flatten()
-    xi = np.transpose(np.mgrid[x.min():x.max():200j, y.min():y.max():200j])
-
-    # interpolates between measured points
-    grid = griddata(points, values, xi, method=method)
-
-    ax.imshow(grid, *args, origin="lower", extent=ext, aspect=aspect, **kwargs)
