@@ -7,3 +7,4 @@ PP_INDEX = -4 # Axis of pp_delays
 PIXEL = 1600 # Number of x-pixel
 SPECS = 3 # Number of binned spectra.
 VIS_WL = 810 # Default Wavelength of the visible
+PUMP_FREQ = None # Default pump frequency

@@ -3,8 +3,7 @@ import os, datetime
 
 import numpy as np
 
-from ..utils.consts import PIXEL, SPECS, VIS_WL
-from ..utils.metadata import MetaData
+from ..utils.consts import PIXEL, SPECS
 
 def get_from_victor_controller(fpath, **kwargs):
     """Import data from victor controller

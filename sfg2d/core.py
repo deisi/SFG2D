@@ -7,9 +7,12 @@ import matplotlib.pyplot as plt
 
 from .io.veronica import SPECS, pixel_to_nm, get_from_veronika
 from .io.victor_controller import get_from_victor_controller
-from .utils import nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX, \
-    SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX, X_PIXEL_INDEX
-from .utils.consts import VIS_WL
+from .utils import (
+    nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX,
+    SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX, X_PIXEL_INDEX,
+    find_nearest_index
+)
+from .utils.consts import VIS_WL, PUMP_FREQ
 
 class SfgRecord():
     """Class to load and manage SFG data in a 4D structure
@@ -272,6 +275,20 @@ class SfgRecord():
         ret = nm_to_ir_wavenumbers(self.wavelength, vis_wl)
         return ret
 
+    def wavenumbers2index(self, wavenumbers, sort=False):
+        """Get index positions of wavenumbers.
+
+        wavenumbers: iterable
+            list of wavenumbers to search for.
+
+        sort: boolean
+            if ture, sort the index result by size, starting from the smallest.
+        """
+        ret = find_nearest_index(self.wavenumber, wavenumbers)
+        if sort:
+            ret = np.sort(ret)
+        return ret
+
     def reset_data(self):
         """reset `SfgRecord.data` to `SfgRecord.rawData`"""
 
@@ -288,7 +305,7 @@ class SfgRecord():
         return self._basesubed
 
     def get_baselinesubed(self, use_rawData=True):
-        """Get baselinesubstracted data"""
+        """Get baselinesubtracted data"""
 
         if use_rawData or self.isNormalized:
             ret = self.rawData - self.base
@@ -824,6 +841,9 @@ class SfgRecord():
         # Add default VIS_WL if nothing there yet
         if isinstance(self.metadata.get("vis_wl"), type(None)):
             self.metadata["vis_wl"] = VIS_WL
+        # Add default pumpr_freq
+        if isinstance(self.metadata.get("pump_freq"), type(None)):
+            self.metadata["pump_freq"] = PUMP_FREQ
 
     def copy(self):
         """Make a copy of the SfgRecord obj.
@@ -1007,7 +1027,7 @@ class SfgRecord():
             self,
             y_axis='get_trace_pp_delay',
             x_axis="pp_delays",
-            fig = None, ax = None,
+            fig = None, ax = None, label=None,
             **kwargs
     ):
         """
@@ -1017,8 +1037,8 @@ class SfgRecord():
             function name in SfgRecord, that returns a proper shaped
             array. (num_of_ppelays, num_of_spectra)
         kwargs are passes to SfgRecord.get_trace_pp_delays
-          most notable is the
-          *x_pixel_slice*
+          most notable are the
+          *x_pixel_slice*, *y_pixel_slice*
 
         """
         if not fig:
@@ -1032,7 +1052,7 @@ class SfgRecord():
         plot_data = getattr(self, y_axis)(**kwargs)
         #plot_data = self.get_trace_pp_delay(**kwargs)
 
-        lines = ax.plot(x_axis, plot_data, "-o")
+        lines = ax.plot(x_axis, plot_data, "-o", label=label)
 
         return lines
 

@@ -1,31 +1,8 @@
 import os
 import re
-import copy
 from datetime import timedelta, datetime
 
 debug = 0
-
-# A skeleton for a Metadata dictionary
-MetaData = {
-    "uri": "",
-    "sp_type": "",
-    "material": "",
-    "central_wl": -1,
-    "vis_wl": 810,
-    "gain": -2,
-    "exposure_time": timedelta(0),
-    "polarisation": "",
-    "pump": None,
-    "probe": None,
-    "vis": None,
-    "galvaner": None,
-    "chopper": None,
-    "purge": None,
-    "date": None,
-    "pump_freq": 0, # frequency of the pump in 1/cm
-    "pump_width": 0, # width of the pump in 1/cm
-}
-
 
 def get_metadata_from_filename(fpath):
     """Function to extract metadata from filenames.
@@ -48,14 +25,6 @@ def get_metadata_from_filename(fpath):
     except IndexError:
         pass
 
-    #  try:
-    #      metadata["central_wl"] = int(fsplit[3].split("w")[1])
-    #  except IndexError:
-    #      match_cw = re.search("_wl(\d+)", ffile)
-    #      if match_cw:
-    #          metadata["central_wl"] = int(match_cw.group(1))
-    #  except ValueError:
-    #      pass
     central_wl_conditions = [
         '_wl(\d\d\d)_',
         '_w(\d\d\d)_',

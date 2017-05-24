@@ -1,6 +1,7 @@
 """static functions go here """
 from os import path
-from numpy import sqrt, power, cos, sin, arcsin, square, array, ones, shape, sum, argmax, argmin, e, where
+from numpy import (sqrt, power, cos, sin, arcsin, square, array, abs,
+                   zeros_like, sum, argmax, argmin, e, where, resize, shape)
 
 
 def wavenumbers_to_nm(wavenumbers):
@@ -61,6 +62,19 @@ def get_interval_index(input_array, min, max):
     else:
         return argmax(input_array < max), argmin(input_array > min)
 
+def find_nearest_index(input_array, points):
+    """Find the indices where input_array and points are closest to each other.
+
+    input_array: array to search for indeced indeced
+    points: array of values to find the closest index of.
+
+    Returns:
+    list of indices, that are closest to the given points throughout
+    input_array."""
+    points = resize(points, (shape(input_array)[0], shape(points)[0])).T
+    wavenumbers = resize(input_array, points.shape)
+    ret = abs(wavenumbers - points).argmin(1)
+    return ret
 
 def savefig(filename, dpi=150, pgf=False, **kwargs):
     import matplotlib.pyplot as plt
