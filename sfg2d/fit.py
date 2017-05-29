@@ -1,6 +1,5 @@
 """Fitting module based on probfit and iminuit"""
 
-
 def load_savearg(fp, roi=False):
     """load the fit results from file
 

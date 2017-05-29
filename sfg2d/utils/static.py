@@ -1,7 +1,11 @@
 """static functions go here """
 from os import path
+from scipy.stats import norm
 from numpy import (sqrt, power, cos, sin, arcsin, square, array, abs,
-                   zeros_like, sum, argmax, argmin, e, where, resize, shape)
+                   zeros_like, sum, argmax, argmin, e, where, resize, shape,
+                   zeros, exp, convolve)
+
+from .consts import STEPSIZE
 
 
 def wavenumbers_to_nm(wavenumbers):
@@ -332,3 +336,111 @@ def heat_time(t, H0, tau=1000, c=0):
     if t <= 0:
         return 0
     return HM(t)
+
+def gaus_func(x, A=1, mu=0, sigma=1, c=0):
+    """Gaussian function
+
+    Parameters
+    ----------
+    x : array
+        position of interest
+    A : num
+        amplitude
+    mu : num
+        position
+    simga : num
+        width
+    c : num
+        offset
+
+    Returns
+    -------
+    array
+        points on a gausian distribution at point(s) x"""
+    return A * norm.pdf(x, loc=mu, scale=sigma) + c
+
+def exp_func(x, A=1,  tau=1, c=0):
+    """Function of the exponential decay
+
+    Parameters
+    ----------
+    x : array
+        position(s) of interest
+    A : num
+        amplitude
+    tau : num
+        decy parameter
+    c : num
+        offset parameter
+
+    Returns
+    -------
+    array
+        function at requested x points
+    """
+    ret = zeros(shape(x), )
+    for i in range(len(x)):
+        xi = x[i]
+        if xi > STEPSIZE:
+            ret[i] = A*exp(-tau * xi) + c
+        if xi <= STEPSIZE:
+            ret[i] = 0
+
+    return ret
+
+def conv_gaus_exp(A0, A1, tau0, tau1, c):
+    """
+    Convolution of gaus and exp decay
+
+    Parameters
+    ----------
+    A : num
+        Amplitude of the exp functions
+    tau : num
+        decay parameter of the exponential decay
+    c : num
+        Offsetparameter of exp decay
+
+    Returns
+    -------
+    array
+       negative and normalized version of the convolution of a gaussian
+        and an exponential decay"""
+    res = convolve(
+        exp_func(XE, A0, tau0, 0) +
+        exp_func(XE, A1, tau1, c), # here I added the exp function
+        gaus_func(XG, -1, 0, 0.3, 0 ),
+        mode="full"
+    )
+    return  res
+
+def conv_gaus_exp_f(xpoint, A0, A1, tau0, tau1, c):
+    """Functioniced and vectorized form of the convolution
+
+    Parameters
+    ----------
+    xpoint : array
+        x data points of the convolution. If an x-data point is requested
+        that is not directly covered by the numerical convolution, this
+        return a linear approximation starting from the closest known
+        points of the requested point.
+    *args and **kwargs are passed to the *conv_gaus_exp* function
+
+    Returns
+    -------
+    array
+        convoluted result at the requested xpoint position(s)"""
+    conv = conv_gaus_exp(A0, A1, tau0, tau1, c)
+    # find closest points in convolution
+    # and linearize the function in between
+    if not hasattr(xpoint, '__iter__'): # xpoint is one point
+        mask = np.where(abs(xconv - xpoint) < xconv[1]- xconv[0]) 
+        res = conv[mask].mean() # TODO change to use interp
+    else: # xpoint is a list
+        res = -1 * np.ones(np.shape(xpoint))
+        for i in range(len(xpoint)):
+            point = xpoint[i]
+            mask = np.where(abs(xconv - point) < xconv[1]- xconv[0])
+            res[i] = conv[mask].mean()  # TODO change to use interp
+    
+    return res
