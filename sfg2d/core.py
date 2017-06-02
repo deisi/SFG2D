@@ -78,13 +78,18 @@ class SfgRecord():
         else:
             self._fname  = fname
         self._rawData = np.zeros((1, 1, 1, PIXEL))
+        self._rawDataE = None
         self._data = self._rawData
         self._base = np.zeros_like(self.rawData)
+        self._baseE = None
         self._norm = np.ones_like(self.rawData)
+        self._normE = None
         self.isBaselineSubed = False
         self._basesubed = None
+        self._basesubedE = None
         self.isNormalized = False
         self._normalized = None
+        self._normalizedE = None
         self._type = 'unknown'
         self._wavelength = None
         self._wavenumber = None
@@ -138,6 +143,22 @@ class SfgRecord():
         self.isBaselineSubed = False
 
     @property
+    def rawDataE(self):
+        """Std error of the mean rawData."""
+        if isinstance(self._rawDataE, type(None)):
+            self._rawDataE = self.rawData.std(FRAME_AXIS_INDEX) / np.sqrt(self.number_of_frames)
+            self._rawDataE = np.expand_dims(self._rawDataE, 1)
+        return self._rawDataE
+
+    @rawDataE.setter
+    def rawDataE(self, value):
+        if not isinstance(value, np.ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._rawDataE = value
+
+    @property
     def base(self):
         return self._base
 
@@ -149,6 +170,21 @@ class SfgRecord():
         self._base = value * np.ones_like(self.rawData)
 
     @property
+    def baseE(self):
+        if isinstance(self._baseE, type(None)):
+            self._baseE = self.base.std(FRAME_AXIS_INDEX) / np.sqrt(self.base.shape[FRAME_AXIS_INDEX])
+            self._baseE = np.expand_dims(self._baseE, 1)
+        return self._baseE
+
+    @baseE.setter
+    def baseE(self, value):
+        if not isinstance(value, np.ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._baseE = value
+
+    @property
     def norm(self):
         return self._norm
 
@@ -158,6 +194,21 @@ class SfgRecord():
             self.un_normalize()
             self.isNormalized = False
         self._norm = value * np.ones_like(self.rawData)
+
+    @property
+    def normE(self):
+        if isinstance(self._normE, type(None)):
+            self._normE = self.norm.std(FRAME_AXIS_INDEX) / np.sqrt(self.norm.shape[FRAME_AXIS_INDEX])
+            self._normE = np.expand_dims(self._normE, 1)
+        return self._normE
+
+    @normE.setter
+    def normE(self, value):
+        if not isinstance(value, np.ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._normE = value
 
     @property
     def data(self):
@@ -304,8 +355,23 @@ class SfgRecord():
             self._basesubed = self.get_baselinesubed()
         return self._basesubed
 
+    @property
+    def basesubedE(self):
+        """Returns data error after subtracting baseline."""
+        if isinstance(self._basesubedE, type(None)):
+            self._basesubedE = np.sqrt(self.rawDataE**2 + self.baseE**2)
+        return self._basesubedE
+
+    @basesubedE.setter
+    def basesubedE(self, value):
+        if not isinstance(value, np.ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._basesubedE = value
+
     def get_baselinesubed(self, use_rawData=True):
-        """Get baselinesubtracted data"""
+        """Get baseline subtracted data"""
 
         if use_rawData or self.isNormalized:
             ret = self.rawData - self.base
@@ -336,7 +402,7 @@ class SfgRecord():
         ret = self.get_baselinesubed(use_rawData)
         if inplace and not self.isBaselineSubed:
             self.data = ret
-            # Toggle to prevent multiple baseline substitutions
+            # Toggle prevents multiple baseline substitutions
             self.isBaselineSubed = True
         return ret
 
@@ -400,6 +466,25 @@ class SfgRecord():
         return ret
 
     @property
+    def normalizedE(self):
+        """Error of the normalized data."""
+        if isinstance(self._normalizedE, type(None)):
+            norm = np.expand_dims(self.norm.mean(FRAME_AXIS_INDEX), 1)
+            basesubed = np.expand_dims(self.basesubed.mean(FRAME_AXIS_INDEX), 1)
+            self._normalizedE = np.sqrt(
+                (self.basesubedE/norm)**2 + ((basesubed/(norm)**2 * self.normE))**2
+            )
+        return self._normalizedE
+
+    @normalizedE.setter
+    def normalizedE(self, value):
+        if not isinstance(value, np.ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._normalizedE = value
+
+    @property
     def sum_argmax(self, frame_median=True, pixel_slice=slice(None,None)):
         """argmax of pp_delay with biggest sum.
 
@@ -407,9 +492,9 @@ class SfgRecord():
             default true, Take median of frames.
             if false give a frimewise argmax."""
         if frame_median:
-            ret = np.median(self.data[:,:,:,pixel_slice], 1).sum(-1).argmax(0)
+            ret = np.median(self.data[:, :, :, pixel_slice], 1).sum(-1).argmax(0)
         else:
-            ret = self.data[:,:,:,pixel_slice].sum(-1).argmax(0)
+            ret = self.data[:, :, :, pixel_slice].sum(-1).argmax(0)
         return ret
 
     @property
@@ -437,10 +522,11 @@ class SfgRecord():
         if not value <= self.number_of_y_pixel:
             raise IOError("Cant set pumped index bigger then data dim.")
         self._pumped_index = value
-        # Because we set a new pumped index bleach and pumped must be recalculated.
+        # Because we set a new index bleach and pumped must be recalculated.
         self._pumped = None
         self._bleach = None
         self._bleach_rel = None
+
     @property
     def unpumped(self):
         if isinstance(self._unpumped, type(None)):
@@ -651,7 +737,7 @@ class SfgRecord():
         if isinstance(stop_slice, type(None)):
             stop_slice = slice(-0.1*self.pixel, None)
 
-        yp = np.array([np.median(data[:,:,:,start_slice], -1), np.median(data[:,:,:,stop_slice], -1)])
+        yp = np.array([np.median(data[:, :, :, start_slice], -1), np.median(data[:, :, :, stop_slice], -1)])
         xp = [0, self.pixel]
         x = np.arange(self.pixel)
         #TODO Make use of gridspec or any other multitimensional linear interpolation method.
@@ -786,6 +872,13 @@ class SfgRecord():
             self.pp_delays = imp['pp_delays']
             self._unpumped_index = imp['_unpumped_index'][()]
             self._pumped_index = imp['_pumped_index'][()]
+            try:
+                self.rawDataE = imp['rawDataE']
+                self.normE = imp['normE']
+                self.basesubedE = imp['basesubedE']
+                self.normalizedE = imp['normalizedE']
+            except KeyError:
+                pass
             return
 
         if self._type == "veronica":
@@ -868,16 +961,21 @@ class SfgRecord():
         """Save the SfgRecord into a compressed numpy array."""
         np.savez_compressed(
             file,
-            rawdata = self.rawData,
-            norm = self.norm,
-            base = self.base,
-            pp_delays = self.pp_delays,
-            wavelength = self.wavelength,
-            wavenumber = self.wavenumber,
-            metadata = self.metadata,
-            dates = self.dates,
-            _pumped_index = self._pumped_index,
-            _unpumped_index = self._unpumped_index
+            rawdata=self.rawData,
+            norm=self.norm,
+            base=self.base,
+            pp_delays=self.pp_delays,
+            wavelength=self.wavelength,
+            wavenumber=self.wavenumber,
+            metadata=self.metadata,
+            dates=self.dates,
+            _pumped_index=self._pumped_index,
+            _unpumped_index=self._unpumped_index,
+            rawDataE=self.rawDataE,
+            normE=self.normE,
+            baseE=self.baseE,
+            basesubedE=self.basesubedE,
+            normalizedE=self.normalizedE,
         )
 
     def make_avg(self, correct_static=True):
@@ -899,6 +997,9 @@ class SfgRecord():
             setattr(
                 ret, key, np.expand_dims(np.median(getattr(self, key), 1), 1)
             )
+        for key in ('rawDataE', 'normE', 'baseE',
+                    'basesubedE', 'normalizedE'):
+            setattr(ret, key, getattr(self, key))
         if correct_static:
             pass
         return ret
@@ -929,6 +1030,10 @@ class SfgRecord():
         ret.pp_delays = self.pp_delays
         ret.base = self.base
         ret.norm = self.norm
+        ret.normE = self.normE
+        ret.basesubedE = self.basesubedE
+        ret.rawDataE = self.rawDataE
+        ret.normalizedE = self.normalizedE
 
         # Manipulate rawData
         delta = self.basesubed - (self.basesubed * self.static_corr)

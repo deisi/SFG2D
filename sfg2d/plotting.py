@@ -94,7 +94,7 @@ def plot_time(time, data, **kwargs):
     x_range *= 0.05
     plt.xlim(min(time) - x_range, max(time) + x_range)
 
-def errorshadow(x, y, dy, ax=None, color="b", **kwargs):
+def errorshadow(x, y, dy, ax=None, **kwargs):
     """
     Plot error-bar as shadow around the data
 
@@ -113,8 +113,8 @@ def errorshadow(x, y, dy, ax=None, color="b", **kwargs):
     """
     if not ax:
         ax = plt.gca()
-    ax.plot(x, y, color=color, **kwargs)
-    ax.fill_between(x, y-dy, y+dy, color=color, alpha=0.5)
+    lines = ax.plot(x, y, **kwargs)
+    ax.fill_between(x, y-dy, y+dy, color=lines[0].get_color(), alpha=0.5)
 
 def contour(x, y, z, N=30, fig=None,
             y_slice=slice(None), show_y_lines=True,
