@@ -800,12 +800,12 @@ class WidgetBase():
 
         y_slice_inds = self.wIntTextPumped.value, self.wIntTextUnpumped.value
         if self.wDropdownOperator.value == "-":
-            data = self.data.get_bleach(
+            data = self.data.calc_bleach_abs(
                 self.wIntTextPumped.value,
                 self.wIntTextUnpumped.value
             )
         elif self.wDropdownOperator.value == "/":
-            data = self.data.get_bleach_rel(
+            data = self.data.calc_bleach_rel(
                 self.wIntTextPumped.value,
                 self.wIntTextUnpumped.value
             )

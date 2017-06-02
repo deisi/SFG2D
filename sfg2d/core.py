@@ -5,14 +5,15 @@ import numpy as np
 from scipy.signal import medfilt
 import matplotlib.pyplot as plt
 
-from .io.veronica import SPECS, pixel_to_nm, get_from_veronika
+from .io.veronica import pixel_to_nm, get_from_veronika
 from .io.victor_controller import get_from_victor_controller
 from .utils import (
     nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX,
-    SPEC_INDEX, FRAME_AXIS_INDEX, PIXEL, PP_INDEX, X_PIXEL_INDEX,
+    FRAME_AXIS_INDEX, PIXEL, PP_INDEX,
     find_nearest_index
 )
 from .utils.consts import VIS_WL, PUMP_FREQ
+
 
 class SfgRecord():
     """Class to load and manage SFG data in a 4D structure
@@ -71,37 +72,115 @@ class SfgRecord():
         4 d normalized array
     """
     def __init__(self, fname=None, base=None, norm=None):
+        # 1d Array of pump-probe delay values
         self.pp_delays = np.array([0])
+
+        # Dicitionary of metadata
         self.metadata = {}
+
+        # File name of the data file
         if not fname:
             self._fname = ""
         else:
-            self._fname  = fname
+            self._fname = fname
+
+        # 4d array of raw data
         self._rawData = np.zeros((1, 1, 1, PIXEL))
+
+        # Error of raw data
         self._rawDataE = None
+
+        # 4d buffer array of processed data
         self._data = self._rawData
+
+        # 4d array of baseline/background data
         self._base = np.zeros_like(self.rawData)
+
+        # error of base
         self._baseE = None
+
+        # 4d array of normalized data
         self._norm = np.ones_like(self.rawData)
+
+        # error of normalized data
         self._normE = None
+
+        # Boolean to check baseline subtraction
         self.isBaselineSubed = False
+
+        # 4d array of baselinesubstracted data
         self._basesubed = None
+
+        # Error ob  baselinesubtracted data
         self._basesubedE = None
+
+        # boolean for normalization
         self.isNormalized = False
+
+        # 4d array of normalized data
         self._normalized = None
+
+        # error of normalized data
         self._normalizedE = None
+
+        # type of data file
         self._type = 'unknown'
+
+        # 1d array with wavelength values
         self._wavelength = None
+
+        # 1d array with wavenumber values
         self._wavenumber = None
-        self._bleach = None
+
+        # 3d array of absolute bleach
+        self._bleach_abs = None
+
+        # 3d array of relative bleach
         self._bleach_rel = None
+
+        # 3d array of absolute bleach after normalization
+        self._bleach_norm = None
+
+        # Error of absolute bleach
+        self._bleach_absE = None
+
+        # Error of realtive bleach
+        self._bleach_relE = None
+
+        # Error of normalized bleach
+        self._bleach_normE = None
+
+        # 3d Array of pumped data
         self._pumped = None
+
+        # 3d Array of unpumped data
         self._unpumped = None
+
+        # 3d array of pumped and normalized
+        self._pumped_norm = None
+
+        # 3d array of unpumped and normalized
+        self._unpumped_norm = None
+
+        # y-pixel/spectra index of pumped data
         self._pumped_index = 0
-        self._unpumped_index =  1
+
+        # index of unpumped data
+        self._unpumped_index = 1
+
+        # List of dates the spectra were recorded at.
         self._dates = None
-        self.zero_time = None
+
+        # array of bleach value at negative time
+        self.zero_time_abs = None
+
+        # array of relative bleach value at negative time.
         self.zero_time_rel = None
+
+        # array of normalized bleach at negative time.
+        self.zero_time_norm = None
+
+        # 4d array of values for the static drift correction.
         self._static_corr = None
 
         if isinstance(fname, type(None)):
@@ -130,10 +209,18 @@ class SfgRecord():
 
     @property
     def rawData(self):
+        """Raw Data of the Record.
+
+        `SfgRecord.rawData` is a 4d array with:
+        0 axis: pp_delay index.
+        1 axis: frame index.
+        2 axis: y_pixel/spectra index.
+        3 axis: pixel index."""
         return self._rawData
 
     @rawData.setter
     def rawData(self, value):
+        """Raw Data of the Record"""
         if not isinstance(value, np.ndarray):
             raise IOError("Can't use type %s for data" % type(value))
         if len(value.shape) != 4:
@@ -144,14 +231,20 @@ class SfgRecord():
 
     @property
     def rawDataE(self):
-        """Std error of the mean rawData."""
+        """Std error of the mean rawData.
+
+        See `SfgRecord.rawData` for further information."""
         if isinstance(self._rawDataE, type(None)):
-            self._rawDataE = self.rawData.std(FRAME_AXIS_INDEX) / np.sqrt(self.number_of_frames)
+            self._rawDataE = np.divide(
+                self.rawData.std(FRAME_AXIS_INDEX),
+                np.sqrt(self.number_of_frames)
+            )
             self._rawDataE = np.expand_dims(self._rawDataE, 1)
         return self._rawDataE
 
     @rawDataE.setter
     def rawDataE(self, value):
+        """See `SfgRecord.rawData` for further information."""
         if not isinstance(value, np.ndarray):
             raise IOError("Can't use type %s for data" % type(value))
         if len(value.shape) != 4:
@@ -160,6 +253,9 @@ class SfgRecord():
 
     @property
     def base(self):
+        """Baseline/Background data.
+
+        4d data array with the same structure as `SfgRecord.rawData`."""
         return self._base
 
     @base.setter
@@ -171,8 +267,14 @@ class SfgRecord():
 
     @property
     def baseE(self):
+        """Error of the baseline/background.
+
+        4d array like `SfgRecord.rawData` wit error of base"""
         if isinstance(self._baseE, type(None)):
-            self._baseE = self.base.std(FRAME_AXIS_INDEX) / np.sqrt(self.base.shape[FRAME_AXIS_INDEX])
+            self._baseE = np.divide(
+                self.base.std(FRAME_AXIS_INDEX),
+                np.sqrt(self.base.shape[FRAME_AXIS_INDEX])
+            )
             self._baseE = np.expand_dims(self._baseE, 1)
         return self._baseE
 
@@ -186,6 +288,10 @@ class SfgRecord():
 
     @property
     def norm(self):
+        """Spectrum for normalization.
+
+        The quartz or gold or what ever spectrum that is your reference.
+        same structure as `SfgRecord.rawData`."""
         return self._norm
 
     @norm.setter
@@ -197,8 +303,14 @@ class SfgRecord():
 
     @property
     def normE(self):
+        """Error of the normalization spectrum.
+
+        Same structure as `SfgRecord.rawData`."""
         if isinstance(self._normE, type(None)):
-            self._normE = self.norm.std(FRAME_AXIS_INDEX) / np.sqrt(self.norm.shape[FRAME_AXIS_INDEX])
+            self._normE = np.divide(
+                self.norm.std(FRAME_AXIS_INDEX),
+                np.sqrt(self.norm.shape[FRAME_AXIS_INDEX])
+            )
             self._normE = np.expand_dims(self._normE, 1)
         return self._normE
 
@@ -212,6 +324,13 @@ class SfgRecord():
 
     @property
     def data(self):
+        """Buffer for processed data.
+
+        A buffer to store processed data in. You can put rawData, or
+        baseline subtract data or normalized data in this buffer. It
+        is mostly a convenience thing during interactive sessions.
+
+        Same structure as `SfgRecord.rawData`."""
         return self._data
 
     @data.setter
@@ -224,6 +343,9 @@ class SfgRecord():
 
     @property
     def dates(self):
+        """List of datetimes the spectra were recorded at.
+
+        A list of datetime objects when each spectrum was created."""
         if isinstance(self._dates, type(None)):
             self._dates = []
             for i in range(self.data.shape[1]):
@@ -238,6 +360,7 @@ class SfgRecord():
 
     @property
     def times(self):
+        """List of timedeltas the spectra were recorded with."""
         ret = []
         time_of_a_scan = self.metadata['exposure_time']
         for i in range(self.data.shape[1]):
@@ -259,26 +382,52 @@ class SfgRecord():
 
     @property
     def pixel(self):
+        """Iterable list of pixels."""
         return np.arange(self.data.shape[X_PIXEL_INDEX])
 
     @property
     def number_of_y_pixel(self):
+        """Number of y_pixels/spectra."""
         return self.data.shape[Y_PIXEL_INDEX]
 
     @property
     def number_of_spectra(self):
+        """Number of spectra/y_pixels."""
         return self.number_of_y_pixel
 
     @property
     def number_of_x_pixel(self):
+        """Number of pixels."""
         return self.data.shape[X_PIXEL_INDEX]
 
     @property
     def number_of_pp_delays(self):
+        """Number of pump probe time delays."""
         return self.data.shape[PP_INDEX]
 
     @property
     def wavelength(self):
+        """Numpy array with the wavelength in nm.
+
+        A 1d numpy array with the wavelength of the spectra.
+        If wavelength is not set externally, the central wavelength
+        is read from *SfgRecord.metadata* and an internaly stored
+        calibration line is used to calculate the wavelength.
+
+        Examples
+        --------
+        If you want to get the automatically obtained wavelength call:
+        >>> SfgRecord.wavelength
+
+        To set a specific central wavelength and to recalculate the
+        wavelength do:
+        >>> SfgRecord.metadata['central_wl'] = 670
+        >>> SfgRecord._wavelength = None
+        >>> SfgRecord.wavelength
+
+        The above example sets 800 nm as the central wavelength, and forced
+        a recalculation of the wavelength data.
+        """
         if isinstance(self._wavelength, type(None)):
             cw = self.metadata["central_wl"]
             self._wavelength = self.get_wavelength(cw)
@@ -304,7 +453,26 @@ class SfgRecord():
 
     @property
     def wavenumber(self):
-        """wavenumber propertie."""
+        """Numpy array of wavenumbers in 1/cm.
+
+        Works similar to *SfgRecord.wavelength*, so see its documentation
+        for further insights.
+        1d numpy array of wavenumber values in 1/cm.
+        First wavelength in nm is calculated using *SfgRecord.wavelength*
+        then, wavenumber is calculated using the vis_wl keyword from
+        the metadata dictionary.
+
+        Examples
+        --------
+        Obtaining wavenumber with:
+        >>> SfgRecord.wavenumber
+        Recalculate with:
+        >>> SfgRecord.metadata["vis_wl"]=800
+        >>> SfgRecord.metadata["central_wl"]=670
+        >>> SfgRecord._wavenumber = None
+        >>> SfgRecod._wavelength = None
+        >>> SfgRecord.wavenumber
+        """
 
         if isinstance(self._wavenumber, type(None)):
             vis_wl = self.metadata.get("vis_wl")
@@ -327,13 +495,23 @@ class SfgRecord():
         return ret
 
     def wavenumbers2index(self, wavenumbers, sort=False):
-        """Get index positions of wavenumbers.
+        """Calculate index positions of wavenumbers.
 
+        Tries to find matching index values for given wavenumbers.
+        The wavenumbers dont need to be exact. Closes match will
+        be used.
+
+        Parameters
+        ----------
         wavenumbers: iterable
             list of wavenumbers to search for.
 
         sort: boolean
             if ture, sort the index result by size, starting from the smallest.
+
+        Returns
+        -------
+        Numpy array with index positions of the searched wavenumbers.
         """
         ret = find_nearest_index(self.wavenumber, wavenumbers)
         if sort:
@@ -349,7 +527,9 @@ class SfgRecord():
 
     @property
     def basesubed(self):
-        """Baselinesubstracted data set."""
+        """Baselinesubstracted data.
+
+        The rawData after baseline subtraction."""
 
         if isinstance(self._basesubed, type(None)):
             self._basesubed = self.get_baselinesubed()
@@ -357,7 +537,7 @@ class SfgRecord():
 
     @property
     def basesubedE(self):
-        """Returns data error after subtracting baseline."""
+        """Data error after subtracting baseline."""
         if isinstance(self._basesubedE, type(None)):
             self._basesubedE = np.sqrt(self.rawDataE**2 + self.baseE**2)
         return self._basesubedE
@@ -371,7 +551,7 @@ class SfgRecord():
         self._basesubedE = value
 
     def get_baselinesubed(self, use_rawData=True):
-        """Get baseline subtracted data"""
+        """Get baseline subtracted data."""
 
         if use_rawData or self.isNormalized:
             ret = self.rawData - self.base
@@ -390,11 +570,12 @@ class SfgRecord():
             If true, subsitute SfgRecord.base from SfgRecord.data inplace.
 
         use_rawData: boolean
-            Subtract baseline from `SfgRecord.rawData` and not `SfgRecord.data`.
-            If data is already normalized (`SfgRecord.isNormalized` is True) then,
-            this is always calculated from `SfgRecord.rawData`. So be carefull about
-            this when using filters, because they usually only work on `SfgRecord.data`
-            and not `SfgRecord.rawData`.
+            Subtract baseline from `SfgRecord.rawData` and not
+            `SfgRecord.data`.
+            If data is already normalized (`SfgRecord.isNormalized` is True)
+            then, this is always calculated from `SfgRecord.rawData`. So be
+            carefull about this when using filters, because they usually only
+            work on `SfgRecord.data` and not `SfgRecord.rawData`.
 
         Returns
         -------
@@ -407,7 +588,9 @@ class SfgRecord():
         return ret
 
     def add_base(self, inplace=False):
-        """Add baseline to data"""
+        """Add baseline to data.
+
+        Can be used to readd the baseline after subtraction the baseline."""
         ret = self.data + self.base
         if inplace and not self.isBaselineSubed:
             self.data = ret
@@ -416,7 +599,21 @@ class SfgRecord():
 
     @property
     def normalized(self):
-        """Normalized data set"""
+        """Normalized data.
+
+        4D array like `SfgRecord.rawData` after normalizting.
+
+        Examples
+        --------
+        >>> import sfg2d
+        >>> bg = sfg2d.SfgRecod('path/to/baselinedata').make_avg()
+        >>> q0 = sfg2d.SfgRecod('path/to/quartz').make_avg()
+        >>> q0.base = bg.rawData
+        >>> data = sfg2d.SfgRecod('/path/to/data')
+        >>> data.norm = q0.basesubed
+        >>> data.base = bg.rawData
+        >>> data.normalized
+        """
         if isinstance(self._normalized, type(None)):
             self._normalized = self.get_normalized()
         return self._normalized
@@ -439,12 +636,21 @@ class SfgRecord():
             ret = self.data / self.norm
         return ret
 
-    def normalize(self, inplace=False, use_rawData=False):
+    def normalize(self, inplace=False, use_rawData=True):
+        """Normalize data.
+
+        Parameters
+        ----------
+        inplace : boolean default False
+            apply restult to `SfgRecod.data` buffer.
+        use_rawData : boolean default True
+            Recalculate normalized data using `SfgRecod.rawData`.
+        """
         if not self.isBaselineSubed:
             warnings.warn(
-                "Normalizing data although baseline is not substracted."\
-                "Consider subtracting baseline with `SfgRecod.sub_base(inplace=True)`"\
-                "first."
+                "Normalizing data although baseline is not substracted."
+                "Consider subtracting baseline with"
+                "SfgRecod.sub_base(inplace=True) first."
             )
         ret = self.get_normalized(use_rawData)
         if inplace and not self.isNormalized:
@@ -453,12 +659,24 @@ class SfgRecord():
         return ret
 
     def un_normalize(self, inplace=False):
+        """un normalize `SfgRecod.data`
+
+        Reverse the normalization applied to `SfgRecod.data`.
+
+        Parameters
+        ----------
+        inplace: default False boolean
+            Apply to `SfgRecod.data`
+
+        Returns
+        -------
+        The unnormalized version of the data.
+        """
         if not self.isBaselineSubed:
-            warnings.warn(
-                "Normalizing data although baseline is not substracted."\
-                "Consider subtracting baseline with `SfgRecod.sub_base(inplace=True)`"\
-                "first."
-            )
+            msg = "Normalizing data although baseline is not substracted."\
+                  "Consider subtracting baseline with"\
+                  "`SfgRecod.sub_base(inplace=True)` first."
+            warnings.warn(msg)
         ret = self.data * self.norm
         if inplace and self.isNormalized:
             self.data = ret
@@ -485,36 +703,29 @@ class SfgRecord():
         self._normalizedE = value
 
     @property
-    def sum_argmax(self, frame_median=True, pixel_slice=slice(None,None)):
+    def sum_argmax(self, frame_median=True,
+                   pixel_slice=slice(None, None)):
         """argmax of pp_delay with biggest sum.
 
         frame_median : bool
             default true, Take median of frames.
-            if false give a frimewise argmax."""
+            if false give a framewise argmax."""
         if frame_median:
-            ret = np.median(self.data[:, :, :, pixel_slice], 1).sum(-1).argmax(0)
+            ret = np.median(
+                self.data[:, :, :, pixel_slice], 1
+            ).sum(-1).argmax(0)
         else:
             ret = self.data[:, :, :, pixel_slice].sum(-1).argmax(0)
         return ret
 
     @property
-    def pumped(self):
-        if isinstance(self._pumped, type(None)):
-            self.pumped = self._pumped_index
-        return self._pumped
-
-    @pumped.setter
-    def pumped(self, value):
-        if isinstance(value, int) or isinstance(value, np.integer):
-            self._pumped = self.data[:, :, value]
-            self._pumped_index = value
-        else:
-            raise NotImplemented()
-
-    @property
     def pumped_index(self):
-        if not np.all(self.pumped == self.data[:, :, self._pumped_index]):
-            warnings.warn("Not sure if pumped index is correct.")
+        """Index value of the pumped data set.
+
+        The y_pixel/spectra index value of the pumped data set.
+        Upon importing the data this must be set manually, or 0
+        is assumed.
+        """
         return self._pumped_index
 
     @pumped_index.setter
@@ -523,28 +734,48 @@ class SfgRecord():
             raise IOError("Cant set pumped index bigger then data dim.")
         self._pumped_index = value
         # Because we set a new index bleach and pumped must be recalculated.
-        self._pumped = None
-        self._bleach = None
+        self._bleach_norm = None
+        self._bleach_abs = None
         self._bleach_rel = None
 
     @property
-    def unpumped(self):
-        if isinstance(self._unpumped, type(None)):
-            self.unpumped = self._unpumped_index
-        return self._unpumped
+    def pumped(self):
+        """Pumped data.
 
-    @unpumped.setter
-    def unpumped(self, value):
+        3d Array of the pumped data. If no pumped data is set explicit,
+        `SfgRecord.pumped_index` is used to get the pumped data."""
+        if isinstance(self._pumped, type(None)):
+            self.pumped = self.pumped_index
+        return self._pumped
+
+    @pumped.setter
+    def pumped(self, value):
         if isinstance(value, int) or isinstance(value, np.integer):
-            self._unpumped = self.data[:, :, value]
-            self._unpumped_index = value
+            self.pumped_index = value
+            self._pumped = self.basesubed[:, :, value]
+        else:
+            raise NotImplemented()
+
+    @property
+    def pumped_norm(self):
+        """Pumped data normalized."""
+        if isinstance(self._pumped_norm, type(None)):
+            self._pumped_norm = self.normalized[:, :, self.pumped_index]
+        return self._pumped_norm
+
+    @pumped_norm.setter
+    def pumped_norm(self, value):
+        if isinstance(value, int) or isinstance(value, np.integer):
+            self.pumped_index = value
+            self._pumped_norm = self.normalized[:, :, value]
         else:
             raise NotImplemented()
 
     @property
     def unpumped_index(self):
-        if not np.all(self.unpumped == self.data[:, :, self._unpumped_index]):
-            warnings.warn("Not sure if unpumped index is correct.")
+        """y_pixel/spectra index of the unpumped data.
+
+        Must be set during data import or a default of 1 is used."""
         return self._unpumped_index
 
     @unpumped_index.setter
@@ -552,32 +783,66 @@ class SfgRecord():
         if not value <= self.number_of_x_pixel:
             raise IOError("Cant set unpumped index bigger then data dim.")
         self._unpumped_index = value
-        # Beacause we setted a new index on the unpumped spectrum we can right away
-        # reset the bleach because its not correct any more.
-        self._unpumped = None
-        self._bleach = None
+        # Beacause we setted a new index on the unpumped spectrum we must
+        # reset the bleach.
+        self._bleach_abs = None
         self._bleach_rel = None
+        self._bleach_norm = None
 
     @property
-    def bleach(self):
-        if isinstance(self._bleach, type(None)):
-            self._bleach = self.get_bleach()
-        return self._bleach
+    def unpumped(self):
+        """Unpumped data array.
 
-    def get_bleach(self, pumped=None, unpumped=None, sub_first=True):
-        """Calculate bleach.
+        3d numpy array with the unpumed data.
+        Uses `SfgRecord.unpumped_index`, to obtain unpumped data.
+        """
+        if isinstance(self._unpumped, type(None)):
+            self.unpumped = self.unpumped_index
+        return self._unpumped
 
+    @unpumped.setter
+    def unpumped(self, value):
+        if isinstance(value, int) or isinstance(value, np.integer):
+            self.unpumped_index = value
+            self._unpumped = self.basesubed[:, :, value]
+        else:
+            raise NotImplemented()
+
+    @property
+    def unpumped_norm(self):
+        """Unpumped data normalized."""
+        if isinstance(self._unpumped_norm, type(None)):
+            self.unpumped_norm = self.unpumped_index
+        return self._unpumped_norm
+
+    @unpumped_norm.setter
+    def unpumped_norm(self, value):
+        if isinstance(value, int) or isinstance(value, np.integer):
+            self.unpumped_index = value
+            self._unpumped_norm = self.normalized[:, :, value]
+        else:
+            raise NotImplemented()
+
+    def _calc_bleach(self, operation,
+                     pumped=None, unpumped=None, sub_first=True):
+        """Calculate bleach using the given operation.
+
+        operation: string
+            possible are: 'absolute', 'realtive' or 'normalize'
         pumped: None, index or array
-            If None SfgReco.pump is used. Else SfgRecord.pump is setted
+            If None SfgRecord.pump is used. Else SfgRecord.pump is setted
             by pumped
         unpumped: None, index or array
             Same as pumped only for unpumped
         sub_first : boolean
             substitute the first spectrum from the data to account for
-            the constant offset."""
-        #TODO catch the case when there is only one spectrum
+            the constant offset.
 
-        # needed to prevent inplace overwriting of self.data
+        Returns
+        -------
+        The calculated 3d bleach result.
+        """
+
         bleach = np.zeros((
             self.number_of_pp_delays,
             self.number_of_spectra,
@@ -587,32 +852,86 @@ class SfgRecord():
         if self.number_of_spectra < 2:
             return bleach
 
-        if isinstance(pumped, type(None)):
-            pumped = self.pumped
-        else:
-            # Uses the setter of SfgRecord.pumped to recast pumped to an array
+        if not isinstance(pumped, type(None)) and \
+           not self.pumped_index == pumped:
+            # After this, pumped is an 3d data array.
+            # and self.pumped_index is resetted.
             self.pumped = pumped
-            pumped = self.pumped
-        if isinstance(unpumped, type(None)):
-            unpumped = self.unpumped
-        else:
+            self.pumped_norm = pumped
+        if not isinstance(unpumped, type(None)) and \
+           not self.unpumped_index == unpumped:
+            # After this, pumped is an 3d data array.
+            # and self.unpumped_index is resetted.
             self.unpumped = unpumped
+            self.unpumped_norm = unpumped
+
+        if operation is 'normalize':
+            pumped =  self.pumped_norm
+            unpumped = self.unpumped_norm
+        else:
+            pumped = self.pumped
             unpumped = self.unpumped
 
-        bleach = pumped - unpumped
+        if operation is "relative" or operation is 'normalize':
+            bleach = pumped / unpumped
+        elif operation is "absolute":
+            bleach = pumped - unpumped
+
         if sub_first:
-            # copy needed to prevent inplace overwriting of bleach
-            self.zero_time = bleach[0].copy()
-            bleach -= self.zero_time
+            zero_time = bleach[0].copy()
+            bleach -= zero_time
+            if operation is "relative":
+                self.zero_time_rel = zero_time
+            elif operation is "absolute":
+                self.zero_time_abs = zero_time
+            elif operation is "normalize":
+                self.zero_time_norm = zero_time
         return bleach
 
     @property
+    def bleach_abs(self):
+        """Absolute bleached data.
+
+        3d array with bleached data result.
+        The Absolute bleach is calculated by subtracting two
+        baselinesubstracted pumped and unpumped signal.
+
+        """
+        if isinstance(self._bleach_abs, type(None)):
+            self._bleach_abs = self.calc_bleach_abs()
+        return self._bleach_abs
+
+    def calc_bleach_abs(self, pumped=None, unpumped=None, sub_first=True):
+        """Calculate absolute bleach.
+
+        pumped: None, index or array
+            If None SfgReco.pump is used. Else SfgRecord.pump is setted
+            by pumped
+        unpumped: None, index or array
+            Same as pumped only for unpumped
+        sub_first : boolean
+            substitute the first spectrum from the data to account for
+            the constant offset.
+
+        Returns
+        -------
+        The calculated 3d bleach result.
+        """
+        return self._calc_bleach('absolute', pumped, unpumped, sub_first)
+
+    @property
     def bleach_rel(self):
+        """Relative bleached data
+
+        3d array with relative bleached data.
+
+        """
         if isinstance(self._bleach_rel, type(None)):
-            self._bleach_rel = self.get_bleach_rel()
+            self._bleach_rel = self.calc_bleach_rel()
         return self._bleach_rel
 
-    def get_bleach_rel(self, pumped=None, unpumped=None, sub_first=True, raw_data=True,):
+    def calc_bleach_rel(self, pumped=None, unpumped=None,
+                        sub_first=True,):
         """Calculate the relative bleach
 
         Parameters
@@ -621,47 +940,24 @@ class SfgRecord():
             y_pixel/spectra index of the pumped spectrum. Default is None,
             and will make it use `SfgRecord._pumped_index`
         unpumped: index or None
-            like pumped only for unpumped None defaults to `SfgRecord._unpumped_index`
+            like pumped only for unpumped None defaults to
+            `SfgRecord._unpumped_index`
         sub_first: bollean default true
             subtract the 0th pp_delay index. This corrects for constant
             offset between pumped and unpumped data.
         raw_data: boolean default True
             Use raw data to calculate relative bleach.
         """
-        bleach_rel = np.zeros((
-            self.number_of_pp_delays,
-            self.number_of_spectra,
-            self.number_of_x_pixel,
-        ))
-
-        if self.number_of_spectra < 2:
-            return self._bleach_rel
-
-        if isinstance(pumped, type(None)):
-            pumped = self._pumped_index
-        if isinstance(unpumped, type(None)):
-            unpumped = self._unpumped_index
-
-        if raw_data:
-            bleach_rel = self.rawData[:, :, pumped] / self.rawData[:, :, unpumped]
-        else:
-            bleach_rel = self.data[:, :, pumped] / self.data[:, :, unpumped]
-
-        if sub_first:
-            self.zero_time_rel = bleach_rel[0].copy()
-            bleach_rel -= self.zero_time_rel
-        return bleach_rel
+        return self._calc_bleach('relative', pumped, unpumped, sub_first)
 
     @property
-    def bleach_abs(self):
-        """Absolute bleach is always calculated from SfgRecord.basesubed data."""
-        ret = self.basesubed[:, :, self._pumped_index] - self.basesubed[:, :, self._unpumped_index]
-        zero_time = ret[0].copy()
-        ret -= zero_time
-        return ret
+    def bleach_norm(self):
+        if isinstance(self._bleach_norm, type(None)):
+            self._bleach_norm = self._calc_bleach("normalize")
 
     @property
     def trace_pp_delay(self):
+        """trace over pp_delay axis."""
         return self.get_trace_pp_delay()
 
     def get_trace_pp_delay(
@@ -700,6 +996,7 @@ class SfgRecord():
 
     @property
     def trace_frame(self):
+        """Trace framewise."""
         return self.get_trace_frame()
 
     def get_trace_frame(
@@ -711,6 +1008,7 @@ class SfgRecord():
             medfilt_kernel=None,
             raw_data=False,
     ):
+        """Trace per frame."""
         if raw_data:
             ret = self.rawData[pp_delay_slice, :, y_pixel_slice, x_pixel_slice]
         else:
@@ -727,9 +1025,12 @@ class SfgRecord():
         np.median(self.data, ax) is calculated."""
         return np.median(self.data, ax)
 
-    def get_linear_baseline(self, start_slice=None, stop_slice=None, data_attr="rawData"):
-        """Calculate a linear baseline from data"""
-        data  = getattr(self, data_attr)
+    def get_linear_baseline(self, start_slice=None,
+                            stop_slice=None, data_attr="rawData"):
+        """Calculate a linear baseline from data.
+
+        Not Implemented yet."""
+        data = getattr(self, data_attr)
 
         if isinstance(start_slice, type(None)):
             start_slice = slice(0, 0.1*self.pixel)
@@ -737,10 +1038,14 @@ class SfgRecord():
         if isinstance(stop_slice, type(None)):
             stop_slice = slice(-0.1*self.pixel, None)
 
-        yp = np.array([np.median(data[:, :, :, start_slice], -1), np.median(data[:, :, :, stop_slice], -1)])
+        yp = np.array(
+            [np.median(data[:, :, :, start_slice], -1),
+             np.median(data[:, :, :, stop_slice], -1)]
+        )
         xp = [0, self.pixel]
         x = np.arange(self.pixel)
-        #TODO Make use of gridspec or any other multitimensional linear interpolation method.
+        # TODO Make use of gridspec or any other multitimensional
+        # linear interpolation method.
         raise NotImplementedError
 
     def get_trace_bleach(
@@ -748,6 +1053,7 @@ class SfgRecord():
             frame_slice=slice(None), x_pixel_slice=slice(None),
             medfilt_kernel=None, frame_mean=False,
     ):
+        """Bleach traces."""
         ret = getattr(self, attr)
         if not isinstance(medfilt_kernel, type(None)):
             ret = medfilt(ret, medfilt_kernel)
@@ -759,6 +1065,7 @@ class SfgRecord():
 
     @property
     def static_corr(self):
+        """Result after static correction."""
         if isinstance(self._static_corr, type(None)):
             self._static_corr = self.get_static_corr()
         return self._static_corr
@@ -857,7 +1164,9 @@ class SfgRecord():
         if self._type == "spe":
             from .io.spe import PrincetonSPEFile3
             self._sp = PrincetonSPEFile3(self._fname)
-            self.rawData = self._sp.data.reshape(1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim)
+            self.rawData = self._sp.data.reshape(
+                1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim
+            )
             return
 
         if self._type == "npz":
@@ -886,12 +1195,15 @@ class SfgRecord():
             return
 
         if self._type == "victor":
-            self.rawData, self.pp_delays = get_from_victor_controller(self._fname)
+            self.rawData, self.pp_delays = get_from_victor_controller(
+                self._fname
+            )
             return
 
-        raise NotImplementedError("Uuuups this should never be reached."
-                                  "Bug with %s. I cannot understand the datatype" % self._fname
-                                  )
+        msg = "Uuuups this should never be reached."\
+              "Bug with %s. I cannot understand the datatype" % self._fname
+
+        raise NotImplementedError(msg)
 
     def _read_metadata(self):
         """Read metadata of the file"""
@@ -899,20 +1211,23 @@ class SfgRecord():
         from .utils.metadata import get_metadata_from_filename
 
         if self._type == "npz":
-            # We skipp this step here, bacuse metadata is extracted from the file
-            # Directly.
+            # We skipp this step here, bacuse metadata is extracted from the
+            # file Directly.
             return
 
         try:
             metadata = get_metadata_from_filename(self._fname)
-        #TODO Refactor this, if I would program better this
+        # TODO Refactor this, if I would program better this
         # would not happen
         except ValueError:
-            warnings.warn('ValueError while trying to extract metadata from filepath./nSkipping')
+            msg ='ValueError while trying to extract metadata from filepath.'\
+                '/nSkipping'
+            warnings.warn(msg)
 
         if self._type == "victor":
             # Read metadata from file header.
-            from .io.victor_controller import read_header, translate_header_to_metadata
+            from .io.victor_controller import (read_header,
+                                               translate_header_to_metadata)
             header = read_header(self._fname)
             metadata = {**metadata, **translate_header_to_metadata(header)}
 
@@ -958,7 +1273,16 @@ class SfgRecord():
         return ret
 
     def save(self, file, *args, **kwargs):
-        """Save the SfgRecord into a compressed numpy array."""
+        """Save the SfgRecord into a compressed numpy array.
+
+        Saves the `SfgRecord` obj into a compressed numpy array,
+        that can later be reloaded and that can be used for further
+        analysis. It is in particluar usefull to save data together
+        with mist of its properties like normalization and background
+        spectra and also to save averaged results.
+
+        If you want to know what is saved, then you can open the saved
+        result with e.g. 7.zip and inspect its content."""
         np.savez_compressed(
             file,
             rawdata=self.rawData,
@@ -1042,11 +1366,20 @@ class SfgRecord():
         return ret
 
 
-    def plot(self,
-            pp_delays=slice(None,None), frames=slice(None, None),
-            y_pixel=slice(None, None), x_pixel=slice(None, None),
-             attribute="data", frame_med_slice=slice(None, None),
-            fig=None, ax=None, x_axis="pixel", filter_kernel=(1,1,1,11), **kwargs):
+    def plot(
+            self,
+            pp_delays=slice(None, None),
+            frames=slice(None, None),
+            y_pixel=slice(None, None),
+            x_pixel=slice(None, None),
+            attribute="data",
+            frame_med_slice=slice(None, None),
+            fig=None,
+            ax=None,
+            x_axis="pixel",
+            filter_kernel=(1, 1, 1, 11),
+            **kwargs
+    ):
         """Plot the SfgRecord.
 
         Parameters:
@@ -1096,8 +1429,8 @@ class SfgRecord():
 
         return lines
 
-    def plot_bleach(self, attribute="bleach", filter_kernel=(1,1,11),
-                    pp_delays=slice(None,None), frames=slice(None,None),
+    def plot_bleach(self, attribute="bleach", filter_kernel=(1, 1, 11),
+                    pp_delays=slice(None, None), frames=slice(None, None),
                     x_pixel=slice(None, None), fig=None, ax=None,
                     x_axis="pixel",
                     **kwargs):
@@ -1132,7 +1465,7 @@ class SfgRecord():
             self,
             y_axis='get_trace_pp_delay',
             x_axis="pp_delays",
-            fig = None, ax = None, label=None,
+            fig=None, ax=None, label=None,
             **kwargs
     ):
         """
@@ -1155,7 +1488,6 @@ class SfgRecord():
         x_axis = getattr(self, x_axis)
 
         plot_data = getattr(self, y_axis)(**kwargs)
-        #plot_data = self.get_trace_pp_delay(**kwargs)
 
         lines = ax.plot(x_axis, plot_data, "-o", label=label)
 
@@ -1168,7 +1500,7 @@ def concatenate_list_of_SfgRecords(list_of_records):
     ret.metadata["central_wl"] = None
     ret.wavelength = list_of_records[0].wavelength
     ret.rawData = list_of_records[0].rawData.copy()
-    ret.rawData =  np.concatenate([elm.rawData for elm in list_of_records], 1)
+    ret.rawData = np.concatenate([elm.rawData for elm in list_of_records], 1)
     ret.dates = np.concatenate([elm.dates for elm in list_of_records]).tolist()
     ret.pp_delays = list_of_records[0].pp_delays
     ret.metadata["central_wl"] = list_of_records[0].metadata.get("central_wl")
