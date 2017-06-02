@@ -9,3 +9,5 @@ SPECS = 3 # Number of binned spectra.
 VIS_WL = 810 # Default Wavelength of the visible
 PUMP_FREQ = None # Default pump frequency
 STEPSIZE = 0.1 # Smallest stepsize used for decay function.
+XE = None # Equidistant sampling distance for decay function
+XG = None # Equidistant sampling for gaussian instrumense response function.

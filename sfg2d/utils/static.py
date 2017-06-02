@@ -3,9 +3,9 @@ from os import path
 from scipy.stats import norm
 from numpy import (sqrt, power, cos, sin, arcsin, square, array, abs,
                    zeros_like, sum, argmax, argmin, e, where, resize, shape,
-                   zeros, exp, convolve)
-
-from .consts import STEPSIZE
+                   zeros, exp, convolve, where, ndarray, all)
+from scipy.interpolate import interp1d
+from .consts import STEPSIZE, XE, XG
 
 
 def wavenumbers_to_nm(wavenumbers):
@@ -369,7 +369,7 @@ def exp_func(x, A=1,  tau=1, c=0):
     A : num
         amplitude
     tau : num
-        decy parameter
+        lifetime
     c : num
         offset parameter
 
@@ -378,17 +378,16 @@ def exp_func(x, A=1,  tau=1, c=0):
     array
         function at requested x points
     """
-    ret = zeros(shape(x), )
-    for i in range(len(x)):
-        xi = x[i]
-        if xi > STEPSIZE:
-            ret[i] = A*exp(-tau * xi) + c
-        if xi <= STEPSIZE:
-            ret[i] = 0
-
+    if not isinstance(x, ndarray):
+        x = array([x])
+    ret = zeros_like(x, dtype='float64')
+    if all(x <= 0):
+        return ret
+    mask = where(x > 0)
+    ret[mask] = A*exp(-x[mask]/tau) + c
     return ret
 
-def conv_gaus_exp(A0, A1, tau0, tau1, c):
+def conv_gaus_exp(Xe, Xg, A0, A1, tau0, tau1, c, Ag=-1, sigma=0.25, mode="same", **kwargs):
     """
     Convolution of gaus and exp decay
 
@@ -397,9 +396,19 @@ def conv_gaus_exp(A0, A1, tau0, tau1, c):
     A : num
         Amplitude of the exp functions
     tau : num
-        decay parameter of the exponential decay
+        lifetime of the decay in units of Xe
     c : num
         Offsetparameter of exp decay
+
+    Ag: Amplitude of the gaussian
+
+    sigma: width of the gaussian in units of Xg
+
+    sigma: width of the gaussion in units of XE and XG
+        I suggest ps, because numbers work best there.
+
+    mode: mode of the convolution.
+    kwargs are passed to numpy.signal.convolve
 
     Returns
     -------
@@ -407,40 +416,44 @@ def conv_gaus_exp(A0, A1, tau0, tau1, c):
        negative and normalized version of the convolution of a gaussian
         and an exponential decay"""
     res = convolve(
-        exp_func(XE, A0, tau0, 0) +
-        exp_func(XE, A1, tau1, c), # here I added the exp function
-        gaus_func(XG, -1, 0, 0.3, 0 ),
-        mode="full"
+        exp_func(Xe, A0, tau0, 0) +
+        exp_func(Xe, A1, tau1, c),
+        gaus_func(Xg, Ag, 0, sigma, 0),
+        mode=mode,
+        **kwargs,
     )
     return  res
 
-def conv_gaus_exp_f(xpoint, A0, A1, tau0, tau1, c):
+def conv_gaus_exp_f(Xe, Xg, A0, A1, tau0, tau1, c, Ag=-1, sigma=0.25, mode="same", normalized=True, **kwargs):
     """Functioniced and vectorized form of the convolution
 
+    can be used as: *sfg2d.double_decay*
     Parameters
     ----------
-    xpoint : array
-        x data points of the convolution. If an x-data point is requested
-        that is not directly covered by the numerical convolution, this
-        return a linear approximation starting from the closest known
-        points of the requested point.
-    *args and **kwargs are passed to the *conv_gaus_exp* function
+    Interpolated Version of the gaus convoluted double decay function.
+
+    Xe: Sampling array for the decay functions.
+        I recommend ps, because values ~1 work best in nummerical functions.
+
+    Xg: Sampling of the gaussian.
+        Should be a lot smaller then Xe but with the same stepsize.
+
+    normalized: Normalized result such that Minimal value = -1
+
+    for the rest,
+    Rest see *sfg2d.utisl.static.conv_gaus_exp*
 
     Returns
     -------
-    array
-        convoluted result at the requested xpoint position(s)"""
-    conv = conv_gaus_exp(A0, A1, tau0, tau1, c)
-    # find closest points in convolution
-    # and linearize the function in between
-    if not hasattr(xpoint, '__iter__'): # xpoint is one point
-        mask = np.where(abs(xconv - xpoint) < xconv[1]- xconv[0]) 
-        res = conv[mask].mean() # TODO change to use interp
-    else: # xpoint is a list
-        res = -1 * np.ones(np.shape(xpoint))
-        for i in range(len(xpoint)):
-            point = xpoint[i]
-            mask = np.where(abs(xconv - point) < xconv[1]- xconv[0])
-            res[i] = conv[mask].mean()  # TODO change to use interp
-    
-    return res
+    interp1d object
+        a function that is defined throughout the Xe array."""
+    conv = conv_gaus_exp(Xe, Xg, A0, A1, tau0, tau1, c, Ag, sigma, mode, **kwargs)
+    if normalized:
+        conv /= abs(conv).max()
+    # TODO This should pick X according to mode and Xe and Xg
+    if mode is "same":
+        conv = interp1d(Xe, conv)  # interpolation vectorizes result
+    else:
+        raise IOError("not Implemented")
+
+    return conv
