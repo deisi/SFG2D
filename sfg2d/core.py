@@ -12,7 +12,7 @@ from .utils import (
     FRAME_AXIS_INDEX, PIXEL, PP_INDEX,
     find_nearest_index
 )
-from .utils.consts import VIS_WL, PUMP_FREQ
+from .utils.consts import VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC
 
 
 class SfgRecord():
@@ -71,7 +71,7 @@ class SfgRecord():
     normalized: np.array
         4 d normalized array
     """
-    def __init__(self, fname=None, base=None, norm=None):
+    def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)), base=None, norm=None):
         # 1d Array of pump-probe delay values
         self.pp_delays = np.array([0])
 
@@ -85,22 +85,22 @@ class SfgRecord():
             self._fname = fname
 
         # 4d array of raw data
-        self._rawData = np.zeros((1, 1, 1, PIXEL))
+        self._rawData = rawData
 
         # Error of raw data
         self._rawDataE = None
 
         # 4d buffer array of processed data
-        self._data = self._rawData
+        self._data = None
 
         # 4d array of baseline/background data
-        self._base = np.zeros_like(self.rawData)
+        self._base = None
 
         # error of base
         self._baseE = None
 
         # 4d array of normalized data
-        self._norm = np.ones_like(self.rawData)
+        self._norm = None
 
         # error of normalized data
         self._normE = None
@@ -191,6 +191,10 @@ class SfgRecord():
         self._fname = path.abspath(fname)
         self._dates = None
 
+        self._readData()
+
+        if isinstance(base, type(None)):
+            base = BASE_SPEC
         if not isinstance(base, type(None)):
             if isinstance(base, str):
                 base = SfgRecord(base).data
@@ -198,14 +202,14 @@ class SfgRecord():
             else:
                 self.base = base
 
+        if isinstance(norm, type(None)):
+            norm = NORM_SPEC
         if not isinstance(norm, type(None)):
             if isinstance(norm, str):
                 norm = SfgRecord(norm).data
                 self.norm = norm
             else:
                 self.norm = norm
-
-        self._readData()
 
     @property
     def rawData(self):
@@ -226,8 +230,18 @@ class SfgRecord():
         if len(value.shape) != 4:
             raise IOError("Can't set shape %s to data" % value.shape)
         self._rawData = value
+
+        # Must reset all deduced properties.
         self._data = self._rawData
+        self._basesubed = None
+        self._normalized = None
+        self._bleach_rel = None
+        self._bleach_abs = None
+        self._bleach_norm = None
+        self._pumped = None
+        self._unpumped = None
         self.isBaselineSubed = False
+        self.isNormalized = False
 
     @property
     def rawDataE(self):
@@ -256,7 +270,10 @@ class SfgRecord():
         """Baseline/Background data.
 
         4d data array with the same structure as `SfgRecord.rawData`."""
-        return self._base
+        ret = self._base
+        if isinstance(ret, type(None)):
+            ret = np.zeros_like(self.rawData)
+        return ret
 
     @base.setter
     def base(self, value):
@@ -292,7 +309,10 @@ class SfgRecord():
 
         The quartz or gold or what ever spectrum that is your reference.
         same structure as `SfgRecord.rawData`."""
-        return self._norm
+        ret = self._norm
+        if isinstance(ret, type(None)):
+            ret = np.ones_like(self.rawData)
+        return ret
 
     @norm.setter
     def norm(self, value):
@@ -330,8 +350,11 @@ class SfgRecord():
         baseline subtract data or normalized data in this buffer. It
         is mostly a convenience thing during interactive sessions.
 
-        Same structure as `SfgRecord.rawData`."""
-        return self._data
+        Same structure asself._norm `SfgRecord.rawData`."""
+        ret = self._data
+        if isinstance(ret, type(None)):
+            ret = self.rawData
+        return ret
 
     @data.setter
     def data(self, value):
@@ -1247,6 +1270,7 @@ class SfgRecord():
             self.metadata[key] = metadata[key]
 
         # Add default VIS_WL if nothing there yet
+        #print("Vis_wl: ", self.metadata.get("vis_wl"), VIS_WL)
         if isinstance(self.metadata.get("vis_wl"), type(None)):
             self.metadata["vis_wl"] = VIS_WL
         # Add default pumpr_freq
@@ -1301,6 +1325,15 @@ class SfgRecord():
             basesubedE=self.basesubedE,
             normalizedE=self.normalizedE,
         )
+
+    def keep_frames(self, frame_slice=slice(None)):
+        """Resize data such, that only frame slice is leftover."""
+        ret = self.copy()
+        ret.rawData = self.rawData[:, frame_slice]
+        ret.base = self.base[:, frame_slice]
+        ret.norm = self.norm[:, frame_slice]
+
+        return ret
 
     def make_avg(self, correct_static=True):
         """Returns an frame wise averaged SfgRecord.
@@ -1496,13 +1529,32 @@ class SfgRecord():
 
 def concatenate_list_of_SfgRecords(list_of_records):
     """Concatenate SfgRecords into one big SfgRecord."""
+
+    concatable_attributes = ('rawData', 'base', 'norm')
+
     ret = SfgRecord()
     ret.metadata["central_wl"] = None
     ret.wavelength = list_of_records[0].wavelength
-    ret.rawData = list_of_records[0].rawData.copy()
-    ret.rawData = np.concatenate([elm.rawData for elm in list_of_records], 1)
+    # TODO Rewrite this pythonic
+    for attribute in concatable_attributes:
+        setattr(
+            ret,
+            attribute,
+            np.concatenate(
+                [getattr(elm, attribute) for elm in list_of_records],
+                FRAME_AXIS_INDEX
+            )
+        )
     ret.dates = np.concatenate([elm.dates for elm in list_of_records]).tolist()
     ret.pp_delays = list_of_records[0].pp_delays
-    ret.metadata["central_wl"] = list_of_records[0].metadata.get("central_wl")
-    ret.metadata["vis_wl"] = list_of_records[0].metadata.get("vis_wl")
+    #ret.metadata["central_wl"] = list_of_records[0].metadata.get("central_wl")
+    #ret.metadata["vis_wl"] = list_of_records[0].metadata.get("vis_wl")
+    #all([record.metadata.get(key) for record in list_of_records for key in list_of_records.metadata])
+    ## Keep unchanged metadata and listify changed metadata.
+    for key in list_of_records[0].metadata:
+        values = [record.metadata.get(key) for record in list_of_records]
+        if all([elm == values[0] for elm in values]):
+            ret.metadata[key] = values[0]
+        else:
+            ret.metadata[key] = values
     return ret
