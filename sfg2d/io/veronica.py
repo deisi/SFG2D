@@ -5,8 +5,7 @@ import copy
 import warnings
 import numpy as np
 
-from ..utils.consts import PIXEL
-SPECS = 3 # The 3 Bins one uses in the programm
+from sfg2d.utils.consts import PIXEL, SPECS
 
 names = (
     'pixel',
@@ -17,6 +16,7 @@ names = (
     'ratio_1'
 )
 debug=0
+
 
 def pixel_to_nm(x, central_wl):
     """ transform pixel to nanometer

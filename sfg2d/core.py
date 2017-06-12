@@ -429,6 +429,27 @@ class SfgRecord():
         return self.data.shape[PP_INDEX]
 
     @property
+    def central_wl(self):
+        """Central wavelength of the grating in nm."""
+        return self.metadata.get("central_wl")
+
+    @central_wl.setter
+    def central_wl(self, value):
+        self.metadata["central_wl"] = value
+
+        # For spe files we must rely on the stored
+        # wavelength because  we cannot recalculate,
+        # since calibration parameters are not allways
+        # known. From spe version 3 on they are amongst
+        # the metadata, but that is not taken into account
+        # here.
+        if self.metadata.get("sp_type"):
+            return
+        self._wavelength = None
+        self._wavenumber = None
+
+
+    @property
     def wavelength(self):
         """Numpy array with the wavelength in nm.
 
@@ -473,6 +494,17 @@ class SfgRecord():
             return ret
         ret = pixel_to_nm(self.pixel, cw)
         return ret
+
+    @property
+    def vis_wl(self):
+        """Wavelength of the visible in nm."""
+        return self.metadata.get("vis_wl")
+
+    @vis_wl.setter
+    def vis_wl(self, value):
+        self.metadata['vis_wl'] = value
+        # Must reset wavenumber
+        self._wavenumber = None
 
     @property
     def wavenumber(self):

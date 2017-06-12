@@ -1,9 +1,10 @@
 """static functions go here """
 from os import path
+import numpy as np
 from scipy.stats import norm
-from numpy import (sqrt, power, cos, sin, arcsin, square, array, abs,
-                   zeros_like, sum, argmax, argmin, e, where, resize, shape,
-                   zeros, exp, convolve, where, ndarray, all)
+#from numpy import (sqrt, power, cos, sin, arcsin, square, array, abs,
+#                   zeros_like, sum, argmax, argmin, e, where, resize, shape,
+#                   zeros, exp, convolve, where, ndarray, all)
 from scipy.interpolate import interp1d
 from .consts import STEPSIZE, XE, XG
 
@@ -457,3 +458,4 @@ def conv_gaus_exp_f(Xe, Xg, A0, A1, tau0, tau1, c, Ag=-1, sigma=0.25, mode="same
         raise IOError("not Implemented")
 
     return conv
+
