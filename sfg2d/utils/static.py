@@ -63,9 +63,9 @@ def get_interval_index(input_array, min, max):
     max: int
         uppper wavenumber boundary"""
     if input_array[0] < input_array[-1]:
-        return argmax(input_array > min), argmin(input_array < max)
+        return np.argmax(input_array > min), np.argmin(input_array < max)
     else:
-        return argmax(input_array < max), argmin(input_array > min)
+        return np.argmax(input_array < max), np.argmin(input_array > min)
 
 def find_nearest_index(input_array, points):
     """Find the indices where input_array and points are closest to each other.
@@ -76,8 +76,8 @@ def find_nearest_index(input_array, points):
     Returns:
     list of indices, that are closest to the given points throughout
     input_array."""
-    points = resize(points, (shape(input_array)[0], shape(points)[0])).T
-    wavenumbers = resize(input_array, points.shape)
+    points = np.resize(points, (np.shape(input_array)[0], np.shape(points)[0])).T
+    wavenumbers = np.resize(input_array, points.shape)
     ret = abs(wavenumbers - points).argmin(1)
     return ret
 
@@ -145,11 +145,11 @@ def n_caf2(x):
     -------
     array of refractive index values
     '''
-    return sqrt(
+    return np.sqrt(
         1 +
-        0.5675888/(1-power(0.050263605/x, 2)) +
-        0.4710914/(1-power(0.1003909/x, 2)) +
-        3.8484723/(1-power(34.649040/x, 2))
+        0.5675888/(1-np.power(0.050263605/x, 2)) +
+        0.4710914/(1-np.power(0.1003909/x, 2)) +
+        3.8484723/(1-np.power(34.649040/x, 2))
     )
 
 
@@ -170,8 +170,8 @@ def Rs_CaF(wavelength, alpha):
 
     n1 = 1
     n2 = n_caf2(wavelength)
-    ca = cos(alpha)
-    cb = cos(arcsin(n1*sin(alpha)/n2))
+    ca = np.cos(alpha)
+    cb = np.cos(np.arcsin(n1*np.sin(alpha)/n2))
     Rs_CaF = Rs(ca, cb, n1, n2)
 
     return Rs_CaF
@@ -191,7 +191,7 @@ def chi_non_resonant(amplitude, phase):
     -------
     float: The non resonant background
     """
-    ChiNR = amplitude * (cos(phase) + 1j * sin(phase))
+    ChiNR = amplitude * (np.cos(phase) + 1j * np.sin(phase))
     return ChiNR
 
 def chi_resonant(x, amplitude, pos, width):
@@ -265,7 +265,7 @@ def sfgn1(x, nr, phase, amplitude, pos, width):
     Chi = ChiR + ChiNR
 
     # Doing it this way seems to be the fastest
-    return square(Chi.real) + square(Chi.imag)
+    return np.square(Chi.real) + np.square(Chi.imag)
 
 def sfgn(x, nr, phase, *res_args):
     """
@@ -286,7 +286,7 @@ def sfgn(x, nr, phase, *res_args):
     """
 
     # Non resonant part
-    ChiNR = nr * (cos(phase) + 1j * sin(phase))
+    ChiNR = nr * (np.cos(phase) + 1j * np.sin(phase))
 
     # Resonant part
     ChiR = chi_resonant_multi(x, res_args)
@@ -294,7 +294,7 @@ def sfgn(x, nr, phase, *res_args):
     #The physical Chi2
     # All resonant Chis are superpositioned, thus .sum(0)
     Chi = ChiR + ChiNR
-    return square(Chi.real) + square(Chi.imag)
+    return np.square(Chi.real) + np.square(Chi.imag)
 
 def sfg2r(x, nr, phase,
          amplitude, pos, width,
@@ -326,12 +326,12 @@ def heat_time(t, H0, tau=1000, c=0):
     return
         array of resulting values
     """
-    HM = lambda x: H0*(1-e**(-1*x/tau))+c
+    HM = lambda x: H0*(1-np.e**(-1*x/tau))+c
     if hasattr(t, '__iter__'):
-        ret = array([HM(time) for time in t])
+        ret = np.array([HM(time) for time in t])
         # need to remove negative times, because
         # model is unphysical in this region
-        mask = where(t <= 0)
+        mask = np.where(t <= 0)
         ret[mask] = 0
         return ret
     if t <= 0:
@@ -379,13 +379,13 @@ def exp_func(x, A=1,  tau=1, c=0):
     array
         function at requested x points
     """
-    if not isinstance(x, ndarray):
-        x = array([x])
-    ret = zeros_like(x, dtype='float64')
+    if not isinstance(x, np.ndarray):
+        x = np.array([x])
+    ret = np.zeros_like(x, dtype='float64')
     if all(x <= 0):
         return ret
-    mask = where(x > 0)
-    ret[mask] = A*exp(-x[mask]/tau) + c
+    mask = np.where(x > 0)
+    ret[mask] = A*np.exp(-x[mask]/tau) + c
     return ret
 
 def conv_gaus_exp(Xe, Xg, A0, A1, tau0, tau1, c, Ag=-1, sigma=0.25, mode="same", **kwargs):
@@ -416,7 +416,7 @@ def conv_gaus_exp(Xe, Xg, A0, A1, tau0, tau1, c, Ag=-1, sigma=0.25, mode="same",
     array
        negative and normalized version of the convolution of a gaussian
         and an exponential decay"""
-    res = convolve(
+    res = np.convolve(
         exp_func(Xe, A0, tau0, 0) +
         exp_func(Xe, A1, tau1, c),
         gaus_func(Xg, Ag, 0, sigma, 0),
