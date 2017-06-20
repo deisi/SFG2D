@@ -16,3 +16,5 @@ from .utils.metadata import time_scan_time
 from .utils.static import conv_gaus_exp_f as double_decay
 
 from .plotting import plot, plot_time, multipage_pdf, contour
+
+from .models import FourLevelMolKin

@@ -96,7 +96,7 @@ def load_savearg_and_minuit(fp, fit_func, migrad=True):
     minuit = Minuit(fit_func, **fitarg, pedantir=False)
     if not migrad:
         return fitarg, minuit
-    print('**********************************************************************')
+    print('******************************************************************')
     print('Fitting with values from %s' % fp)
     minuit.migrad()
     return fitarg, minuit
