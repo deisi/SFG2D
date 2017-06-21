@@ -6,7 +6,6 @@ import numpy as np
 
 from .utils import get_interval_index
 
-# decorator function to save loopable plot in multipage pdf
 def multipage_pdf(plot_func):
     """
     Function can be used as a decorator, to loop over a given range
@@ -15,37 +14,40 @@ def multipage_pdf(plot_func):
 
     ```
     @sfg2d.multipage_pdf
-    def my_plot(index):
-        record = SfgRecord()
+    def my_plot(index, record):
         record.plot_bleach(attribute="bleach", x_axis="wavenumber", pp_delays=[index]);
         title(r"Sample @ %i fs"%record.pp_delays[index])
         xlim(2100, 2800)
         ylim(-0.003, 0.002)
 
-    my_plot("delme", range(2))
+    somesfgrecord = SfgRecord()
+    my_plot("delme", range(2), somesfgrecord)
     ```
 
 
     plot_func: function
-        ploting function with index value as parameter.
+        ploting function with index value as and pssibly further args
+        and kwargs as parameter.
         each time the index is increased and plot_func is called
         with the new index again.
     """
     from matplotlib.backends.backend_pdf import PdfPages
 
-    def make_multipage_pdf(name, inds):
+    def make_multipage_pdf(name, inds, *args, **kwargs):
         """
         fname: string
             filename to save the multipage pdf in.
         indes: iterable
             iterable to loop over
+        args and kwargs get passed to the plot function you use this
+        decorator on.
         """
         if name[-4:] != '.pdf':
             name += '.pdf'
         with PdfPages(name) as pdf:
             for index in inds:
                 fig, ax = plt.subplots()
-                plot_func(index)
+                plot_func(index, *args, **kwargs)
                 pdf.savefig()
                 plt.close()
 

@@ -14,6 +14,7 @@ class CurveFitter():
         self.p0 = p0  # Initial fit values
         self.p = None  # The fit result parameters
         self.cov = None  # The covariance of the fit
+        self.jac = None  # The jacobean Matrix of the DGL
 
     def fit_func(self, x, *args, **kwargs):
         # Overwrite this in the children class
@@ -56,6 +57,7 @@ class CurveFitter():
 
     def plot(self,
              fig=None, ax=None,
+             show_start_curve=False,
              show_fit_points=False,
              show_fit_line=True,
              number_of_samples=100,
@@ -65,7 +67,6 @@ class CurveFitter():
             fig = plt.gcf()
         if not ax:
             ax = plt.gca()
-
 
         if show_box:
             text = ''
@@ -80,6 +81,9 @@ class CurveFitter():
                     transform=ax.transAxes)
 
         ax.plot(self.xdata, self.ydata, "-o", label='data')
+        if show_start_curve:
+            x_sample = np.linspace(self.xdata.min(), self.xdata.max(), 100)
+            ax.plot(x_sample, self.fit_func(x_sample, *self.p0))
         if show_fit_points:
             ax.plot(self.xdata, self.yfit, "-o", label='fit')
         if show_fit_line:
@@ -89,7 +93,7 @@ class CurveFitter():
 
 
 class FourLevelMolKin(CurveFitter):
-    def __init__(self, xdata, ydata, p0=None, gSigma=300, rtol=1.09012e-9):
+    def __init__(self, xdata, ydata, p0=None, gSigma=300, rtol=1.09012e-9, full_output=True):
         """Class for the four level Molecular Dynamics Model.
 
         Parameters
@@ -99,10 +103,15 @@ class FourLevelMolKin(CurveFitter):
             default if scipy is not enough. The lower
             this number the more exact is the solution
             but the slower the function.
+        full_output: If true create infodict for odeint
+            result is saved under self.infodict
         """
         super().__init__(xdata, ydata, p0)
         self.gSigma = gSigma  # width of the excitation
         self.rtol = rtol  # Precition of the numerical integrator.
+        self.full_output = full_output
+        self.infodict = None  # Infodict return of the Odeint.
+
 
     # The Physical Water model
     def dgl(self, N, t, ext_func, s, t1, t2):
@@ -134,6 +143,18 @@ class FourLevelMolKin(CurveFitter):
         dNdt = A.dot(N)
         return dNdt
 
+    def jac(self, N, t, ext_func, s, t1, t2):
+        """Jacobean matrix of the DGL."""
+        # In this case the Jacobean Matrix is euqal the
+        # Consturcting matrix of the DGL.
+        A = np.array([
+            [-s * ext_func(t), s * ext_func(t), 0, 0],
+            [s * ext_func(t), -s * ext_func(t) - 1/t1, 0, 0],
+            [0, 1 / t1, -1 / t2, 0],
+            [0, 0, 1 / t2, 0],
+        ], dtype=np.float64)
+        return A
+
     def population(self, t, ext_func, s, t1, t2, **kwargs):
         """Numerical solution to the 4 Level DGL-Water system.
         Parameters
@@ -150,13 +171,18 @@ class FourLevelMolKin(CurveFitter):
         of the N0 t0  N3 levels of the system
         """
         ret = odeint(
-            self.dgl,  # the DGL of the 3 level water system
-            [1, 0, 0, 0],  # Starting conditions of the DGL
-            t,
+            func=self.dgl,  # the DGL of the 3 level water system
+            y0=[1, 0, 0, 0],  # Starting conditions of the DGL
+            t=t,
             args=(ext_func, s, t1, t2),
+            Dfun=self.jac,
             rtol=self.rtol,
+            full_output=self.full_output,
             **kwargs,
         )
+        if self.full_output:
+            ret, self.infodict = ret
+
         return ret
 
     # The Function of the Trace that drops out of the Model
