@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from scipy.optimize import curve_fit
-from .utils.static import gaus_func
+from sfg2d.utils.static import gaus_func
 
 class CurveFitter():
     """Base Class to add curve fit capabilities to model classes."""
@@ -21,29 +21,63 @@ class CurveFitter():
 
     def curve_fit(self, **kwargs):
         """Make a least square fit"""
-        self.p1, self.cov = curve_fit(
+        self.p, self.cov = curve_fit(
             self.fit_func,
             self.xdata,
             self.ydata,
             self.p0,
             **kwargs
         )
-        return self.p1, self.cov
+        return self.p, self.cov
 
     def fit_res(self, x):
         """Fit function wit fit result parameters"""
-        return self.fit_func(x, *self.p1)
+        return self.fit_func(x, *self.p)
 
     @property
     def yfit(self):
         return self.fit_res(self.xdata)
 
-    def plot(self, fig=None, ax=None,
-             show_fit_points=False, show_fit_line=True, number_of_samples=100):
+    @property
+    def pnames(self):
+        """Returns names of the fit parameters"""
+        from iminuit import describe
+        return describe(self.fit_func)[1:]
+
+    @property
+    def pdict(self):
+        """dict with the fit result"""
+        ret = dict(zip(self.pnames, self.p))
+        for i in range(len(self.pnames)):
+            pname = self.pnames[i]
+            perror = pname + '_error'
+            ret[perror] = self.cov[i, i]**2
+        return ret
+
+    def plot(self,
+             fig=None, ax=None,
+             show_fit_points=False,
+             show_fit_line=True,
+             number_of_samples=100,
+             show_box=True,
+    ):
         if not fig:
             fig = plt.gcf()
         if not ax:
             ax = plt.gca()
+
+
+        if show_box:
+            text = ''
+            for i in range(len(self.pnames)):
+                pname = self.pnames[i]
+                pvalue = self.pdict[pname]
+                perror = self.pdict[pname + '_error']
+                text += '{}: {:.3G} $\pm$ {:.1G}\n'.format(pname, pvalue, perror)
+            ax.text(0.01, 0.3, text,
+                    #horizontalalignment='center',
+                    #verticalalignment='center',
+                    transform=ax.transAxes)
 
         ax.plot(self.xdata, self.ydata, "-o", label='data')
         if show_fit_points:
@@ -53,29 +87,22 @@ class CurveFitter():
             ax.plot(x_sample, self.fit_res(x_sample), label="fit")
 
 
+
 class FourLevelMolKin(CurveFitter):
-    def __init__(self, xdata, ydata, p0=None, gSigma=300):
+    def __init__(self, xdata, ydata, p0=None, gSigma=300, rtol=1.09012e-9):
         """Class for the four level Molecular Dynamics Model.
 
         Parameters
         ----------
         gSigma: width of the excitation pulse in fs.
+        rtol: precisioin of the numerical integrator.
+            default if scipy is not enough. The lower
+            this number the more exact is the solution
+            but the slower the function.
         """
         super().__init__(xdata, ydata, p0)
-        self.gSigma = gSigma
-
-    # Gausian Excitation Function.
-    def ext_func(self, t, mu):
-        """Gausian excitation function with fixed with.
-
-        Parameters:
-        t: time in fs
-        mu: start of the pump in fs
-
-        Returns:
-        array of values on a gaussian function.
-        """
-        return gaus_func(t, 1, mu, self.gSigma)
+        self.gSigma = gSigma  # width of the excitation
+        self.rtol = rtol  # Precition of the numerical integrator.
 
     # The Physical Water model
     def dgl(self, N, t, ext_func, s, t1, t2):
@@ -107,7 +134,7 @@ class FourLevelMolKin(CurveFitter):
         dNdt = A.dot(N)
         return dNdt
 
-    def population(self, t, ext_func, s, t1, t2, rtol=1.09012e-9, **kwargs):
+    def population(self, t, ext_func, s, t1, t2, **kwargs):
         """Numerical solution to the 4 Level DGL-Water system.
         Parameters
         ----------
@@ -116,10 +143,6 @@ class FourLevelMolKin(CurveFitter):
         s: scalar factor for the pump
         t1: Live time of the first exited state
         t2: livetime of the intermediate state.
-        rtol: precisioin of the numerical integrator.
-            default if scipy is not enough. The lower
-            this number the more exact is the solution
-            but the slower the function.
 
         Returns
         -------
@@ -131,12 +154,12 @@ class FourLevelMolKin(CurveFitter):
             [1, 0, 0, 0],  # Starting conditions of the DGL
             t,
             args=(ext_func, s, t1, t2),
-            rtol=rtol,
+            rtol=self.rtol,
             **kwargs,
         )
         return ret
 
-    # The Function for the Trace that drops out of the Model
+    # The Function of the Trace that drops out of the Model
     def fit_func(self, t, s, t1, t2, c, mu):
         """
         Function we use to fit.
