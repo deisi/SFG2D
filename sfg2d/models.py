@@ -8,13 +8,14 @@ from sfg2d.utils.static import gaus_func
 
 class CurveFitter():
     """Base Class to add curve fit capabilities to model classes."""
-    def __init__(self, xdata, ydata, p0=None):
+    def __init__(self, xdata, ydata, p0=None, bounds=None):
         self.xdata = xdata
         self.ydata = ydata
         self.p0 = p0  # Initial fit values
         self.p = None  # The fit result parameters
         self.cov = None  # The covariance of the fit
         self.jac = None  # The jacobean Matrix of the DGL
+        self.bounds = bounds  # Boundary conditions for the fit
 
     def fit_func(self, x, *args, **kwargs):
         # Overwrite this in the children class
@@ -22,6 +23,8 @@ class CurveFitter():
 
     def curve_fit(self, **kwargs):
         """Make a least square fit"""
+        if not kwargs.get("bounds"):
+            kwargs["bounds"] = self.bounds
         self.p, self.cov = curve_fit(
             self.fit_func,
             self.xdata,
@@ -37,11 +40,17 @@ class CurveFitter():
 
     @property
     def yfit(self):
+        """y-data of the fit result."""
         return self.fit_res(self.xdata)
 
     @property
+    def yfit_start(self):
+        """y-data of the starting values."""
+        return self.fit_func(self.xdata, *self.p0)
+
+    @property
     def pnames(self):
-        """Returns names of the fit parameters"""
+        """Returns names of the fit parameters."""
         from iminuit import describe
         return describe(self.fit_func)[1:]
 
@@ -63,6 +72,19 @@ class CurveFitter():
              number_of_samples=100,
              show_box=True,
     ):
+        """Convenience function to show the results.
+
+        fig: figure object to draw on.
+        ax: axis object to draw on.
+        show_start_curve: boolean
+            shows the starting curve.
+        show_fit_points: boolean
+            shows the result of the fit at the xdata points.
+        show_fit_line: boolean
+            makea smooth line from the fit result.
+        number_of_points: number of data points for the smooth lines.
+        show_box: boolean
+            Show nummeric fit result as a text box on the plot."""
         if not fig:
             fig = plt.gcf()
         if not ax:
@@ -82,40 +104,52 @@ class CurveFitter():
 
         ax.plot(self.xdata, self.ydata, "-o", label='data')
         if show_start_curve:
-            x_sample = np.linspace(self.xdata.min(), self.xdata.max(), 100)
+            x_sample = np.linspace(self.xdata.min(), self.xdata.max(), number_of_samples)
             ax.plot(x_sample, self.fit_func(x_sample, *self.p0))
         if show_fit_points:
             ax.plot(self.xdata, self.yfit, "-o", label='fit')
         if show_fit_line:
-            x_sample = np.linspace(self.xdata.min(), self.xdata.max(), 100)
+            x_sample = np.linspace(self.xdata.min(), self.xdata.max(), number_of_samples)
             ax.plot(x_sample, self.fit_res(x_sample), label="fit")
 
 
 
 class FourLevelMolKin(CurveFitter):
-    def __init__(self, xdata, ydata, p0=None, gSigma=300, rtol=1.09012e-9, full_output=True):
+    def __init__(self, xdata, ydata, p0=None, gSigma=300, rtol=1.09012e-9,
+                 full_output=True, metadata={}):
         """Class for the four level Molecular Dynamics Model.
 
         Parameters
         ----------
-        gSigma: width of the excitation pulse in fs.
+        xdata: array
+            The xdata of the model
+        ydata: array
+            The ydata of the model
+        p0: Starting values for the model
+        gSigma: width of the excitation pulse  in  the same
+            units as xdata.
         rtol: precisioin of the numerical integrator.
             default if scipy is not enough. The lower
             this number the more exact is the solution
             but the slower the function.
         full_output: If true create infodict for odeint
             result is saved under self.infodict
+        metadata:
+            dictionary for metadata.
         """
         super().__init__(xdata, ydata, p0)
         self.gSigma = gSigma  # width of the excitation
         self.rtol = rtol  # Precition of the numerical integrator.
         self.full_output = full_output
         self.infodict = None  # Infodict return of the Odeint.
+        self.metadata = metadata # Dictionary to add metadata to
 
 
     # The Physical Water model
     def dgl(self, N, t, ext_func, s, t1, t2):
         """Dgl of the 4 Level DGL system.
+
+
 
         Parameters:
         -----------
@@ -132,8 +166,18 @@ class FourLevelMolKin(CurveFitter):
 
         Returns
         -------
-        Derivatices of the system. As 4 dim array.
-        1 dimension per level."""
+        Derivatives of the system. As 4 dim array.
+        """
+
+        # This is the DGL written as a Matrix multiplication.
+        # dNdt = A x N
+        # With A beeing the constructing matrix of the DGL
+        # and N beeing a 4-level vector with (N0, N1, N2, N3)
+        # beeing the population of the states at the time t.
+        # dNdt is the state wise derivative of N
+        # See https://en.wikipedia.org/wiki/Matrix_differential_equation
+        # for further insights.
+
         A = np.array([
             [-s * ext_func(t), s * ext_func(t), 0, 0],
             [s * ext_func(t), -s * ext_func(t) - 1/t1, 0, 0],
@@ -147,6 +191,8 @@ class FourLevelMolKin(CurveFitter):
         """Jacobean matrix of the DGL."""
         # In this case the Jacobean Matrix is euqal the
         # Consturcting matrix of the DGL.
+        # So it doesn't help much. It just speeds up the thing
+        # a little.
         A = np.array([
             [-s * ext_func(t), s * ext_func(t), 0, 0],
             [s * ext_func(t), -s * ext_func(t) - 1/t1, 0, 0],
@@ -157,6 +203,7 @@ class FourLevelMolKin(CurveFitter):
 
     def population(self, t, ext_func, s, t1, t2, **kwargs):
         """Numerical solution to the 4 Level DGL-Water system.
+
         Parameters
         ----------
         t: array of time values
@@ -170,13 +217,14 @@ class FourLevelMolKin(CurveFitter):
         (len(tt), 4) shaped array with the 4 entires beeing the population
         of the N0 t0  N3 levels of the system
         """
+
         ret = odeint(
             func=self.dgl,  # the DGL of the 3 level water system
             y0=[1, 0, 0, 0],  # Starting conditions of the DGL
             t=t,
             args=(ext_func, s, t1, t2),
-            Dfun=self.jac,
-            rtol=self.rtol,
+            Dfun=self.jac,  # The Jacobean of the DGL. Its optional.
+            rtol=self.rtol,  # The precisioin parameter for the nummerical DGL solver.
             full_output=self.full_output,
             **kwargs,
         )
@@ -195,8 +243,8 @@ class FourLevelMolKin(CurveFitter):
         t: time
         s: Gaussian Amplitude
         t1: Livetime of first state
-        t2: livetime of second state
-        c: Coeficient of 3rd state
+        t2: livetime of second(intermediate) state
+        c: Coefficient of third(Heat) state
         scale: Scaling factor at the very end
 
         Returns:
@@ -209,5 +257,4 @@ class FourLevelMolKin(CurveFitter):
             t1,
             t2
         ).T
-        # Transposing makes N[0] the population of state 0 and so forth.
-        return ((N[0] + N[2] - N[1] + c * N[3])**2) / (N[0]**2)
+        return ((N[0] + N[2] + c * N[3] - N[1])**2) / (N[0]**2)
