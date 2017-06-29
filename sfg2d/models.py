@@ -4,18 +4,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from scipy.optimize import curve_fit
+from scipy.stats import norm
 from sfg2d.utils.static import gaus_func
 
 class CurveFitter():
     """Base Class to add curve fit capabilities to model classes."""
-    def __init__(self, xdata, ydata, p0=None, bounds=None):
+    def __init__(self, xdata, ydata, p0=None, sigma=None,
+                 bounds=(-np.inf, np.inf), metadata={}, box_coords=(0.1, 0.3),
+                 fit_slice=(None, None, None)):
         self.xdata = xdata
         self.ydata = ydata
+        self.sigma = sigma # y-errors.
         self.p0 = p0  # Initial fit values
         self.p = None  # The fit result parameters
         self.cov = None  # The covariance of the fit
         self.jac = None  # The jacobean Matrix of the DGL
         self.bounds = bounds  # Boundary conditions for the fit
+        self.metadata = metadata  # Some additional metadata
+        # Coordinates of the fit result box in fig coordinates
+        self.box_coords = box_coords
+        # Effective slice of the fit to take into account.
+        self.fit_slice = slice(*fit_slice)
 
     def fit_func(self, x, *args, **kwargs):
         # Overwrite this in the children class
@@ -27,8 +36,8 @@ class CurveFitter():
             kwargs["bounds"] = self.bounds
         self.p, self.cov = curve_fit(
             self.fit_func,
-            self.xdata,
-            self.ydata,
+            self.xdata[self.fit_slice],
+            self.ydata[self.fit_slice],
             self.p0,
             **kwargs
         )
@@ -64,13 +73,26 @@ class CurveFitter():
             ret[perror] = self.cov[i, i]**2
         return ret
 
+    @property
+    def X2(self):
+        """The unreduced X2 of the Fit.
+
+        This is the squaresum of data and fit points."""
+        return np.square(self.yfit - self.ydata).sum()
+
+    @property
+    def X2_start(self):
+        """The unreduced X2 of the starting parameters."""
+        return np.square(self.yfit_start - self.ydata).sum()
+
     def plot(self,
              fig=None, ax=None,
              show_start_curve=False,
              show_fit_points=False,
-             show_fit_line=True,
+             show_fit_line=False,
              number_of_samples=100,
-             show_box=True,
+             show_box=False,
+             show_fit_range=False,
     ):
         """Convenience function to show the results.
 
@@ -84,11 +106,20 @@ class CurveFitter():
             makea smooth line from the fit result.
         number_of_points: number of data points for the smooth lines.
         show_box: boolean
-            Show nummeric fit result as a text box on the plot."""
+            Show nummeric fit result as a text box on the plot.
+        show_fit_range: boolean
+            show what data was used for the fit.
+        """
         if not fig:
             fig = plt.gcf()
         if not ax:
             ax = plt.gca()
+
+        x_sample = np.linspace(
+            self.xdata.min(),
+            self.xdata.max(),
+            number_of_samples
+        )
 
         if show_box:
             text = ''
@@ -96,28 +127,34 @@ class CurveFitter():
                 pname = self.pnames[i]
                 pvalue = self.pdict[pname]
                 perror = self.pdict[pname + '_error']
-                text += '{}: {:.3G} $\pm$ {:.1G}\n'.format(pname, pvalue, perror)
-            ax.text(0.01, 0.3, text,
-                    #horizontalalignment='center',
-                    #verticalalignment='center',
+                text += '{}: {:.3G} $\pm$ {:.1G}\n'.format(
+                    pname, pvalue, perror
+                )
+            ax.text(*self.box_coords, text,
                     transform=ax.transAxes)
 
         ax.plot(self.xdata, self.ydata, "-o", label='data')
         if show_start_curve:
-            x_sample = np.linspace(self.xdata.min(), self.xdata.max(), number_of_samples)
-            ax.plot(x_sample, self.fit_func(x_sample, *self.p0))
+            ax.plot(x_sample, self.fit_func(x_sample, *self.p0), label="start")
         if show_fit_points:
             ax.plot(self.xdata, self.yfit, "-o", label='fit')
         if show_fit_line:
-            x_sample = np.linspace(self.xdata.min(), self.xdata.max(), number_of_samples)
             ax.plot(x_sample, self.fit_res(x_sample), label="fit")
+        if show_fit_range:
+            ax.vlines(
+                [self.xdata[self.fit_slice.start],
+                 self.xdata[self.fit_slice.stop]],
+                self.ydata.min(), self.ydata.max()
+            )
 
 
 
 class FourLevelMolKin(CurveFitter):
-    def __init__(self, xdata, ydata, p0=None, gSigma=300, rtol=1.09012e-9,
-                 full_output=True, metadata={}):
+    def __init__(self, *args, gSigma=150, N0=[1, 0, 0, 0],
+                 rtol=1.09012e-9, atol=1.49012e-9, full_output=True, **kwargs):
         """Class for the four level Molecular Dynamics Model.
+
+        *args and **kwargs are passed to CurveFitter
 
         Parameters
         ----------
@@ -128,7 +165,8 @@ class FourLevelMolKin(CurveFitter):
         p0: Starting values for the model
         gSigma: width of the excitation pulse  in  the same
             units as xdata.
-        rtol: precisioin of the numerical integrator.
+        N0: starting conditions for the Population Model.
+        rtol, atol: precisioin of the numerical integrator.
             default if scipy is not enough. The lower
             this number the more exact is the solution
             but the slower the function.
@@ -137,12 +175,22 @@ class FourLevelMolKin(CurveFitter):
         metadata:
             dictionary for metadata.
         """
-        super().__init__(xdata, ydata, p0)
+        super().__init__(*args, **kwargs)
         self.gSigma = gSigma  # width of the excitation
         self.rtol = rtol  # Precition of the numerical integrator.
+        self.atol = atol
+        self.N0 = N0  # Starting conditions of the Populations
         self.full_output = full_output
         self.infodict = None  # Infodict return of the Odeint.
-        self.metadata = metadata # Dictionary to add metadata to
+
+    def ext_gaus(self, t, mu, sigma):
+        """Gausian excitation function.
+
+        Due to historic reasons its not a strict gausian, but something
+        very cloe to it. The Igor Code is:
+        1/sqrt(pi)/coeff1*exp(-(coeff0-x)^2/coeff1^2) """
+
+        return 1 / np.sqrt(np.pi) / sigma * np.exp(-((mu-t)/sigma)**2)
 
 
     # The Physical Water model
@@ -220,11 +268,13 @@ class FourLevelMolKin(CurveFitter):
 
         ret = odeint(
             func=self.dgl,  # the DGL of the 3 level water system
-            y0=[1, 0, 0, 0],  # Starting conditions of the DGL
+            y0=self.N0,  # Starting conditions of the DGL
             t=t,
             args=(ext_func, s, t1, t2),
             Dfun=self.jac,  # The Jacobean of the DGL. Its optional.
-            rtol=self.rtol,  # The precisioin parameter for the nummerical DGL solver.
+            # The precisioin parameter for the nummerical DGL solver.
+            rtol=self.rtol,
+            atol=self.atol,
             full_output=self.full_output,
             **kwargs,
         )
@@ -233,7 +283,26 @@ class FourLevelMolKin(CurveFitter):
 
         return ret
 
-    # The Function of the Trace that drops out of the Model
+    def fit_populations(self, t):
+        s, t1, t2, c1, mu = self.p
+        return self.population(
+            t,
+            lambda t: self.ext_gaus(t, mu, self.gSigma),
+            s,
+            t1,
+            t2
+        )
+
+    def start_population(self, t):
+        s, t1, t2, c1, mu = self.p0
+        return self.population(
+            t,
+            lambda t: self.ext_gaus(t, mu, self.gSigma),
+            s,
+            t1,
+            t2
+        )
+
     def fit_func(self, t, s, t1, t2, c, mu):
         """
         Function we use to fit.
@@ -252,9 +321,33 @@ class FourLevelMolKin(CurveFitter):
         and the Matrix with the populations"""
         N = self.population(
             t,
-            lambda t: gaus_func(t, 1, mu, self.gSigma),
+            lambda t: self.ext_gaus(t, mu, self.gSigma),
             s,
             t1,
             t2
         ).T
-        return ((N[0] + N[2] + c * N[3] - N[1])**2) / (N[0]**2)
+        return ((N[0] + N[2] + c * N[3] - N[1])**2) / (self.N0[0]**2)
+
+class GaussianModel(CurveFitter):
+    def __init__(self, *args, **kwargs):
+        """Data class to describe gaussian shaped data.
+
+        *args and **kwargs get passed to the CurveFitter class
+        Parameters
+        ----------
+        xdata: array
+        ydata: array
+        p0: array of starting values
+        metdata: dictionary with metdata.
+        """
+        super().__init__(*args, **kwargs)
+
+    def fit_func(self, x, A, mu, sigma, c):
+        """Guassian function
+
+        A: amplitude
+        mu: position
+        sigma: std deviation
+        c : offset
+        """
+        return A * norm.pdf(x, mu, sigma) + c

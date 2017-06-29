@@ -122,7 +122,7 @@ def contour(x, y, z, N=30, fig=None,
             y_slice=slice(None), show_y_lines=True,
             x_slice=slice(None), show_x_lines=True,
             show_colorbar=True, show_xticklabesl=False,
-            show_axl=True,
+            show_axl=True, show_axb=True,
             **kwargs):
     """
     Contour plot for a given `TimeResolved` obj. This also plots the
@@ -170,16 +170,30 @@ def contour(x, y, z, N=30, fig=None,
     # prepare figure and axes
     if not fig:
         fig = plt.figure()
-    if show_axl:
+    # I need a array structured ax return for that to work
+    if show_axl and show_axb:
         gs = gridspec.GridSpec(2, 2, width_ratios=[1, 3], height_ratios=[3, 1])
         ax = plt.subplot(gs[0, 1])
         axl = plt.subplot(gs[0, 0], sharey=ax)
         axb = plt.subplot(gs[1, 1], sharex=ax)
-    else:
+    elif show_axb:
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
         ax = plt.subplot(gs[0, 0])
         axb = plt.subplot(gs[1, 0], sharex=ax)
         axl = None # So we can allways return the same shape
+    elif show_axb:
+        gs = gridspec.GridSpec(1, 2, width_ratios=[1, 3])
+        ax = plt.subplot(gs[0, 1])
+        axb = None
+        axl = plt.subplot(gs[0, 0], sharey=ax)
+    else:
+        ax = plt.gca()
+        axl = None
+        axb = None
+        #gs = gridspec.GridSpec(2, 2, width_ratios=[1, 1], height_ratios=[1, 1])
+        #ax = plt.subplot(gs[0, 0])
+        #axl = None
+        #axb = None
 
     # the actual plot
     CS = ax.contourf(x, y, z.T, N, **kwargs)
@@ -196,14 +210,16 @@ def contour(x, y, z, N=30, fig=None,
         axl.set_xlim(xl_data.max(), xl_data.min())
         #axl.set_xticklabels(axl.get_xticks(), rotation=-45)
 
-    axb.plot(x, z[:,y_slice].mean(1), "-o")
-    axb.set_xlim(x.min(), x.max())
-    #axb.locator_params(axis='y', nbins=4)
+    if show_axb:
+        axb.plot(x, z[:,y_slice].mean(1), "-o")
+        axb.set_xlim(x.min(), x.max())
+        #axb.locator_params(axis='y', nbins=4)
 
     if not show_xticklabesl:
         if show_axl:
             plt.setp(ax.get_yticklabels(), visible=False)
-        plt.setp(ax.get_xticklabels(), visible=False)
+        if show_axb:
+            plt.setp(ax.get_xticklabels(), visible=False)
 
     plt.tight_layout()
     return fig, ax, axl, axb
