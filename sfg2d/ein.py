@@ -8,5 +8,4 @@ def configure():
     return
 
 if __name__ != "__main__":
-    import seaborn as sns
     configure()

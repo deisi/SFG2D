@@ -9,9 +9,9 @@ from sfg2d.utils.static import gaus_func
 
 class CurveFitter():
     """Base Class to add curve fit capabilities to model classes."""
-    def __init__(self, xdata, ydata, p0=None, sigma=None,
+    def __init__(self, xdata=None, ydata=None, p0=None, sigma=None,
                  bounds=(-np.inf, np.inf), metadata={}, box_coords=(0.1, 0.3),
-                 fit_slice=(None, None, None)):
+                 fit_slice=(None, None, None), fname=None):
         self.xdata = xdata
         self.ydata = ydata
         self.sigma = sigma # y-errors.
@@ -25,6 +25,8 @@ class CurveFitter():
         self.box_coords = box_coords
         # Effective slice of the fit to take into account.
         self.fit_slice = slice(*fit_slice)
+        if fname:
+            self.load(fname)
 
     def fit_func(self, x, *args, **kwargs):
         # Overwrite this in the children class
@@ -93,6 +95,12 @@ class CurveFitter():
              number_of_samples=100,
              show_box=False,
              show_fit_range=False,
+             data_param_dict={},
+             start_param_dict={},
+             fitlines_param_dict={},
+             fitpoints_param_dict={},
+             vlines_param_dict={},
+
     ):
         """Convenience function to show the results.
 
@@ -133,21 +141,48 @@ class CurveFitter():
             ax.text(*self.box_coords, text,
                     transform=ax.transAxes)
 
-        ax.plot(self.xdata, self.ydata, "-o", label='data')
+        ax.plot(self.xdata, self.ydata, "-o", label='data', **data_param_dict)
         if show_start_curve:
-            ax.plot(x_sample, self.fit_func(x_sample, *self.p0), label="start")
+            ax.plot(x_sample, self.fit_func(x_sample, *self.p0),
+                    label="start", **start_param_dict)
         if show_fit_points:
-            ax.plot(self.xdata, self.yfit, "-o", label='fit')
+            ax.plot(self.xdata, self.yfit,
+                    "-o", label='fit', **fitpoints_param_dict)
         if show_fit_line:
-            ax.plot(x_sample, self.fit_res(x_sample), label="fit")
+            ax.plot(x_sample, self.fit_res(x_sample),
+                    label="fit", **fitlines_param_dict)
         if show_fit_range:
             ax.vlines(
                 [self.xdata[self.fit_slice.start],
                  self.xdata[self.fit_slice.stop]],
-                self.ydata.min(), self.ydata.max()
+                self.ydata.min(), self.ydata.max(),
+                vlines_param_dict
             )
 
+    def save(self, fname, parameter_dict={}):
+        """Save CurveFitter results."""
+        np.savez_compressed(
+            fname,
+            xdata=self.xdata,
+            ydata=self.ydata,
+            p0=self.p0,
+            p=self.p,
+            cov=self.cov,
+            bounds=self.bounds,
+            metadata=self.metadata,
+            box_coords=self.box_coords,
+            fit_slice=self.fit_slice,
+            **parameter_dict,
+        )
 
+    def load(self, fname):
+        """Load a saved CurvedFitter obj."""
+        inp = np.load(fname)
+        for key, value in inp.items():
+            if key == 'metadata':
+                setattr(self, key, value[()])
+                continue
+            setattr(self, key, value)
 
 class FourLevelMolKin(CurveFitter):
     def __init__(self, *args, gSigma=150, N0=[1, 0, 0, 0],
@@ -175,13 +210,13 @@ class FourLevelMolKin(CurveFitter):
         metadata:
             dictionary for metadata.
         """
-        super().__init__(*args, **kwargs)
         self.gSigma = gSigma  # width of the excitation
         self.rtol = rtol  # Precition of the numerical integrator.
         self.atol = atol
         self.N0 = N0  # Starting conditions of the Populations
         self.full_output = full_output
         self.infodict = None  # Infodict return of the Odeint.
+        super().__init__(*args, **kwargs)
 
     def ext_gaus(self, t, mu, sigma):
         """Gausian excitation function.
@@ -192,12 +227,9 @@ class FourLevelMolKin(CurveFitter):
 
         return 1 / np.sqrt(np.pi) / sigma * np.exp(-((mu-t)/sigma)**2)
 
-
     # The Physical Water model
     def dgl(self, N, t, ext_func, s, t1, t2):
         """Dgl of the 4 Level DGL system.
-
-
 
         Parameters:
         -----------
@@ -327,6 +359,17 @@ class FourLevelMolKin(CurveFitter):
             t2
         ).T
         return ((N[0] + N[2] + c * N[3] - N[1])**2) / (self.N0[0]**2)
+
+    def save(self, fname):
+        """Save FourLevelMolKin results."""
+        parameter_dict = {
+           'gSigma': self.gSigma,
+           'rtol': self.rtol,
+           'atol': self.atol,
+           'N0': self.N0,
+        }
+        super().__save__(fname, parameter_dict)
+
 
 class GaussianModel(CurveFitter):
     def __init__(self, *args, **kwargs):
