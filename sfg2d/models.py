@@ -77,28 +77,31 @@ class CurveFitter():
 
     @property
     def X2(self):
-        """The unreduced X2 of the Fit.
+        """The unreduced Chi2 of the Fit.
 
         This is the squaresum of data and fit points."""
         return np.square(self.yfit - self.ydata).sum()
 
     @property
     def X2_start(self):
-        """The unreduced X2 of the starting parameters."""
+        """The unreduced Chi2 of the starting parameters."""
         return np.square(self.yfit_start - self.ydata).sum()
 
     def plot(self,
              fig=None, ax=None,
+             show_data=True,
              show_start_curve=False,
              show_fit_points=False,
              show_fit_line=False,
              number_of_samples=100,
              show_box=False,
              show_fit_range=False,
-             data_param_dict={},
-             start_param_dict={},
-             fitlines_param_dict={},
-             fitpoints_param_dict={},
+             data_plot_kw={'linestyle': '-',
+                           'label': 'data',
+                           'marker': 'o'},
+             start_plot_kw={},
+             fitl_plot_kw={},
+             fitp_plot_kw={},
              vlines_param_dict={},
 
     ):
@@ -141,16 +144,17 @@ class CurveFitter():
             ax.text(*self.box_coords, text,
                     transform=ax.transAxes)
 
-        ax.plot(self.xdata, self.ydata, "-o", label='data', **data_param_dict)
+        if show_data:
+            ax.plot(self.xdata, self.ydata, **data_plot_kw)
         if show_start_curve:
             ax.plot(x_sample, self.fit_func(x_sample, *self.p0),
-                    label="start", **start_param_dict)
+                    label="start", **start_plot_kw)
         if show_fit_points:
             ax.plot(self.xdata, self.yfit,
-                    "-o", label='fit', **fitpoints_param_dict)
+                    "-o", label='fit', **fitp_plot_kw)
         if show_fit_line:
             ax.plot(x_sample, self.fit_res(x_sample),
-                    label="fit", **fitlines_param_dict)
+                    label="fit", **fitl_plot_kw)
         if show_fit_range:
             ax.vlines(
                 [self.xdata[self.fit_slice.start],
@@ -160,7 +164,10 @@ class CurveFitter():
             )
 
     def save(self, fname, parameter_dict={}):
-        """Save CurveFitter results."""
+        """Save CurveFitter results.
+
+        fname: File path.
+        parameter_dict: Additional parameters to save."""
         np.savez_compressed(
             fname,
             xdata=self.xdata,

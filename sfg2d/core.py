@@ -71,7 +71,8 @@ class SfgRecord():
     normalized: np.array
         4 d normalized array
     """
-    def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)), base=None, norm=None):
+    def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)),
+                 base=None, norm=None):
         # 1d Array of pump-probe delay values
         self.pp_delays = np.array([0])
 
@@ -448,7 +449,6 @@ class SfgRecord():
         self._wavelength = None
         self._wavenumber = None
 
-
     @property
     def wavelength(self):
         """Numpy array with the wavelength in nm.
@@ -539,6 +539,19 @@ class SfgRecord():
         """Setter for wavenumber propertie."""
 
         self._wavenumber = arg
+
+    def __repr__(self):
+        msg = '# ppelays: {}\n'.format(self.number_of_pp_delays)
+        msg += '# frames: {}\n'.format(self.number_of_frames)
+        msg += '# y-pixel: {}\n'.format(self.number_of_y_pixel)
+        msg += '# x-pixel: {}\n'.format(self.number_of_x_pixel)
+        msg += 'Wavelength {:.0f} to {:.0f}\n'.format(self.wavelength.min(),
+                                              self.wavelength.max())
+        msg += 'Wavenumber: {:.0f} to {:.0f}\n'.format(self.wavenumber.min(),
+                                               self.wavenumber.max())
+        msg += 'Baseline @ {}\n'.format(self.base.mean((0, 1, 3)))
+        msg += 'Norm with {}\n'.format(self.norm.mean((0, 1, 3)))
+        return msg
 
     def get_wavenumber(self, vis_wl):
         """return calculated wavenumbers."""
@@ -911,17 +924,19 @@ class SfgRecord():
            not self.pumped_index == pumped:
             # After this, pumped is an 3d data array.
             # and self.pumped_index is resetted.
+            # Baseline is subtracted
             self.pumped = pumped
             self.pumped_norm = pumped
         if not isinstance(unpumped, type(None)) and \
            not self.unpumped_index == unpumped:
             # After this, pumped is an 3d data array.
             # and self.unpumped_index is resetted.
+            # Baseline is subtracted
             self.unpumped = unpumped
             self.unpumped_norm = unpumped
 
         if operation is 'normalize':
-            pumped =  self.pumped_norm
+            pumped = self.pumped_norm
             unpumped = self.unpumped_norm
         else:
             pumped = self.pumped
@@ -1000,8 +1015,6 @@ class SfgRecord():
         sub_first: bollean default true
             subtract the 0th pp_delay index. This corrects for constant
             offset between pumped and unpumped data.
-        raw_data: boolean default True
-            Use raw data to calculate relative bleach.
         """
         return self._calc_bleach('relative', pumped, unpumped, sub_first)
 

@@ -12,7 +12,7 @@ def double_resample(x, num, axis=0, **kwargs):
     """
     from scipy.signal import resample
     # Downsample
-    ret =  resample(x, num, axis=axis, **kwargs)
+    ret = resample(x, num, axis=axis, **kwargs)
     # Upsample
     ret = resample(ret, x.shape[axis], axis=axis, **kwargs)
 
