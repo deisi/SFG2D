@@ -252,7 +252,7 @@ class WidgetBase():
 
         # Dropdown to toggle view of the summed spectra
         self.wDropShowSummed = wi.Dropdown(
-            options=["Raw", "Normalized", "Bleach", "Bleach"],
+            options=["Raw", "Normalized", "Bleach"],
             description='Summed',
             value="Raw",
             layout=self.wTextCentralWl.layout,
@@ -352,7 +352,39 @@ class WidgetBase():
 
         # List of widgets that have a changeable state.
         # Upon saving the gui state these widgets get saved
-        self._state_widgets = [self.wTextFolder, self.wSelectBaseFile] + self._figure_widgets
+        #self._state_widgets = [self.wTextFolder, self.wSelectBaseFile] + \
+        #    self._figure_widgets
+        self._save_widgets = {
+            'folder': self.wTextFolder,
+            'file': self.wSelectFile,
+            'basefile': self.wSelectBaseFile,
+            'subBaseline': self.wToggleSubBaseline,
+            'showBaseline': self.wCheckShowBaseline,
+            'showBleach': self.wCheckShowBleach,
+            'smoothSlider': self.wIntSliderSmooth,
+            'smoothBase': self.wIntSliderSmoothBase,
+            'autoscale': self.wCheckAutoscale,
+            'autoscaleSum': self.wCheckAutoscaleSum,
+            'pixelY': self.wIntRangeSliderPixelY,
+            'pixelX': self.wIntRangeSliderPixelX,
+            'centralWl': self.wTextCentralWl,
+            'calib': self.wDropdownCalib,
+            'visWl': self.wTextVisWl,
+            'pp_delay': self.wSliderPPDelay,
+            'frames': self.wRangeSliderFrame,
+            'frameMedian': self.wCheckFrameMedian,
+            'pp_delayBase': self.wSliderBaselinePPDelay,
+            'baseFrames': self.wRangeSliderBaselineFrame,
+            'baseMedian': self.wCheckBaselineMedian,
+            'baseSpec': self.wRangeSliderBaselineSpec,
+            'sumXAxis': self.wDropSumAxis,
+            'baselineOffset': self.wTextBaselineOffset,
+            'pumped': self.wIntTextPumped,
+            'unpumped': self.wIntTextUnpumped,
+            'bleachOperator': self.wDropdownOperator,
+            'showSpectra': self.wDropShowSpectra,
+            'showSummed': self.wDropShowSummed,
+        }
 
     def _configure_widgets(self):
         """Set all widget options. And default values."""
@@ -466,8 +498,11 @@ class WidgetBase():
 
     def _on_folder_submit(self, new):
         """Called when folder is changed."""
-        fnames = _filter_fnames(self.wTextFolder.value)
+        if not os.path.isdir(self.wTextFolder.value):
+            print('Warning folder {} not found'.format(self.wTextFolder.value))
+            return
 
+        fnames = _filter_fnames(self.wTextFolder.value)
         if debug:
             print("_on_folder_submit_called")
         if debug > 1:
@@ -599,6 +634,7 @@ class WidgetBase():
             base = self.y_base.T
             self.data.base = base
         except ValueError:
+            print("Warning couldn't subtract baseline.")
             pass
         return self.data.sub_base()
 
@@ -1263,33 +1299,40 @@ class PumpProbe(Dashboard):
         """Save gui status to a json text file.
 
         Each tab of the dashboard gets a separate list entry. Each widget value
-        is saved as an element of a list of a list."""
+        is saved as an dictionary of widget names and values."""
         save_file = self.widgets[0].wTextFolder.value + '/.last_state.json'
         with open(save_file, 'w') as outfile:
             save_list = []
             for i in range(len(self.widgets[:2])):
                 w = self.widgets[i]
-                save_list.append([widget.value for widget in w._state_widgets]),
-            dump(save_list, outfile)
+                save_dict = {}
+                for name, saveable_widget in w._save_widgets.items():
+                    save_dict[name] = saveable_widget.value
+                save_list.append(save_dict)
+            dump(save_list, outfile, indent=4,
+                 separators=(',', ': '), sort_keys=True)
 
     def _on_load_gui_clicked(self, new):
         folder = self.widgets[0].wTextFolder.value
         with open(folder + '/.last_state.json', 'r') as infile:
             imp = load(infile)
+            # Loop over tabs
             for i in range(len(self.widgets[:2])):
+                saved_values = imp[i]
                 w = self.widgets[i]
                 w._unobserve_figure()
-                for j in range(len(w._state_widgets)):
-                    widget = w._state_widgets[j]
+                # We need to call the folder manually. Otherwise changes
+                # are not recognized.
+                folder = saved_values.pop('folder')
+                w._save_widgets['folder'] = folder
+                w._on_folder_submit(None)
+                # Loop over widget classes
+                for value_name, value in saved_values.items():
                     try:
-                        widget.value = imp[i][j]
-                        # We need to call the folder manually. Otherwise changes
-                        # are not recognized.
-                        if j == 0:
-                            w._on_folder_submit(None)
+                        w._save_widgets[value_name].value = value
                     except TraitError:
-                        msg = "Count load value %s of widget %s"%(imp[i][j],
-                                                                 widget)
+                        msg = "Count load {} with value {}".format(value_name,
+                                                                   value)
                         print(msg)
                         break
                 w._init_figure_observers()
@@ -1297,7 +1340,7 @@ class PumpProbe(Dashboard):
 
     @property
     def _is_normalizable(self):
-        w0, w1, *_  = self.widgets
+        w0, w1, *_ = self.widgets
         if w0.y_spec.shape[0] != w1.y_spec.shape[0]:
             self.wButtonNormalize.disable = True
             return False

@@ -920,18 +920,10 @@ class SfgRecord():
         if self.number_of_spectra < 2:
             return bleach
 
-        if not isinstance(pumped, type(None)) and \
-           not self.pumped_index == pumped:
-            # After this, pumped is an 3d data array.
-            # and self.pumped_index is resetted.
-            # Baseline is subtracted
+        if not isinstance(pumped, type(None)):
             self.pumped = pumped
             self.pumped_norm = pumped
-        if not isinstance(unpumped, type(None)) and \
-           not self.unpumped_index == unpumped:
-            # After this, pumped is an 3d data array.
-            # and self.unpumped_index is resetted.
-            # Baseline is subtracted
+        if not isinstance(unpumped, type(None)):
             self.unpumped = unpumped
             self.unpumped_norm = unpumped
 
@@ -950,6 +942,7 @@ class SfgRecord():
         if sub_first:
             zero_time = bleach[0].copy()
             bleach -= zero_time
+            bleach += zero_time.mean()
             if operation is "relative":
                 self.zero_time_rel = zero_time
             elif operation is "absolute":
