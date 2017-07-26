@@ -172,6 +172,9 @@ class SfgRecord():
         # List of dates the spectra were recorded at.
         self._dates = None
 
+        # Boolean to toggle default zero_time subtraction
+        self.zero_time_subtraction = True
+
         # array of bleach value at negative time
         self.zero_time_abs = None
 
@@ -187,6 +190,7 @@ class SfgRecord():
         if isinstance(fname, type(None)):
             return
 
+        # Allows the use of ~ on windows and linux
         if '~' in fname:
             fname = path.expanduser(fname)
         self._fname = path.abspath(fname)
@@ -802,6 +806,7 @@ class SfgRecord():
             raise IOError("Cant set pumped index bigger then data dim.")
         self._pumped_index = value
         # Because we set a new index bleach and pumped must be recalculated.
+        self._pumped = None
         self._bleach_norm = None
         self._bleach_abs = None
         self._bleach_rel = None
@@ -853,6 +858,7 @@ class SfgRecord():
         self._unpumped_index = value
         # Beacause we setted a new index on the unpumped spectrum we must
         # reset the bleach.
+        self._unpumped = None
         self._bleach_abs = None
         self._bleach_rel = None
         self._bleach_norm = None
@@ -892,17 +898,20 @@ class SfgRecord():
             raise NotImplemented()
 
     def _calc_bleach(self, operation,
-                     pumped=None, unpumped=None, sub_first=True):
+                     pumped=None, unpumped=None,
+                     zero_time_subtraction=True, normalized=False,):
         """Calculate bleach using the given operation.
 
         operation: string
-            possible are: 'absolute', 'realtive' or 'normalize'
+            possible are: 'absolute', 'realtive', '-' or '/'
+        normalized:
+            use normalized data to calculate bleach.
         pumped: None, index or array
             If None SfgRecord.pump is used. Else SfgRecord.pump is setted
             by pumped
         unpumped: None, index or array
             Same as pumped only for unpumped
-        sub_first : boolean
+        zero_time_subtraction : boolean
             substitute the first spectrum from the data to account for
             the constant offset.
 
@@ -918,8 +927,21 @@ class SfgRecord():
         ))
 
         if self.number_of_spectra < 2:
+            warnings.warn("Not enough spectra to calculate bleach.")
             return bleach
 
+        if "relative" in operation or '/' in operation:
+            relative = True
+        elif "absolute" in operation or '-' in operation:
+            relative = False
+        else:
+            raise IOError(
+                "Must enter valid operation {} is invalid".format(operation)
+            )
+
+        # Reset pumped and umpumped properties
+        # to ensure latest data is used.
+        # pumped and umpumped are index numbers
         if not isinstance(pumped, type(None)):
             self.pumped = pumped
             self.pumped_norm = pumped
@@ -927,28 +949,31 @@ class SfgRecord():
             self.unpumped = unpumped
             self.unpumped_norm = unpumped
 
-        if operation is 'normalize':
+        if normalized:
             pumped = self.pumped_norm
             unpumped = self.unpumped_norm
         else:
             pumped = self.pumped
             unpumped = self.unpumped
 
-        if operation is "relative" or operation is 'normalize':
+        if relative:
             bleach = pumped / unpumped
-        elif operation is "absolute":
+            # The infs and nans demand this to be a masked array
+            bleach = np.ma.masked_invalid(bleach)
+        else:
             bleach = pumped - unpumped
 
-        if sub_first:
+        if zero_time_subtraction:
             zero_time = bleach[0].copy()
             bleach -= zero_time
-            bleach += zero_time.mean()
-            if operation is "relative":
+            # Recorretion for zero_time offset needed because
+            # data is expected to be at 1 for negative times.
+            if relative:
+                bleach += 1
                 self.zero_time_rel = zero_time
-            elif operation is "absolute":
+            else:
+                # TODO add the mean of zero_time
                 self.zero_time_abs = zero_time
-            elif operation is "normalize":
-                self.zero_time_norm = zero_time
         return bleach
 
     @property
@@ -961,18 +986,21 @@ class SfgRecord():
 
         """
         if isinstance(self._bleach_abs, type(None)):
-            self._bleach_abs = self.calc_bleach_abs()
+            self._bleach_abs = self.calc_bleach_abs(
+                zero_time_subtraction=self.zero_time_subtraction
+            )
         return self._bleach_abs
 
-    def calc_bleach_abs(self, pumped=None, unpumped=None, sub_first=True):
+    def calc_bleach_abs(self, pumped=None, unpumped=None,
+                        zero_time_subtraction=True):
         """Calculate absolute bleach.
 
         pumped: None, index or array
-            If None SfgReco.pump is used. Else SfgRecord.pump is setted
+            If None SfgRecod.pump is used. Else SfgRecord.pump is setted
             by pumped
         unpumped: None, index or array
             Same as pumped only for unpumped
-        sub_first : boolean
+        zero_time_subtraction : boolean
             substitute the first spectrum from the data to account for
             the constant offset.
 
@@ -980,7 +1008,8 @@ class SfgRecord():
         -------
         The calculated 3d bleach result.
         """
-        return self._calc_bleach('absolute', pumped, unpumped, sub_first)
+        return self._calc_bleach('absolute', pumped, unpumped,
+                                 zero_time_subtraction)
 
     @property
     def bleach_rel(self):
@@ -990,11 +1019,13 @@ class SfgRecord():
 
         """
         if isinstance(self._bleach_rel, type(None)):
-            self._bleach_rel = self.calc_bleach_rel()
+            self._bleach_rel = self.calc_bleach_rel(
+                zero_time_subtraction=self.zero_time_subtraction
+            )
         return self._bleach_rel
 
     def calc_bleach_rel(self, pumped=None, unpumped=None,
-                        sub_first=True,):
+                        zero_time_subtraction=True,):
         """Calculate the relative bleach
 
         Parameters
@@ -1005,11 +1036,12 @@ class SfgRecord():
         unpumped: index or None
             like pumped only for unpumped None defaults to
             `SfgRecord._unpumped_index`
-        sub_first: bollean default true
+        zero_time_subtraction: bollean default true
             subtract the 0th pp_delay index. This corrects for constant
             offset between pumped and unpumped data.
         """
-        return self._calc_bleach('relative', pumped, unpumped, sub_first)
+        return self._calc_bleach('relative', pumped, unpumped,
+                                 zero_time_subtraction)
 
     @property
     def bleach_norm(self):
