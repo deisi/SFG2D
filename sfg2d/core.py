@@ -72,7 +72,7 @@ class SfgRecord():
         4 d normalized array
     """
     def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)),
-                 base=None, norm=None):
+                 base=None, norm=None, baseline_offset=0):
         # 1d Array of pump-probe delay values
         self.pp_delays = np.array([0])
 
@@ -96,6 +96,9 @@ class SfgRecord():
 
         # 4d array of baseline/background data
         self._base = None
+
+        # Constant offset for baseline
+        self._baseline_offset = baseline_offset
 
         # error of base
         self._baseE = None
@@ -173,7 +176,7 @@ class SfgRecord():
         self._dates = None
 
         # Boolean to toggle default zero_time subtraction
-        self.zero_time_subtraction = True
+        self._zero_time_subtraction = True
 
         # array of bleach value at negative time
         self.zero_time_abs = None
@@ -245,6 +248,8 @@ class SfgRecord():
         self._bleach_norm = None
         self._pumped = None
         self._unpumped = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
         self.isBaselineSubed = False
         self.isNormalized = False
 
@@ -275,9 +280,10 @@ class SfgRecord():
         """Baseline/Background data.
 
         4d data array with the same structure as `SfgRecord.rawData`."""
-        ret = self._base
-        if isinstance(ret, type(None)):
-            ret = np.zeros_like(self.rawData)
+        if isinstance(self._base, type(None)):
+            ret = np.zeros_like(self.rawData) + self.baseline_offset
+            return ret
+        ret = self._base + self.baseline_offset
         return ret
 
     @base.setter
@@ -286,6 +292,33 @@ class SfgRecord():
             self.add_base()
             self.isBaselineSubed = False
         self._base = value * np.ones_like(self.rawData)
+        # Reset the dependent properties
+        self._basesubed = None
+        self._normalized = None
+        self._bleach_abs = None
+        self._bleach_norm = None
+        self._pumped = None
+        self._unpumped = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
+
+    @property
+    def baseline_offset(self):
+        """Constant factor to add to the baseline."""
+        return self._baseline_offset
+
+    @baseline_offset.setter
+    def baseline_offset(self, value):
+        self._baseline_offset = value
+        # Reset the dependent properties
+        self._basesubed = None
+        self._normalized = None
+        self._bleach_abs = None
+        self._bleach_norm = None
+        self._pumped = None
+        self._unpumped = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
 
     @property
     def baseE(self):
@@ -325,6 +358,11 @@ class SfgRecord():
             self.un_normalize()
             self.isNormalized = False
         self._norm = value * np.ones_like(self.rawData)
+        # Reset dependent properties
+        self._normalized = None
+        self._bleach_norm = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
 
     @property
     def normE(self):
@@ -432,6 +470,22 @@ class SfgRecord():
     def number_of_pp_delays(self):
         """Number of pump probe time delays."""
         return self.data.shape[PP_INDEX]
+
+    @property
+    def zero_time_subtraction(self):
+        return self._zero_time_subtraction
+
+    @zero_time_subtraction.setter
+    def zero_time_subtraction(self, value):
+        self._zero_time_subtraction = value
+        # Reset dependen properties
+        self._bleach_abs = None
+        self._bleach_rel = None
+        self._bleach_norm = None
+        self._pumped = None
+        self._unpumped = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
 
     @property
     def central_wl(self):
@@ -810,6 +864,7 @@ class SfgRecord():
         self._bleach_norm = None
         self._bleach_abs = None
         self._bleach_rel = None
+        self._pumped_norm = None
 
     @property
     def pumped(self):
@@ -862,6 +917,7 @@ class SfgRecord():
         self._bleach_abs = None
         self._bleach_rel = None
         self._bleach_norm = None
+        self._unpumped_norm = None
 
     @property
     def unpumped(self):
@@ -898,19 +954,19 @@ class SfgRecord():
             raise NotImplemented()
 
     def _calc_bleach(self, operation,
-                     pumped=None, unpumped=None,
-                     zero_time_subtraction=True, normalized=False,):
+                     pumped=None, unpumped=None, normalized=False,
+                     zero_time_subtraction=True):
         """Calculate bleach using the given operation.
 
         operation: string
             possible are: 'absolute', 'realtive', '-' or '/'
-        normalized:
-            use normalized data to calculate bleach.
         pumped: None, index or array
             If None SfgRecord.pump is used. Else SfgRecord.pump is setted
             by pumped
         unpumped: None, index or array
             Same as pumped only for unpumped
+        normalized:
+            use normalized data to calculate bleach.
         zero_time_subtraction : boolean
             substitute the first spectrum from the data to account for
             the constant offset.
@@ -919,7 +975,6 @@ class SfgRecord():
         -------
         The calculated 3d bleach result.
         """
-
         bleach = np.zeros((
             self.number_of_pp_delays,
             self.number_of_spectra,
@@ -976,23 +1031,8 @@ class SfgRecord():
                 self.zero_time_abs = zero_time
         return bleach
 
-    @property
-    def bleach_abs(self):
-        """Absolute bleached data.
-
-        3d array with bleached data result.
-        The Absolute bleach is calculated by subtracting two
-        baselinesubstracted pumped and unpumped signal.
-
-        """
-        if isinstance(self._bleach_abs, type(None)):
-            self._bleach_abs = self.calc_bleach_abs(
-                zero_time_subtraction=self.zero_time_subtraction
-            )
-        return self._bleach_abs
-
     def calc_bleach_abs(self, pumped=None, unpumped=None,
-                        zero_time_subtraction=True):
+                        normalized=False, zero_time_subtraction=True):
         """Calculate absolute bleach.
 
         pumped: None, index or array
@@ -1009,20 +1049,7 @@ class SfgRecord():
         The calculated 3d bleach result.
         """
         return self._calc_bleach('absolute', pumped, unpumped,
-                                 zero_time_subtraction)
-
-    @property
-    def bleach_rel(self):
-        """Relative bleached data
-
-        3d array with relative bleached data.
-
-        """
-        if isinstance(self._bleach_rel, type(None)):
-            self._bleach_rel = self.calc_bleach_rel(
-                zero_time_subtraction=self.zero_time_subtraction
-            )
-        return self._bleach_rel
+                                 normalized, zero_time_subtraction)
 
     def calc_bleach_rel(self, pumped=None, unpumped=None,
                         zero_time_subtraction=True,):
@@ -1040,77 +1067,152 @@ class SfgRecord():
             subtract the 0th pp_delay index. This corrects for constant
             offset between pumped and unpumped data.
         """
-        return self._calc_bleach('relative', pumped, unpumped,
-                                 zero_time_subtraction)
+        return self._calc_bleach(
+            'relative',
+            pumped,
+            unpumped,
+            normalized=False,
+            zero_time_subtraction=zero_time_subtraction
+        )
+
+    @property
+    def bleach_abs(self):
+        """Absolute bleached data.
+
+        3d array with bleached data result.
+        The Absolute bleach is calculated by subtracting two
+        baselinesubstracted pumped and unpumped signal.
+
+        """
+        if isinstance(self._bleach_abs, type(None)):
+            self._bleach_abs = self.calc_bleach_abs(
+                normalized=False,
+                zero_time_subtraction=self.zero_time_subtraction
+            )
+        return self._bleach_abs
 
     @property
     def bleach_norm(self):
         if isinstance(self._bleach_norm, type(None)):
-            self._bleach_norm = self._calc_bleach("normalize")
+            self._bleach_norm = self.calc_bleach_abs(
+                normalized=True,
+                zero_time_subtraction=self.zero_time_subtraction
+            )
+        return self._bleach_norm
+
+    @property
+    def bleach_rel(self):
+        """Relative bleached data
+
+        3d array with relative bleached data.
+
+        """
+        if isinstance(self._bleach_rel, type(None)):
+            self._bleach_rel = self.calc_bleach_rel(
+                zero_time_subtraction=self.zero_time_subtraction
+            )
+        return self._bleach_rel
 
     @property
     def trace_pp_delay(self):
         """trace over pp_delay axis."""
         return self.get_trace_pp_delay()
 
-    def get_trace_pp_delay(
-            self,
-            frame_slice=slice(None),
-            y_pixel_slice=slice(None),
-            x_pixel_slice=slice(None),
-            frame_median=True,
-            medfilt_kernel=None,
-            as_mean=False,
-    ):
-        """Calculate the pp_delay wise trace.
-
-        frame_slice: slice
-          slice of frames to take into account
-        y_pixel_slice: slice
-          slice of y_pixel/spectra to take into account
-        frame_median: boolean True
-          Calculate frame wise median before calculating the sum
-        medfilt_kernel: None or Tuple with len 4
-          kernel for the median filter to apply before calculating the sum.
-        as_mean: boolean default False
-          returns the mean over the given area instead of the sum
-        """
-        ret = self.data[:, frame_slice, y_pixel_slice, x_pixel_slice]
-        x_pixel_length = ret.shape[-1]
-        if isinstance(medfilt_kernel, tuple):
-            if np.all(frame_median) != 1:
-                ret = medfilt(ret, medfilt_kernel)
-        if frame_median:
-            ret = np.median(ret, FRAME_AXIS_INDEX)
-        ret = ret.sum(X_PIXEL_INDEX)
-        if as_mean:
-            ret /= x_pixel_length
-        return ret
-
     @property
     def trace_frame(self):
         """Trace framewise."""
         return self.get_trace_frame()
 
-    def get_trace_frame(
+    def get_trace(
             self,
+            attr="normalized",
+            x_axis='pp_delays',
             pp_delay_slice=slice(None),
+            frame_slice=slice(None),
             y_pixel_slice=slice(None),
             x_pixel_slice=slice(None),
-            pp_delay_median=True,
             medfilt_kernel=None,
-            raw_data=False,
+            mean=True,
+            **kwargs
     ):
-        """Trace per frame."""
-        if raw_data:
-            ret = self.rawData[pp_delay_slice, :, y_pixel_slice, x_pixel_slice]
+        """Generic get trace method.
+
+        attr: string,
+            attribute to get the data from
+        pp_delays: slice to select a subset from pp_delas
+            axis
+        frame_slice: slice of selected frames.
+        y_pixel_slice: slice to select spectra/y_pixel.
+        x_pixel_slice: slice to select x_pixel.
+        mediflt_kernel: NOT IMPLEMENTED.
+        mean: boolean default true.
+            Depending on x_axis selection, a mean will be calculated
+            of the remaining axis. If that is not the case, the first
+            element of the slice is returned.
+        """
+        ret = getattr(self, attr)
+        if "bleach" in attr:
+            ret = ret[pp_delay_slice, frame_slice, x_pixel_slice]
         else:
-            ret = self.data[pp_delay_slice, :, y_pixel_slice, x_pixel_slice]
-        if isinstance(medfilt_kernel, tuple):
-            ret = medfilt(ret, medfilt_kernel)
-        if pp_delay_median:
-            ret = np.median(ret, PP_INDEX)
-        return ret.sum(X_PIXEL_INDEX)
+            ret = ret[pp_delay_slice, frame_slice,
+                      y_pixel_slice, x_pixel_slice]
+        ret = ret.mean(-1)
+        if 'pp_delay' in x_axis:
+            if mean:
+                ret = ret.mean(1)
+            else:
+                ret = ret[:, 0]
+        elif "frame" in x_axis:
+            if mean:
+                ret = ret.mean(0)
+            else:
+                ret = ret[0]
+        return ret
+
+    def get_trace_pp_delay(
+            self,
+            attr="basesubed",
+            **kwargs
+    ):
+        """Calculate the pp_delay wise trace.
+
+        attr: attribute to get data from.
+        **kwargs get passed to SfgRecod.get_trace
+        but x_axis is allways pp_delays.
+        """
+        kwargs['x_axis'] = 'pp_delays'
+        return self.get_trace(attr, **kwargs)
+
+    def get_trace_frame(
+            self,
+            attr="basesubed",
+            **kwargs
+    ):
+        """Trace per frame.
+
+        **kwargs get passed to SfgReco.get_trace,
+        but x_axis is allways frame."""
+
+        kwargs['x_axis'] = 'frame'
+        return self.get_trace(attr, **kwargs)
+
+    def get_trace_bleach(
+            self,
+            attr="bleach_rel",
+            **kwargs
+    ):
+        """Bleach traces.
+
+        attr: attribute to get data from.
+        **kwargs get passed to get_trace but x_axis is
+        fixed to pp_delays.
+        """
+        kwargs["x_axis"] = 'pp_delays'
+        ret = self.get_trace(
+            attr,
+            **kwargs
+        )
+        return ret
 
     def median(self, ax=None):
         """Calculate the median for the given axis.
@@ -1140,21 +1242,6 @@ class SfgRecord():
         # TODO Make use of gridspec or any other multitimensional
         # linear interpolation method.
         raise NotImplementedError
-
-    def get_trace_bleach(
-            self, attr="bleach", pp_delay_slice=slice(None),
-            frame_slice=slice(None), x_pixel_slice=slice(None),
-            medfilt_kernel=None, frame_mean=False,
-    ):
-        """Bleach traces."""
-        ret = getattr(self, attr)
-        if not isinstance(medfilt_kernel, type(None)):
-            ret = medfilt(ret, medfilt_kernel)
-
-        ret = ret[pp_delay_slice, frame_slice, x_pixel_slice].mean(-1)
-        if frame_mean:
-            ret = ret.mean(1)
-        return ret
 
     @property
     def static_corr(self):
@@ -1274,11 +1361,15 @@ class SfgRecord():
             self.pp_delays = imp['pp_delays']
             self._unpumped_index = imp['_unpumped_index'][()]
             self._pumped_index = imp['_pumped_index'][()]
+            # The following only try because I have data files
+            # that were created without these properties and I
+            # don't want to break them.
             try:
                 self.rawDataE = imp['rawDataE']
                 self.normE = imp['normE']
                 self.basesubedE = imp['basesubedE']
                 self.normalizedE = imp['normalizedE']
+                self.baseline_offset = imp['baseline_offset']
             except KeyError:
                 pass
             return
@@ -1364,6 +1455,7 @@ class SfgRecord():
         ret._wavenumber = self.wavenumber.copy()
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
+        ret.baseline_offset = self.baseline_offset
         return ret
 
     def save(self, file, *args, **kwargs):
@@ -1394,6 +1486,7 @@ class SfgRecord():
             baseE=self.baseE,
             basesubedE=self.basesubedE,
             normalizedE=self.normalizedE,
+            baseline_offset=self.baseline_offset,
         )
 
     def keep_frames(self, frame_slice=slice(None)):
