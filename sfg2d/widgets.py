@@ -15,7 +15,7 @@ import matplotlib.gridspec as gridspec
 from traitlets import validate
 from ipywidgets import IntRangeSlider
 
-from .core import SfgRecord
+from .core import SfgRecord, concatenate_list_of_SfgRecords
 from .utils.consts import X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX, FRAME_AXIS_INDEX, PP_INDEX, PIXEL
 
 debug = 0
@@ -92,13 +92,8 @@ class WidgetBase():
         )
 
         # Selection dialogue to select data from a list of files
-        self.wSelectFile = wi.Select(
+        self.wSelectFile = wi.SelectMultiple(
             layout=wi.Layout(width='41%'),
-        )
-
-        # Selection dialogue to select baseline data from a list of files
-        self.wSelectBaseFile = wi.Select(
-            layout=wi.Layout(width='42%'),
         )
 
         # Toggle button to toggle the subtraction of the baseline data
@@ -161,7 +156,7 @@ class WidgetBase():
 
         # Slider to select the visible y-pixel/spectra range
         self.wIntRangeSliderPixelY = IntRangeSliderGap(
-            continuous_update=True, description="Spectra Region"
+            continuous_update=False, description="Spectra Region"
         )
         self.wIntTextPixelYStep = wi.BoundedIntText(
             description='Spectra Stepsize', value=1, min=1,
@@ -170,7 +165,7 @@ class WidgetBase():
 
         # Slider to select the x-pixel range used within traces
         self.wIntRangeSliderPixelX = IntRangeSliderGap(
-            continuous_update=True, description="X Region",
+            continuous_update=False, description="X Region",
             max=PIXEL, value=(int(PIXEL*0.25), int(PIXEL*0.75)),
         )
 
@@ -206,12 +201,19 @@ class WidgetBase():
             description='Delay Median', value=False, disabled=True
         )
 
+        # Dropdown to choose how Baseline or IR data gets send.
+        self.wDropdownDelayMode = wi.Dropdown(
+            description="Delay Mode", value="Index",
+            options=["Index", "Region"],
+            layout=wi.Layout(width='180px',)
+        )
+
         # Slider to select range of frames used for median calculation.
         self.wSliderFrame = wi.IntSlider(
             description='Frame Index', continuous_update=False
         )
         self.wRangeSliderFrame = IntRangeSliderGap(
-            continuous_update=True, description="Frame Region"
+            continuous_update=False, description="Frame Region"
         )
 
         # Checkbox to toggle the frame wise calculation of a median spectrum.
@@ -219,9 +221,16 @@ class WidgetBase():
             description='Frame Median',
         )
 
+        # Dropdown to choos how Baseline and IR data gest send
+        self.wDropFrameMode = wi.Dropdown(
+            description="Frame Mode", value="Index",
+            options=["Index", "Region"],
+            layout=wi.Layout(width='180px',)
+        )
+
         # Slider to select frames for median calculation.
         self.wSliderFrame = wi.IntSlider(
-            description='Frame', continuous_update=True
+            description='Frame', continuous_update=False
         )
 
         # Select the x-axis of the summed plot.
@@ -285,6 +294,14 @@ class WidgetBase():
             layout=self.wTextCentralWl.layout,
         )
 
+        self.wTextSaveRecord = wi.Text(
+            description="File"
+        )
+
+        self.wButtonSaveRecord = wi.Button(
+            description="Save Record"
+        )
+
         # ### Aligning boxers ###
         self._data_box = wi.VBox([
             wi.HBox([
@@ -301,11 +318,13 @@ class WidgetBase():
                 self.wSliderPPDelay,
                 self.wIntRangeSliderPPDelay,
                 self.wCheckDelayMedian,
+                self.wDropdownDelayMode,
             ]),
             wi.HBox([
                 self.wSliderFrame,
                 self.wRangeSliderFrame,
                 self.wCheckFrameMedian,
+                self.wDropFrameMode,
             ]),
             wi.HBox([
                 self.wIntSliderSmooth,
@@ -320,6 +339,10 @@ class WidgetBase():
             self.wDropdownCalib,
             self.wTextCentralWl,
             self.wTextVisWl,
+        ])
+        self._save_record_box = wi.HBox([
+            self.wTextSaveRecord,
+            self.wButtonSaveRecord,
         ])
 
         # List of widgets that update the figure on value change
@@ -359,11 +382,12 @@ class WidgetBase():
         self._save_widgets = {
             'folder': self.wTextFolder,
             'file': self.wSelectFile,
-            'basefile': self.wSelectBaseFile,
             'subBaseline': self.wCheckSubBaseline,
             'showBaseline': self.wCheckShowBaseline,
             'checkDelayMedian': self.wCheckDelayMedian,
             'showBleach': self.wDropShowBleach,
+            'delayMode': self.wDropdownDelayMode,
+            'frameMode': self.wDropFrameMode,
             'smoothSlider': self.wIntSliderSmooth,
             'smoothBase': self.wIntSliderSmoothBase,
             'autoscale': self.wCheckAutoscale,
@@ -508,7 +532,11 @@ class WidgetBase():
         self.wTextVisWl.observe(self.x_spec_renew, "value")
         self.wIntTextPumped.observe(self._on_pumped_index_changed, "value")
         self.wIntTextUnpumped.observe(self._on_unpumped_index_changed, "value")
+        self.wCheckDelayMedian.observe(self._on_delay_median_clicked, "value")
+        self.wDropdownDelayMode.observe(self._on_delay_mode_changed, "value")
         self.wCheckFrameMedian.observe(self._on_frame_median_clicked, "value")
+        self.wDropFrameMode.observe(self._on_frame_mode_changed, "value")
+        self.wButtonSaveRecord.on_click(self._on_save_record)
         self.wCheckShowZeroTimeSubtraction.observe(
             self._set_zero_time_subtraction, "value"
         )
@@ -523,16 +551,15 @@ class WidgetBase():
             print('Warning folder {} not found'.format(self.wTextFolder.value))
             return
 
-        fnames = _filter_fnames(self.wTextFolder.value)
         if debug:
             print("_on_folder_submit_called")
         if debug > 1:
-            print("fnames:", fnames)
+            print("fnames:", self.fnames)
 
         # The *with* is a workaround. I need it in the test functions,
         # not the gui. Anyways, it doesn't quite work.
         with self.wSelectFile.hold_trait_notifications():
-            self.wSelectFile.options = fnames
+            self.wSelectFile.options = self.fnames
 
     def _toggle_vis_wl(self, new=None):
         """Toggle the vis wl text box according to calibration axis.
@@ -582,9 +609,18 @@ class WidgetBase():
         Sheme:
         load data ---> update data  ---> configure widget options and values
         """
-        fname = self.wTextFolder.value + "/" + self.wSelectFile.value
+
+        if len(self.wSelectFile.value) == 0:
+            return
+        elif len(self.wSelectFile.value) == 1:
+            self.data = SfgRecord(
+                self.folder + "/" + self.wSelectFile.value[0]
+            )
+        else:
+            records = [SfgRecord(self.folder + "/" + fname)
+                       for fname in self.wSelectFile.value]
+            self.data = concatenate_list_of_SfgRecords(records)
         self._unobserve_figure()
-        self.data = SfgRecord(fname)
         self._central_wl = None
         self._set_zero_time_subtraction(None)
         # Deactivating the observers here prevents flickering
@@ -611,11 +647,24 @@ class WidgetBase():
             if vis_wl > 0:
                 self.data._wavenumber = self.data.get_wavenumber(vis_wl)
 
+    def _on_delay_median_clicked(self, new=None):
+        if self.wCheckDelayMedian.value:
+            self.wDropdownDelayMode.value = "Region"
+
     def _on_frame_median_clicked(self, new=None):
         if self.wCheckFrameMedian.value:
+            self.wDropFrameMode.value = "Region"
             self.wSliderFrame.disabled = True
         else:
             self.wSliderFrame.disabled = False
+
+    def _on_frame_mode_changed(self, new=None):
+        if self.wDropFrameMode.value == "Index":
+            self.wCheckFrameMedian.value = False
+
+    def _on_delay_mode_changed(self, new=None):
+        if self.wDropdownDelayMode.value == "Index":
+            self.wCheckDelayMedian.value = False
 
     def _on_calib_changed(self, new=None):
         """Calibration changed."""
@@ -637,6 +686,10 @@ class WidgetBase():
     def _on_baseline_offset_changed(self, new=None):
         self.data.baseline_offset = self.wTextBaselineOffset.value
 
+    def _on_save_record(self, new=None):
+        fname = self.folder + '/' + self.wTextSaveRecord.value
+        self.data.save(fname)
+
     @property
     def central_wl(self):
         """Central wl used for x axis calibration of the *Spectrum* axis."""
@@ -655,6 +708,14 @@ class WidgetBase():
         if not self._vis_wl:
             return 0
         return self._vis_wl
+
+    @property
+    def folder(self):
+        return os.path.abspath(self.wTextFolder.value)
+
+    @property
+    def fnames(self):
+        return _filter_fnames(self.wTextFolder.value)
 
     @property
     def pp_delay_index(self):
@@ -1028,7 +1089,7 @@ class WidgetFigures():
         # Called when the ylim of the `Signal` plot is changed
         self._autoscale_buffer_2 = _lims2buffer(self.axes[1])
 
-class Baseline(WidgetBase, WidgetFigures):
+class BaselineTab(WidgetBase, WidgetFigures):
     def __init__(self, figsize=(8, 6), **kwargs):
         super().__init__(figsize=figsize, **kwargs)
 
@@ -1041,6 +1102,8 @@ class Baseline(WidgetBase, WidgetFigures):
             self._data_box,
             self._signal_box,
             self._calib_box,
+            self.wCheckAutoscale,
+            self._save_record_box
         ])
 
     def _init_figure(self):
@@ -1067,11 +1130,38 @@ class Baseline(WidgetBase, WidgetFigures):
             _buffer2lims(ax, self._autoscale_buffer_2)
         self.redraw_figure()
 
+    @property
+    def to_base(self):
+        """Y data to be send on Set Baseline button press."""
+        ret = self.data.rawData
+        if self.wDropdownDelayMode.value == "Index":
+            delay_slice = _slider_int_to_slice(self.wSliderPPDelay)
+        else:
+            delay_slice = self.pp_delay_slice
 
-class IR(WidgetBase, WidgetFigures):
-    """Widget to visualize IR type data.
+        if self.wDropFrameMode.value == "Index":
+            frame_slice = _slider_int_to_slice(self.wSliderFrame)
+        else:
+            frame_slice = self.frame_slice
 
-    IR Type data has a SfrRecord and a Baseline """
+        ret = ret[
+                  delay_slice,
+                  frame_slice,
+                  self.spec_slice,
+              ]
+        if self.wCheckDelayMedian.value:
+            ret = np.median(ret, PP_INDEX, keepdims=True)
+        if self.wCheckFrameMedian.value:
+            ret = np.median(ret, FRAME_AXIS_INDEX, keepdims=True)
+        if self.wIntSliderSmooth.value is not 0:
+            ret = medfilt(ret, (1, 1, 1, self.wIntSliderSmooth.value))
+        return ret
+
+
+class IRTab(WidgetBase, WidgetFigures):
+    """Widget to visualize IRTab type data.
+
+    IRTab Type data has a SfrRecord and a BaselineTab """
 
     def __init__(self, figsize=(8, 6), **kwargs):
         super().__init__(figsize=figsize, **kwargs)
@@ -1094,6 +1184,8 @@ class IR(WidgetBase, WidgetFigures):
             self._signal_box,
             show_box,
             self._calib_box,
+            self.wCheckAutoscale,
+            self._save_record_box
         ])
 
     def _init_figure(self):
@@ -1124,10 +1216,36 @@ class IR(WidgetBase, WidgetFigures):
     def _init_observer(self):
         super()._init_observer()
 
+    @property
+    def to_norm(self):
+        """Y data to be send on Set IR button press."""
+        ret = self.data.basesubed
+        if self.wDropdownDelayMode.value == "Index":
+            delay_slice = _slider_int_to_slice(self.wSliderPPDelay)
+        else:
+            delay_slice = self.pp_delay_slice
+
+        if self.wDropFrameMode.value == "Index":
+            frame_slice = _slider_int_to_slice(self.wSliderFrame)
+        else:
+            frame_slice = self.frame_slice
+
+        ret = ret[
+                  delay_slice,
+                  frame_slice,
+                  self.spec_slice,
+              ]
+        if self.wCheckDelayMedian.value:
+            ret = np.median(ret, PP_INDEX, keepdims=True)
+        if self.wCheckFrameMedian.value:
+            ret = np.median(ret, FRAME_AXIS_INDEX, keepdims=True)
+        if self.wIntSliderSmooth.value is not 0:
+            ret = medfilt(ret, (1, 1, 1, self.wIntSliderSmooth.value))
+        return ret
 
 
 # TODO Find Better name
-class SpecAndSummed(WidgetBase, WidgetFigures):
+class RecordTab(WidgetBase, WidgetFigures):
     def __init__(self, central_wl=None, vis_wl=810, figsize=(10, 4), **kwargs):
         """Plotting gui based on the SfgRecord class as a data backend.
 
@@ -1149,7 +1267,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
 
         Example:
         -------
-        test = SpecAndSummed()
+        test = RecordTab()
         test()
         # Type the Folder you want to investigate in the folder Text box and
         # press RETURN.
@@ -1198,6 +1316,7 @@ class SpecAndSummed(WidgetBase, WidgetFigures):
             show_box,
             bleach_box,
             self._calib_box,
+            self._save_record_box
         ])
 
     def _update_figure(self):
@@ -1347,15 +1466,15 @@ class PumpProbe():
     The second page shows A single Spectrum and possibly a baseline.
 
     The third page shows, after usage of the normalize button the quotient
-    of the first and the second page spectrum. This allows for IR
+    of the first and the second page spectrum. This allows for IRTab
     Normalization."""
 
     def __init__(self):
         import ipywidgets as wi
         self.tabed_widgets = (
-            SpecAndSummed(),
-            IR(),
-            Baseline(),
+            RecordTab(),
+            IRTab(),
+            BaselineTab(),
         )
         self.tab_record = self.tabed_widgets[0]
         self.tab_ir = self.tabed_widgets[1]
@@ -1400,40 +1519,51 @@ class PumpProbe():
         display(self.children)
 
     def _init_observer(self):
+        """Initialize widgets of the GUI.
+        Observers within this function interact between tabs, of independent
+        of tabs.
+        """
         if debug:
             print("Dasboards._init_observer called")
+        def test_widgets(tab):
+            """List of widgets of a tab that change the data such that,
+            test must be run before Ir or Baseline can be set."""
+            return (
+                tab.wSliderPPDelay,
+                tab.wIntRangeSliderPPDelay,
+                tab.wCheckDelayMedian,
+                tab.wDropdownDelayMode,
+                tab.wSliderFrame,
+                tab.wRangeSliderFrame,
+                tab.wCheckFrameMedian,
+                tab.wDropFrameMode,
+                tab.wIntSliderSmooth,
+                tab.wIntRangeSliderPixelY,
+                tab.wIntTextPixelYStep,
+                tab.wSelectFile,
+            )
+
         self.w_tabs.observe(self._on_tab_changed, 'selected_index')
         self.wButtonSetBaseline.on_click(self._on_setBaseline_clicked)
         self.wButtonSetIrBaseline.on_click(self._on_setIRBaseline_clicked)
         self.wButtonNormalize.on_click(self._on_set_normalize)
+        for widget in test_widgets(self.tab_ir):
+            widget.observe(
+                self._test_normalizability,
+                "value"
+            )
+        for widget in test_widgets(self.tab_record_baseline):
+            widget.observe(self._test_Record_baseline, "value")
+            widget.observe(self._test_IR_Baseline, "value")
 
-        # observers to w? must be re initiated on each data change.
-        # Need to make sure, that Normalize button is only clickable,
-        # When the shape of the data allows for normalization
-        self.tab_record.wIntRangeSliderPixelY.observe(
-            lambda new: self._is_normalizable,
+        self.tab_record_baseline.wSelectFile.observe(
+            self._test_Record_baseline,
             "value"
         )
-        self.tab_ir.wIntRangeSliderPixelY.observe(
-            lambda new: self._is_normalizable,
+        self.tab_record_baseline.wSelectFile.observe(
+            self._test_normalizability,
             "value"
         )
-        for tab in (self.tab_record, self.tab_record_baseline):
-            tab.wIntRangeSliderPixelY.observe(
-                lambda new: self._test_baseline_on_tab(
-                    self.tab_record,
-                    self.wButtonSetBaseline
-                ),
-                "value"
-            )
-        for tab in (self.tab_ir, self.tab_record_baseline):
-            tab.wIntRangeSliderPixelY.observe(
-                lambda new: self._test_baseline_on_tab(
-                    self.tab_ir,
-                    self.wButtonSetIrBaseline
-                ),
-                "value"
-            )
         self.wButtonSaveGui.on_click(self._on_save_gui_clicked)
         self.wButtonLoadGui.on_click(self._on_load_gui_clicked)
 
@@ -1453,7 +1583,7 @@ class PumpProbe():
                 self.tab_record, self.wButtonSetBaseline
         ):
             return
-        self.tab_record.data.base = self.tab_record_baseline.y_spec.T
+        self.tab_record.data.base = self.tab_record_baseline.to_base
         self.wButtonSetBaseline.style.button_color = "green"
         self.tabed_widgets[self.w_tabs.selected_index]._update_figure()
 
@@ -1463,16 +1593,16 @@ class PumpProbe():
                 self.tab_ir, self.wButtonSetIrBaseline
         ):
             return
-        self.tab_ir.data.base = self.tab_record_baseline.y_spec.T
+        self.tab_ir.data.base = self.tab_record_baseline.to_base
         self.wButtonSetIrBaseline.style.button_color = "green"
         self.tabed_widgets[self.w_tabs.selected_index]._update_figure()
 
     def _on_set_normalize(self, new):
         if debug:
             print("Normalize._on_set_normalize called.")
-        if not self._is_normalizable:
+        if not self._test_normalizability():
             return
-        self.tab_record.data.norm = self.tab_ir.y_spec.T
+        self.tab_record.data.norm = self.tab_ir.to_norm
         # Update current plot
         self.wButtonNormalize.style.button_color = "green"
         self.tabed_widgets[self.w_tabs.selected_index]._update_figure()
@@ -1482,7 +1612,7 @@ class PumpProbe():
 
         Each tab of the dashboard gets a separate list entry. Each widget value
         is saved as an dictionary of widget names and values."""
-        save_file = self.tab_record.wTextFolder.value + '/.last_state.json'
+        save_file = self.tab_record.folder + '/.last_state.json'
         with open(save_file, 'w') as outfile:
             save_list = []
             for i in range(len(self.tabed_widgets)):
@@ -1495,7 +1625,6 @@ class PumpProbe():
                  separators=(',', ': '), sort_keys=True)
 
     def _on_load_gui_clicked(self, new):
-        folder = self.tab_record.wTextFolder.value
 
         def _pop_and_set(name):
             value = saved_values.pop(name)
@@ -1512,7 +1641,7 @@ class PumpProbe():
             widget.value = value
 
         try:
-            infile = open(folder + '/.last_state.json', 'r')
+            infile = open(self.tab_record.folder + '/.last_state.json', 'r')
         except FileNotFoundError:
             pass
         else:
@@ -1541,12 +1670,11 @@ class PumpProbe():
                     w._init_figure_observers()
             self._on_tab_changed(None)
 
-    @property
-    def _is_normalizable(self):
+    def _test_normalizability(self, new=None):
         """Test if the data of w1 can be used to normalize the data of w0."""
         try:
             norm = np.ones_like(self.tab_record.data.rawData) *\
-                   self.tab_ir.y_spec.T
+                   self.tab_ir.to_norm
             self.wButtonNormalize.style.button_color = 'orange'
             if np.all(self.tab_record.data.norm == norm):
                 self.wButtonNormalize.style.button_color = 'green'
@@ -1563,8 +1691,9 @@ class PumpProbe():
         """
         try:
             base = np.ones_like(tab.data.rawData) *\
-                self.tab_record_baseline.y_spec.T
+                self.tab_record_baseline.to_base
             button.style.button_color = 'orange'
+            # Must use _base here because .base has offset correction.
             if isinstance(tab.data._base, type(None)):
                 return True
             if np.all(tab.data._base == base):
@@ -1574,6 +1703,17 @@ class PumpProbe():
             return False
         return True
 
+    def _test_IR_Baseline(self, new=None):
+        return self._test_baseline_on_tab(
+            self.tab_ir,
+            self.wButtonSetIrBaseline
+        )
+
+    def _test_Record_baseline(self, new=None):
+        return self._test_baseline_on_tab(
+            self.tab_record,
+            self.wButtonSetBaseline
+        )
 
 # #### Helper function
 def _filter_fnames(folder_path):
@@ -1603,6 +1743,8 @@ def _slider_range_to_slice(range_value_tuple, max):
         return slice(range_value_tuple[0], range_value_tuple[1]+1)
     return slice(range_value_tuple[0]-1, range_value_tuple[1])
 
+def _slider_int_to_slice(slider):
+    return slice(slider.value, slider.value+1)
 
 def _rangeSlider_to_slice(rangedSlider):
     """Get a slice from a ranged slider."""
