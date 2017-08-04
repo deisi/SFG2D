@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 from scipy.signal import medfilt
+from scipy.stats import sem
 import matplotlib.pyplot as plt
 
 from .io.veronica import pixel_to_nm, get_from_veronika
@@ -12,7 +13,7 @@ from .utils import (
     FRAME_AXIS_INDEX, PIXEL, PP_INDEX,
     find_nearest_index
 )
-from .utils.consts import VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC
+from .utils.consts import VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC, FRAME_AXIS_INDEX_P
 
 
 class SfgRecord():
@@ -189,6 +190,12 @@ class SfgRecord():
 
         # 4d array of values for the static drift correction.
         self._static_corr = None
+
+        # Region of interest x_pixel
+        self.rois_x_pixel = [(None, None)]
+
+        # Region of interest frames
+        self.roi_frames = (None, None)
 
         if isinstance(fname, type(None)):
             return
@@ -435,11 +442,6 @@ class SfgRecord():
                     (i * self.number_of_pp_delays + j) * time_of_a_scan
                 )
         return ret
-
-    @property
-    def frames(self):
-        """Iterable list of frames."""
-        return np.arange(self.data.shape[FRAME_AXIS_INDEX])
 
     @property
     def number_of_frames(self):
@@ -880,7 +882,9 @@ class SfgRecord():
     def pumped(self, value):
         if isinstance(value, int) or isinstance(value, np.integer):
             self.pumped_index = value
-            self._pumped = self.basesubed[:, :, value]
+            # by using slice we keep data 4dim
+            sl = slice(value, value + 1)
+            self._pumped = self.basesubed[:, :, sl]
         else:
             raise NotImplemented()
 
@@ -888,14 +892,16 @@ class SfgRecord():
     def pumped_norm(self):
         """Pumped data normalized."""
         if isinstance(self._pumped_norm, type(None)):
-            self._pumped_norm = self.normalized[:, :, self.pumped_index]
+            sl = slice(self.pumped_index, self.pumped_index+1)
+            self._pumped_norm = self.normalized[:, :, sl]
         return self._pumped_norm
 
     @pumped_norm.setter
     def pumped_norm(self, value):
         if isinstance(value, int) or isinstance(value, np.integer):
             self.pumped_index = value
-            self._pumped_norm = self.normalized[:, :, value]
+            sl = slice(value, value + 1)
+            self._pumped_norm = self.normalized[:, :, sl]
         else:
             raise NotImplemented()
 
@@ -934,7 +940,8 @@ class SfgRecord():
     def unpumped(self, value):
         if isinstance(value, int) or isinstance(value, np.integer):
             self.unpumped_index = value
-            self._unpumped = self.basesubed[:, :, value]
+            sl = slice(value, value + 1)
+            self._unpumped = self.basesubed[:, :, sl]
         else:
             raise NotImplemented()
 
@@ -949,7 +956,8 @@ class SfgRecord():
     def unpumped_norm(self, value):
         if isinstance(value, int) or isinstance(value, np.integer):
             self.unpumped_index = value
-            self._unpumped_norm = self.normalized[:, :, value]
+            sl = slice(value, value + 1)
+            self._unpumped_norm = self.normalized[:, :, sl]
         else:
             raise NotImplemented()
 
@@ -973,11 +981,12 @@ class SfgRecord():
 
         Returns
         -------
-        The calculated 3d bleach result.
+        The calculated bleach result.
         """
         bleach = np.zeros((
             self.number_of_pp_delays,
-            self.number_of_spectra,
+            self.number_of_frames,
+            1,
             self.number_of_x_pixel,
         ))
 
@@ -1113,6 +1122,11 @@ class SfgRecord():
             )
         return self._bleach_rel
 
+    # HERE ON
+    # Bleach and traces become 4d
+    # Simplify trace handling
+    # Update widgets to know about the 4d bleach.
+
     @property
     def trace_pp_delay(self):
         """trace over pp_delay axis."""
@@ -1122,6 +1136,48 @@ class SfgRecord():
     def trace_frame(self):
         """Trace framewise."""
         return self.get_trace_frame()
+
+    def traces(self, **kwargs):
+        """Return traces of the SfgRecord.
+
+        Pixel get used from SfgRecord.rois_x_pixels.
+        Frames of SfgRecord.roi_frames get averaged.
+
+        kwargs:
+            attr: str
+                default normalized. The attribute to pick the data from.
+
+        """
+        ret = {}
+        for roi_x_pixel in self.rois_x_pixel:
+            ret[roi_x_pixel] = self.get_pixel_mean(
+                slice(*roi_x_pixel), **kwargs
+            )[:, slice(*self.roi_frames)].mean(FRAME_AXIS_INDEX_P)
+        return ret
+
+    def tracesE(self, **kwargs):
+        """Uncertainty of the traces."""
+        ret = {}
+        for sl in self.rois_x_pixel:
+            ret[sl] = sem(self.get_pixel_mean(
+                slice(*sl), **kwargs
+            )[:, slice(*self.roi_frames)], FRAME_AXIS_INDEX_P)
+        return ret
+
+    def get_pixel_mean(self, x_pixel_slice, attr="normalized"):
+        """Get pixelwise mean.
+
+        Is used during trace calculation.
+        """
+        ret = getattr(self, attr)
+        if len(ret.shape) == 4:
+            ret = ret[:, :, :, x_pixel_slice].mean(X_PIXEL_INDEX)
+        elif len(ret.shape) == 3:
+            ret = ret[:, :, x_pixel_slice].mean(X_PIXEL_INDEX)
+        else:
+            raise IOError("Bad shape of attribute {}".format(attr))
+
+        return ret
 
     def get_trace(
             self,
@@ -1167,6 +1223,35 @@ class SfgRecord():
                 ret = ret.mean(0)
             else:
                 ret = ret[0]
+        return ret
+
+    def get_trace_errors(
+            self,
+            attr='normalized',
+            x_axis='pp_delays',
+            pp_delay_slice=slice(None),
+            frame_slice=slice(None),
+            y_pixel_slice=slice(None),
+            x_pixel_slice=slice(None),
+            medfilt_kernel=None,
+            mean=True,
+            mode='frame',
+            **kwargs
+    ):
+        """Get the uncertainties of the trace.
+
+        Parameters are the same as for get_trace, except, mode.
+        mode: str
+            frame: calculate frame wise averages and get an estimation
+                of the error from them.
+        """
+        ret = getattr(self, attr)
+        if "bleach" in attr:
+            ret = ret[pp_delay_slice, frame_slice, x_pixel_slice]
+        else:
+            ret = ret[pp_delay_slice, frame_slice,
+                      y_pixel_slice, x_pixel_slice]
+        ret = ret.std(1)/np.sqrt(ret.shape[1])
         return ret
 
     def get_trace_pp_delay(

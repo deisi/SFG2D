@@ -4,6 +4,11 @@ Y_PIXEL_INDEX = -2 # Axis of y-pixel data
 SPEC_INDEX = -2 # Axis of spectra
 FRAME_AXIS_INDEX = -3 # Axis of frames
 PP_INDEX = -4 # Axis of pp_delays
+X_PIXEL_INDEX_P = 3
+
+SPEC_INDEX_P = 2
+FRAME_AXIS_INDEX_P = 1
+PP_INDEX_P = 0
 PIXEL = 1600 # Number of x-pixel
 SPECS = 3 # Number of binned spectra
 VIS_WL = 810 # Default Wavelength of the visible
