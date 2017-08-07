@@ -10,10 +10,10 @@ from .io.veronica import pixel_to_nm, get_from_veronika
 from .io.victor_controller import get_from_victor_controller
 from .utils import (
     nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX,
-    FRAME_AXIS_INDEX, PIXEL, PP_INDEX,
-    find_nearest_index
+    FRAME_AXIS_INDEX, PIXEL, PP_INDEX, find_nearest_index
 )
-from .utils.consts import VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC, FRAME_AXIS_INDEX_P
+from .utils.consts import (VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC,
+                           FRAME_AXIS_INDEX_P,  PP_INDEX_P)
 
 
 class SfgRecord():
@@ -194,8 +194,14 @@ class SfgRecord():
         # Region of interest x_pixel
         self.rois_x_pixel = [(None, None)]
 
+        # Region of interest y_pixel/spectra
+        self.roi_spectra = (None, None)
+
         # Region of interest frames
         self.roi_frames = (None, None)
+
+        # Region of interest pp_delays
+        self.roi_delays = [None, None]
 
         if isinstance(fname, type(None)):
             return
@@ -1122,188 +1128,154 @@ class SfgRecord():
             )
         return self._bleach_rel
 
-    # HERE ON
-    # Bleach and traces become 4d
-    # Simplify trace handling
-    # Update widgets to know about the 4d bleach.
+    def x_pixel_median(self, attr="basesubed", x_pixel_slice=slice(None, None),
+                       **kwargs):
+        """Median of x_pixel_slice retion.
 
-    @property
-    def trace_pp_delay(self):
-        """trace over pp_delay axis."""
-        return self.get_trace_pp_delay()
+        attr: string
+            attribute to get data from
+        x_pixel_slice: slice
+            to select x_pixel region.
+        """
 
-    @property
-    def trace_frame(self):
-        """Trace framewise."""
-        return self.get_trace_frame()
+        data = getattr(self, attr)
+        data = np.median(data[:, :, :, x_pixel_slice],
+                         X_PIXEL_INDEX, keepdims=True)
+        return data
 
-    def traces(self, **kwargs):
+    def trace(self, attr="bleach_rel", x_pixel_slice=slice(None, None),
+              frame_slice=slice(None, None)):
         """Return traces of the SfgRecord.
 
-        Pixel get used from SfgRecord.rois_x_pixels.
-        Frames of SfgRecord.roi_frames get averaged.
+        A trace is an mean over a pixel region and an median of a frame
+        region.
 
-        kwargs:
-            attr: str
-                default normalized. The attribute to pick the data from.
+        attr: string
+            attribute to get the data from.
+        x_pixel_slice: slice
+            slice to calc mean over
+        frame_slice: slice
+            frame slice to calculate median over.
 
         """
-        ret = {}
+        data = getattr(self, attr)
+        # Frame median must be calculated first, to get rid of spikes.
+        data = np.median(data[:, frame_slice], FRAME_AXIS_INDEX_P,
+                         keepdims=True)
+        data = np.mean(data[:, :, :, x_pixel_slice],
+                       X_PIXEL_INDEX, keepdims=True)
+        return data
+
+    def _traces_property(self, attr):
+        """Generator for the trace properties.
+
+        To keep the shape convention, data is reshaped such that
+        [pp_delays, frames, specs, x_rois]
+        frames will allways be 1 because SfgRecord.roi_frames get averaged.
+        x_rois are used from SfgRecord.rois_x_pixel
+        """
+        ret = []
         for roi_x_pixel in self.rois_x_pixel:
-            ret[roi_x_pixel] = self.get_pixel_mean(
-                slice(*roi_x_pixel), **kwargs
-            )[:, slice(*self.roi_frames)].mean(FRAME_AXIS_INDEX_P)
+            ret.append(
+                self.trace(
+                    attr,
+                    slice(*roi_x_pixel),
+                    slice(*self.roi_frames)
+                )
+            )
+        newshape = (self.number_of_pp_delays, 1,
+                    np.shape(ret)[-2], len(self.rois_x_pixel))
+        ret = np.reshape(ret, newshape)
         return ret
 
-    def tracesE(self, **kwargs):
-        """Uncertainty of the traces."""
-        ret = {}
-        for sl in self.rois_x_pixel:
-            ret[sl] = sem(self.get_pixel_mean(
-                slice(*sl), **kwargs
-            )[:, slice(*self.roi_frames)], FRAME_AXIS_INDEX_P)
+    @property
+    def traces_bleach_rel(self):
+        """trace of relative bleach."""
+        return self._traces_property("bleach_rel")
+
+    @property
+    def traces_bleach_abs(self):
+        """trace of absolute bleach."""
+        return self._traces_property("bleach_abs")
+
+    @property
+    def traces_bleach_norm(self):
+        """trace of normalized absolute bleach."""
+        return self._traces_property("bleach_norm")
+
+    @property
+    def traces_normalized(self):
+        """trace of normalized data."""
+        return self._traces_property("normalized")
+
+    @property
+    def traces_rawData(self):
+        """trace of raw data."""
+        return self._traces_property("rawData")
+
+    @property
+    def traces_basesubed(self):
+        """trace of basesubed"""
+        return self._traces_property("basesubed")
+
+    def traceE(self, attr='bleach_rel', x_pixel_slice=slice(None, None),
+               frame_slice=slice(None, None)):
+        """Std error of the mean for a trace.
+
+        Currently this is not an exact result, because normalization and
+        background subtraction are ignored.
+
+        Calculated from frames variations."""
+        data = getattr(self, attr)
+        # I dont think this is correct but for now okay.
+        data = np.mean(data[:, :, :, x_pixel_slice],
+                       X_PIXEL_INDEX, keepdims=True)
+        data = sem(data[:, frame_slice], FRAME_AXIS_INDEX_P)
+        newshape = (data.shape[0], 1, *data.shape[1:])
+        data = np.reshape(data, newshape)
+        return data
+
+    def _tracesE_property(self, attr):
+        """Generator for the Trace property.
+
+        It makes use of the same reshaping as SfgRecord._trace_property."""
+        ret = []
+        for roi_x_pixel in self.rois_x_pixel:
+            ret.append(
+                self.traceE(
+                    attr,
+                    slice(*roi_x_pixel),
+                    slice(*self.roi_frames)
+                )
+            )
+        newshape = (self.number_of_pp_delays, 1,
+                    np.shape(ret)[-2], len(self.rois_x_pixel))
+        ret = np.reshape(ret, newshape)
         return ret
 
-    def get_pixel_mean(self, x_pixel_slice, attr="normalized"):
-        """Get pixelwise mean.
+    @property
+    def tracesE_bleach_rel(self):
+        return self._tracesE_property(attr="bleach_rel")
 
-        Is used during trace calculation.
-        """
-        ret = getattr(self, attr)
-        if len(ret.shape) == 4:
-            ret = ret[:, :, :, x_pixel_slice].mean(X_PIXEL_INDEX)
-        elif len(ret.shape) == 3:
-            ret = ret[:, :, x_pixel_slice].mean(X_PIXEL_INDEX)
-        else:
-            raise IOError("Bad shape of attribute {}".format(attr))
+    @property
+    def tracesE_bleach_abs(self):
+        return self._tracesE_property(attr="bleach_abs")
 
-        return ret
+    @property
+    def tracesE_bleach_norm(self):
+        return self._tracesE_property(attr="bleach_norm")
 
-    def get_trace(
-            self,
-            attr="normalized",
-            x_axis='pp_delays',
-            pp_delay_slice=slice(None),
-            frame_slice=slice(None),
-            y_pixel_slice=slice(None),
-            x_pixel_slice=slice(None),
-            medfilt_kernel=None,
-            mean=True,
-            **kwargs
-    ):
-        """Generic get trace method.
+    @property
+    def tracesE_normalized(self):
+        return self._tracesE_property(attr="normalized")
 
-        attr: string,
-            attribute to get the data from
-        pp_delays: slice to select a subset from pp_delas
-            axis
-        frame_slice: slice of selected frames.
-        y_pixel_slice: slice to select spectra/y_pixel.
-        x_pixel_slice: slice to select x_pixel.
-        mediflt_kernel: NOT IMPLEMENTED.
-        mean: boolean default true.
-            Depending on x_axis selection, a mean will be calculated
-            of the remaining axis. If that is not the case, the first
-            element of the slice is returned.
-        """
-        ret = getattr(self, attr)
-        if "bleach" in attr:
-            ret = ret[pp_delay_slice, frame_slice, x_pixel_slice]
-        else:
-            ret = ret[pp_delay_slice, frame_slice,
-                      y_pixel_slice, x_pixel_slice]
-        ret = ret.mean(-1)
-        if 'pp_delay' in x_axis:
-            if mean:
-                ret = ret.mean(1)
-            else:
-                ret = ret[:, 0]
-        elif "frame" in x_axis:
-            if mean:
-                ret = ret.mean(0)
-            else:
-                ret = ret[0]
-        return ret
+    @property
+    def tracesE_rawData(self):
+        return self._tracesE_property(attr="rawData")
 
-    def get_trace_errors(
-            self,
-            attr='normalized',
-            x_axis='pp_delays',
-            pp_delay_slice=slice(None),
-            frame_slice=slice(None),
-            y_pixel_slice=slice(None),
-            x_pixel_slice=slice(None),
-            medfilt_kernel=None,
-            mean=True,
-            mode='frame',
-            **kwargs
-    ):
-        """Get the uncertainties of the trace.
-
-        Parameters are the same as for get_trace, except, mode.
-        mode: str
-            frame: calculate frame wise averages and get an estimation
-                of the error from them.
-        """
-        ret = getattr(self, attr)
-        if "bleach" in attr:
-            ret = ret[pp_delay_slice, frame_slice, x_pixel_slice]
-        else:
-            ret = ret[pp_delay_slice, frame_slice,
-                      y_pixel_slice, x_pixel_slice]
-        ret = ret.std(1)/np.sqrt(ret.shape[1])
-        return ret
-
-    def get_trace_pp_delay(
-            self,
-            attr="basesubed",
-            **kwargs
-    ):
-        """Calculate the pp_delay wise trace.
-
-        attr: attribute to get data from.
-        **kwargs get passed to SfgRecod.get_trace
-        but x_axis is allways pp_delays.
-        """
-        kwargs['x_axis'] = 'pp_delays'
-        return self.get_trace(attr, **kwargs)
-
-    def get_trace_frame(
-            self,
-            attr="basesubed",
-            **kwargs
-    ):
-        """Trace per frame.
-
-        **kwargs get passed to SfgReco.get_trace,
-        but x_axis is allways frame."""
-
-        kwargs['x_axis'] = 'frame'
-        return self.get_trace(attr, **kwargs)
-
-    def get_trace_bleach(
-            self,
-            attr="bleach_rel",
-            **kwargs
-    ):
-        """Bleach traces.
-
-        attr: attribute to get data from.
-        **kwargs get passed to get_trace but x_axis is
-        fixed to pp_delays.
-        """
-        kwargs["x_axis"] = 'pp_delays'
-        ret = self.get_trace(
-            attr,
-            **kwargs
-        )
-        return ret
-
-    def median(self, ax=None):
-        """Calculate the median for the given axis.
-
-        np.median(self.data, ax) is calculated."""
-        return np.median(self.data, ax)
+    @property
+    def tracesE_basesubed(self):
+        return self._tracesE_property(attr="basesubed")
 
     def get_linear_baseline(self, start_slice=None,
                             stop_slice=None, data_attr="rawData"):

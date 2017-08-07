@@ -149,8 +149,8 @@ class WidgetBase():
         )
 
         # Checkbox to toggle the Autoscale functionality of matplotlib
-        self.wCheckAutoscaleSum = wi.Checkbox(
-            description="Autoscale Sum",
+        self.wCheckAutoscaleTrace = wi.Checkbox(
+            description="Autoscale Trace",
             value=True,
         )
 
@@ -233,13 +233,6 @@ class WidgetBase():
             description='Frame', continuous_update=False
         )
 
-        # Select the x-axis of the summed plot.
-        self.wDropSumAxis = wi.Dropdown(
-            description='X Axis of Sum',
-            options=('pp_delays', 'frames'),
-            layout=self.wTextCentralWl.layout,
-        )
-
         # Textbox to enter an additional constant offset to the baseline.
         self.wTextBaselineOffset = wi.FloatText(
             description='Offset', value=0,
@@ -287,9 +280,9 @@ class WidgetBase():
         )
 
         # Dropdown to toggle view of the summed spectra
-        self.wDropShowSummed = wi.Dropdown(
+        self.wDropShowTrace = wi.Dropdown(
             options=["Raw", "Normalized", "Bleach"],
-            description='Summed',
+            description='Trace',
             value="Raw",
             layout=self.wTextCentralWl.layout,
         )
@@ -361,15 +354,14 @@ class WidgetBase():
             self.wTextCentralWl,
             self.wCheckAutoscale,
             self.wDropdownCalib,
-            self.wCheckAutoscaleSum,
+            self.wCheckAutoscaleTrace,
             self.wCheckShowNorm,
             self.wIntSliderSmooth,
             self.wCheckSubBaseline,
             self.wCheckShowBaseline,
             self.wDropShowBleach,
             self.wDropShowSpectra,
-            self.wDropShowSummed,
-            self.wDropSumAxis,
+            self.wDropShowTrace,
             self.wTextBaselineOffset,
             self.wIntTextPumped,
             self.wIntTextUnpumped,
@@ -391,7 +383,7 @@ class WidgetBase():
             'smoothSlider': self.wIntSliderSmooth,
             'smoothBase': self.wIntSliderSmoothBase,
             'autoscale': self.wCheckAutoscale,
-            'autoscaleSum': self.wCheckAutoscaleSum,
+            'autoscaleTrace': self.wCheckAutoscaleTrace,
             'pixelY': self.wIntRangeSliderPixelY,
             'pixelY_step': self.wIntTextPixelYStep,
             'pixelX': self.wIntRangeSliderPixelX,
@@ -405,14 +397,13 @@ class WidgetBase():
             'frame_index': self.wSliderFrame,
             'frameMedian': self.wCheckFrameMedian,
             'frame': self.wSliderFrame,
-            'sumXAxis': self.wDropSumAxis,
             'baselineOffset': self.wTextBaselineOffset,
             'pumped': self.wIntTextPumped,
             'unpumped': self.wIntTextUnpumped,
             'bleachOperator': self.wDropdownOperator,
             'bleachZeroTimeSubtraction': self.wCheckShowZeroTimeSubtraction,
             'showSpectra': self.wDropShowSpectra,
-            'showSummed': self.wDropShowSummed,
+            'showTrace': self.wDropShowTrace,
         }
 
     def _conf_widget_with_data(self):
@@ -494,7 +485,6 @@ class WidgetBase():
 
         self._toggle_central_wl()
         self._toggle_vis_wl()
-        self._toggle_sum_over()
 
     def _init_figure_observers(self):
         """All observers that call the *update_figure_callback* """
@@ -528,7 +518,6 @@ class WidgetBase():
         self.wSelectFile.observe(self._load_data, 'value')
         self.wDropdownCalib.observe(self._on_calib_changed, "value")
         self.wTextCentralWl.observe(self.x_spec_renew, "value")
-        self.wDropSumAxis.observe(self._toggle_delay_median, "value")
         self.wTextVisWl.observe(self.x_spec_renew, "value")
         self.wIntTextPumped.observe(self._on_pumped_index_changed, "value")
         self.wIntTextUnpumped.observe(self._on_unpumped_index_changed, "value")
@@ -580,24 +569,6 @@ class WidgetBase():
             self.wTextCentralWl.disabled = True
         else:
             self.wTextCentralWl.disabled = False
-
-    def _toggle_sum_over(self, new=None):
-        if self.data.number_of_frames is 1:
-            self.wDropSumAxis.value = "pp_delays"
-            self.wDropSumAxis.disabled = True
-            return
-        if self.data.pp_delays.shape[0] is 1:
-            self.wDropSumAxis.value = "frames"
-            self.wDropSumAxis.disabled = True
-            return
-        self.wDropSumAxis.disabled = False
-
-    def _toggle_delay_median(self, new=None):
-        """Toggle the Delay Median Checkbox"""
-        if 'frames' in self.wDropSumAxis.value:
-            self.wCheckDelayMedian.disabled = False
-        else:
-            self.wCheckDelayMedian.disabled = True
 
     def _load_data(self, new=None):
         """Update the internal data objects.
@@ -807,7 +778,7 @@ class WidgetBase():
 
     @property
     def x_norm(self):
-        """x _data of the norm plot."""
+        """x_data of the norm plot."""
         return self.x_spec
 
     @property
@@ -819,111 +790,43 @@ class WidgetBase():
             :
         ].T
 
-    # TODO Remove this
     @property
-    def x_sum(self):
-        """x data of the summed plot."""
-        if 'pp_delays' in self.wDropSumAxis.value:
-            return self.data.pp_delays[self.pp_delay_slice]
-        elif 'frames' in self.wDropSumAxis.value:
-            return np.arange(self.data.number_of_frames)[self.frame_slice]
-        raise NotImplementedError(
-            'got {} for wDropSumAxis'.format(self.wDropSumAxis.value)
-        )
+    def x_trace(self):
+        """x data of the trace plot."""
+        return self.data.pp_delays[self.pp_delay_slice]
 
     @property
-    def sum_pp_delays(self):
-        """Returns the pp_delay wise sum off the baseline subed data."""
-
-        if 'Bleach' in self.wDropShowSummed.value:
-            attr = "bleach"
+    def y_trace(self):
+        """y data of the trace plot."""
+        self.data.roi_frames = self.wRangeSliderFrame.value
+        self.data.rois_x_pixel = [self.wIntRangeSliderPixelX.value]
+        if 'Bleach' in self.wDropShowTrace.value:
+            attr = "bleach_"
             if self.wDropdownOperator.value is '-':
                 if self.wDropShowSpectra.value is 'Raw':
-                    attr += '_abs'
+                    attr += 'abs'
                 else:
-                    attr += '_norm'
+                    attr += 'norm'
             if self.wDropdownOperator.value is '/':
-                attr += '_rel'
-            y = self.data.get_trace_bleach(
-                attr=attr,
-                pp_delay_slice=self.pp_delay_slice,
-                frame_slice=self.frame_slice,
-                x_pixel_slice=self.x_pixel_slice,
-                frame_mean=self.wCheckFrameMedian.value,
-            )
-            return y
-        # TODO Frame Median is not handeled. It will
-        # allways calculate the frame median.
-        elif 'Raw' in self.wDropShowSummed.value:
+                attr += 'rel'
+        elif 'Raw' in self.wDropShowTrace.value:
             if self.wCheckSubBaseline.value:
                 attr = "basesubed"
             else:
                 attr = "rawData"
-        elif 'Normalized' in self.wDropShowSummed.value:
+        elif 'Normalized' in self.wDropShowTrace.value:
             attr = "normalized"
-        y = self.data.get_trace_pp_delay(
-            attr=attr,
-            frame_slice=self.frame_slice,
-            y_pixel_slice=self.spec_slice,
-            x_pixel_slice=self.x_pixel_slice,
-        )[self.pp_delay_slice]
+
+        y = self.data.trace(
+            attr,
+            self.x_pixel_slice,
+            self.frame_slice
+        )
+        if 'Bleach' in self.wDropShowTrace.value:
+            y = y[self.pp_delay_slice, 0, 0, 0]
+        else:
+            y = y[self.pp_delay_slice, 0, self.spec_slice, 0]
         return y
-
-    @property
-    def y_sum(self):
-        """y data of the summed plot."""
-        f_kwargs = {
-            "pp_delay_slice": self.pp_delay_slice,
-            "frame_slice": self.frame_slice,
-            "y_pixel_slice": self.spec_slice,
-            "x_pixel_slice": self.x_pixel_slice,
-            "x_axis": self.wDropSumAxis.value,
-        }
-
-        if 'Bleach' in self.wDropShowSummed.value:
-            if self.wDropdownOperator.value is '-':
-                if self.wDropShowBleach.value is 'Raw':
-                    f_kwargs['attr'] = 'bleach_abs'
-                else:
-                    f_kwargs['attr'] = 'bleach_norm'
-            elif self.wDropdownOperator.value is '/':
-                f_kwargs['attr'] = 'bleach_rel'
-        elif 'Raw' in self.wDropShowSummed.value:
-            if self.wCheckSubBaseline.value:
-                f_kwargs['attr'] = "basesubed"
-            else:
-                f_kwargs['attr'] = "rawData"
-        elif 'Normalized' in self.wDropShowSummed.value:
-            f_kwargs['attr'] = "normalized"
-
-        if "frame" in f_kwargs["x_axis"]:
-            f_kwargs["mean"] = self.wCheckDelayMedian.value
-            if not f_kwargs["mean"]:
-                f_kwargs['pp_delay_slice'] = slice(
-                    self.wSliderPPDelay.value,
-                    self.wSliderPPDelay.value + 1
-                    )
-        elif "pp_delay" in f_kwargs["x_axis"]:
-            f_kwargs['mean'] = self.wCheckFrameMedian.value
-            if not f_kwargs['mean']:
-                f_kwargs["frame_slice"] = slice(
-                    self.wSliderFrame.value,
-                    self.wSliderFrame.value + 1
-                    )
-
-        return self.data.get_trace(
-            **f_kwargs
-           )
-
-    @property
-    def sum_x(self):
-        warnings.warn("sum_x is deprecated. Use x_sum")
-        return self.x_sum
-
-    @property
-    def sum_y(self):
-        warnings.warn("sum_y is deprecated plz use y_sum")
-        return self.y_sum
 
     @property
     def x_vlines(self):
@@ -950,7 +853,7 @@ class WidgetBase():
             self.data._bleach_rel = None
             data = self.data.bleach_rel
 
-        data = data[self.pp_delay_index]
+        data = data[self.pp_delay_index, :, 0]
 
         # TODO Baseline handling
         if self.wCheckFrameMedian.value:
@@ -1061,19 +964,15 @@ class WidgetFigures():
 
     def plot_sum(self, ax):
         # TODO is this needed or is this automatically cached?
-        y_sum = self.y_sum
-        lines0_1 = ax.plot(self.x_sum, y_sum)
-        points0_1 = ax.plot(self.x_sum, y_sum, 'o')
+        y_trace = self.y_trace
+        lines0_1 = ax.plot(self.x_trace, y_trace)
+        points0_1 = ax.plot(self.x_trace, y_trace, 'o')
         for i in range(len(lines0_1)):
             points = points0_1[i]
             color = lines0_1[i].get_color()
             points.set_color(color)
-        if "pp_delays" in self.wDropSumAxis.value:
-            ax.set_xlabel('pp delay / fs')
-        else:
-            ax.set_xlabel("# frame")
-        ax.set_ylabel('Sum')
-        ax.set_title('Summed')
+        ax.set_xlabel('pp delay / fs')
+        ax.set_ylabel('Trace')
 
     def redraw_figure(self):
         self._fig.canvas.draw()
@@ -1298,10 +1197,9 @@ class RecordTab(WidgetBase, WidgetFigures):
                 self.wCheckAutoscale,
             ]),
             wi.HBox([
-                self.wDropSumAxis,
-                self.wDropShowSummed,
+                self.wDropShowTrace,
                 self.wDropShowBleach,
-                self.wCheckAutoscaleSum,
+                self.wCheckAutoscaleTrace,
             ])
         ])
         bleach_box = wi.HBox([
@@ -1354,7 +1252,7 @@ class RecordTab(WidgetBase, WidgetFigures):
         ax.yaxis.tick_right()
         ax.callbacks.connect('xlim_changed', self._on_ax1_lim_changed)
         ax.callbacks.connect('ylim_changed', self._on_ax1_lim_changed)
-        if self.wCheckAutoscaleSum.value:
+        if self.wCheckAutoscaleTrace.value:
             self._autoscale_buffer_2 = _lims2buffer(ax)
         else:
             _buffer2lims(ax, self._autoscale_buffer_2)
@@ -1457,7 +1355,7 @@ class PumpProbe():
     toggle the visibility of the Baseline. Autoscale prevents the axes from
     re-scaling up on data change. Numorus sliders allow for inspection of the
     data.
-    The second axes shows the Sum of each spectrum vs pump-probe time delay.
+    The second axes shows the Trace of each spectrum vs pump-probe time delay.
     This is only use full if you do pump-probe experiment. Otherwise this axis
     will only show to you the a single point with the value of the sum(area) of
     the spectrum from axes one.
