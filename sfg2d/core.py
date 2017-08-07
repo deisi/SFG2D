@@ -1157,22 +1157,26 @@ class SfgRecord():
         frame_slice: slice
             frame slice to calculate median over.
 
+        Returns
+        --------
+        2d array with:
+        [delays, specs]
         """
         data = getattr(self, attr)
         # Frame median must be calculated first, to get rid of spikes.
-        data = np.median(data[:, frame_slice], FRAME_AXIS_INDEX_P,
-                         keepdims=True)
-        data = np.mean(data[:, :, :, x_pixel_slice],
-                       X_PIXEL_INDEX, keepdims=True)
+        data = np.median(data[:, frame_slice, :, x_pixel_slice],
+                         FRAME_AXIS_INDEX_P,).mean(X_PIXEL_INDEX)
         return data
 
     def _traces_property(self, attr):
         """Generator for the trace properties.
+        attr: string
+            attribute to get data of.
 
-        To keep the shape convention, data is reshaped such that
-        [pp_delays, frames, specs, x_rois]
-        frames will allways be 1 because SfgRecord.roi_frames get averaged.
-        x_rois are used from SfgRecord.rois_x_pixel
+        Returns
+        -------
+        3d array with:
+        [rois_x_pixel, delays, y_specs]
         """
         ret = []
         for roi_x_pixel in self.rois_x_pixel:
@@ -1183,10 +1187,7 @@ class SfgRecord():
                     slice(*self.roi_frames)
                 )
             )
-        newshape = (self.number_of_pp_delays, 1,
-                    np.shape(ret)[-2], len(self.rois_x_pixel))
-        ret = np.reshape(ret, newshape)
-        return ret
+        return np.array(ret)
 
     @property
     def traces_bleach_rel(self):
@@ -1225,20 +1226,27 @@ class SfgRecord():
         Currently this is not an exact result, because normalization and
         background subtraction are ignored.
 
-        Calculated from frames variations."""
+        Calculated from frames variations.
+
+        Returns
+        --------
+        2d array with [delays, spectras]
+        """
         data = getattr(self, attr)
         # I dont think this is correct but for now okay.
-        data = np.mean(data[:, :, :, x_pixel_slice],
-                       X_PIXEL_INDEX, keepdims=True)
+        data = np.mean(data[:, :, :, x_pixel_slice], X_PIXEL_INDEX)
         data = sem(data[:, frame_slice], FRAME_AXIS_INDEX_P)
-        newshape = (data.shape[0], 1, *data.shape[1:])
-        data = np.reshape(data, newshape)
         return data
 
     def _tracesE_property(self, attr):
         """Generator for the Trace property.
 
-        It makes use of the same reshaping as SfgRecord._trace_property."""
+        It makes use of the same reshaping as SfgRecord._trace_property.
+
+        Returns
+        --------
+        3d array with [rois_x_pixel, delays, spectras]
+        """
         ret = []
         for roi_x_pixel in self.rois_x_pixel:
             ret.append(
@@ -1248,10 +1256,7 @@ class SfgRecord():
                     slice(*self.roi_frames)
                 )
             )
-        newshape = (self.number_of_pp_delays, 1,
-                    np.shape(ret)[-2], len(self.rois_x_pixel))
-        ret = np.reshape(ret, newshape)
-        return ret
+        return np.array(ret)
 
     @property
     def tracesE_bleach_rel(self):

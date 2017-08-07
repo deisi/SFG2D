@@ -103,19 +103,19 @@ class WidgetBase():
 
         # Checkbox to toggle the visibility of the baseline data
         self.wCheckShowBaseline = wi.Checkbox(
-            description='Show Baseline',
+            description='Baseline',
             value=True,
         )
 
         # Checkbox to toggel the visiblitiy of the norm
         self.wCheckShowNorm = wi.Checkbox(
-            description='Show Norm',
+            description='Norm',
             value=False
         )
 
         # Checkbox to toggle the visibility of bleach data
         self.wDropShowBleach = wi.Dropdown(
-            description='Show Bleach',
+            description='Bleach',
             options=["Raw", "Normalized", "None"],
             value="None",
             layout=wi.Layout(width='180px',),
@@ -268,14 +268,14 @@ class WidgetBase():
         # Dropdown to toggle the visibility of Raw Normalized or None Spectra
         self.wDropShowSpectra = wi.Dropdown(
             options=["Raw", "Normalized", "None"],
-            description='Show Spectra',
+            description='Select Spectra',
             value="Raw",
             layout=self.wTextCentralWl.layout,
         )
 
         # Alternative Checkbox to toggle visibility of Raw Spectra.
         self.wCheckShowSpectra = wi.Checkbox(
-            description='Show Spectra',
+            description='Spectra',
             value=True,
         )
 
@@ -309,29 +309,31 @@ class WidgetBase():
         self._signal_box = wi.VBox([
             wi.HBox([
                 self.wSliderPPDelay,
-                self.wIntRangeSliderPPDelay,
                 self.wCheckDelayMedian,
+                self.wIntRangeSliderPPDelay,
                 self.wDropdownDelayMode,
             ]),
             wi.HBox([
                 self.wSliderFrame,
-                self.wRangeSliderFrame,
                 self.wCheckFrameMedian,
+                self.wRangeSliderFrame,
                 self.wDropFrameMode,
             ]),
             wi.HBox([
                 self.wIntSliderSmooth,
-                self.wIntRangeSliderPixelX,
-            ]),
-            wi.HBox([
                 self.wIntRangeSliderPixelY,
                 self.wIntTextPixelYStep,
+            ]),
+            wi.HBox([
+                self.wIntRangeSliderPixelX,
             ])
         ])
         self._calib_box = wi.HBox([
             self.wDropdownCalib,
             self.wTextCentralWl,
             self.wTextVisWl,
+            self.wCheckAutoscale,
+            self.wCheckAutoscaleTrace,
         ])
         self._save_record_box = wi.HBox([
             self.wTextSaveRecord,
@@ -798,8 +800,6 @@ class WidgetBase():
     @property
     def y_trace(self):
         """y data of the trace plot."""
-        self.data.roi_frames = self.wRangeSliderFrame.value
-        self.data.rois_x_pixel = [self.wIntRangeSliderPixelX.value]
         if 'Bleach' in self.wDropShowTrace.value:
             attr = "bleach_"
             if self.wDropdownOperator.value is '-':
@@ -821,11 +821,10 @@ class WidgetBase():
             attr,
             self.x_pixel_slice,
             self.frame_slice
-        )
-        if 'Bleach' in self.wDropShowTrace.value:
-            y = y[self.pp_delay_slice, 0, 0, 0]
-        else:
-            y = y[self.pp_delay_slice, 0, self.spec_slice, 0]
+        )[self.pp_delay_slice]
+
+        if 'Bleach' != self.wDropShowTrace.value:
+            y = y[:, self.spec_slice]
         return y
 
     @property
@@ -997,11 +996,11 @@ class BaselineTab(WidgetBase, WidgetFigures):
         import ipywidgets as wi
         super()._init_widget()
         self.wIntRangeSliderPixelX.layout.visibility = 'hidden'
+        self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
         self.children = wi.VBox([
             self._data_box,
             self._signal_box,
             self._calib_box,
-            self.wCheckAutoscale,
             self._save_record_box
         ])
 
@@ -1072,8 +1071,8 @@ class IRTab(WidgetBase, WidgetFigures):
         # This allows the data to be used for normalization from start on
         self.data.data += 1
         self.wIntRangeSliderPixelX.layout.visibility = 'hidden'
+        self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
         show_box = wi.HBox([
-            self.wTextBaselineOffset,
             self.wCheckShowBaseline,
             self.wCheckShowSpectra,
             self.wCheckSubBaseline,
@@ -1081,9 +1080,9 @@ class IRTab(WidgetBase, WidgetFigures):
         self.children = wi.VBox([
             self._data_box,
             self._signal_box,
+            self.wTextBaselineOffset,
             show_box,
             self._calib_box,
-            self.wCheckAutoscale,
             self._save_record_box
         ])
 
@@ -1191,10 +1190,12 @@ class RecordTab(WidgetBase, WidgetFigures):
             wi.HBox([
                 self.wTextBaselineOffset,
                 self.wDropShowSpectra,
+                self.wCheckAutoscale,
+            ]),
+            wi.HBox([
                 self.wCheckShowBaseline,
                 self.wCheckShowNorm,
                 self.wCheckSubBaseline,
-                self.wCheckAutoscale,
             ]),
             wi.HBox([
                 self.wDropShowTrace,
