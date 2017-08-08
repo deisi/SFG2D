@@ -343,7 +343,6 @@ class WidgetBase():
                 self.wIntRangeSliderPixelY,
                 self.wCheckSpectraMean,
                 self.wIntTextPixelYStep,
-                self.wDropdownSpectraMode,
             ]),
             wi.HBox([
                 self.wIntSliderSmooth,
@@ -553,8 +552,8 @@ class WidgetBase():
         self.wTextVisWl.observe(self.x_spec_renew, "value")
         self.wIntTextPumped.observe(self._on_pumped_index_changed, "value")
         self.wIntTextUnpumped.observe(self._on_unpumped_index_changed, "value")
-        #self.wCheckDelayMedian.observe(self._on_delay_median_clicked, "value")
-        #self.wDropdownDelayMode.observe(self._on_delay_mode_changed, "value")
+        self.wCheckDelayMedian.observe(self._on_delay_median_clicked, "value")
+        self.wDropdownDelayMode.observe(self._on_delay_mode_changed, "value")
         self.wCheckFrameMedian.observe(self._on_frame_median_clicked, "value")
         self.wDropdownFrameMode.observe(self._on_frame_mode_changed, "value")
         self.wButtonSaveRecord.on_click(self._on_save_record)
@@ -666,8 +665,10 @@ class WidgetBase():
             self.wCheckFrameMedian.value = False
 
     def _on_delay_mode_changed(self, new=None):
-        if self.wDropdownDelayMode.value == "Index":
-            self.wCheckDelayMedian.value = False
+        if self.wDropdownDelayMode.value == "Region":
+            self.wSliderPPDelay.disabled = True
+        else:
+            self.wSliderPPDelay.disabled = False
 
     def _on_calib_changed(self, new=None):
         """Calibration changed."""
@@ -726,6 +727,7 @@ class WidgetBase():
         """PP Delay index value."""
         return self.wSliderPPDelay.value
 
+    # DEPRECATED
     @property
     def pp_delay_slice(self):
         """PP Delay index Slice"""
@@ -735,16 +737,25 @@ class WidgetBase():
     def pp_delay_selected(self):
         if self.wDropdownDelayMode.value == "Index":
             return _slider_int_to_slice(self.wSliderPPDelay)
-        return self.pp_delay_slice
+        return _rangeSlider_to_slice(self.wIntRangeSliderPPDelay)
 
+    # DEPRECATED
     @property
     def frame_index(self):
         """Frame index value."""
         return self.wSliderFrame.value
 
+    # DEPRECATED
     @property
     def frame_slice(self):
         """Frame index slice."""
+        return _rangeSlider_to_slice(self.wRangeSliderFrame)
+
+    @property
+    def frame_selected(self):
+        """Gui selected frame slice."""
+        if self.wDropdownFrameMode.value == "Index":
+            return _slider_int_to_slice(self.wSliderFrame)
         return _rangeSlider_to_slice(self.wRangeSliderFrame)
 
     @property
@@ -956,11 +967,35 @@ class WidgetFigures():
         if not self.wCheckShowSpectra.value:
             return
 
-        lines = []
-        for delay in self.y_spec:
-            for frame in delay:
-                for spectrum in frame:
-                    lines.append(ax.plot(self.x_spec, spectrum)[0])
+        label_base = 'Spec'
+        if self.wCheckDelayMedian.value:
+            label_base += '_D[{0}:{1}]'
+        else:
+            label_base += '_D[{0}]'
+        if self.wCheckFrameMedian.value:
+            label_base += '_F[{2}:{3}]'
+        else:
+            label_base += '_F[{2}]'
+        if self.wCheckSpectraMean.value:
+            label_base += '_S[{4}:{5}]'
+        else:
+            label_base += '_S[{4}]'
+
+        for delay_index in range(len(self.y_spec)):
+            delay = self.y_spec[delay_index]
+            for frame_index in range(len(delay)):
+                frame = delay[frame_index]
+                for spectrum_index in range(len(frame)):
+                    spectrum = frame[spectrum_index]
+                    label_str = label_base.format(
+                        self.pp_delay_selected.start + delay_index,
+                        self.pp_delay_selected.stop,
+                        self.frame_selected.start + frame_index,
+                        self.frame_selected.stop,
+                        self.spec_slice.start + spectrum_index,
+                        self.spec_slice.stop
+                    )
+                    ax.plot(self.x_spec, spectrum, label=label_str)
         #_set_rangeSlider_num_to_label(
         #    lines, self.spec_slice, "Spec"
         #)
