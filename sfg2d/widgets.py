@@ -113,17 +113,23 @@ class WidgetBase():
             value=False
         )
 
+        # Checkbox to toggle visibility of bleach
+        self.wCheckShowBleach = wi.Checkbox(
+            description='Bleach',
+            value=False,
+        )
+
         # Checkbox to toggle the visibility of bleach data
         self.wDropShowBleach = wi.Dropdown(
             description='Bleach',
-            options=["Raw", "Normalized", "None"],
-            value="None",
+            options=["Raw", "Normalized"],
+            value="Raw",
             layout=wi.Layout(width='180px',),
         )
 
         # Checkbox to toggle the zero_time suntraction of bleach data
         self.wCheckShowZeroTimeSubtraction = wi.Checkbox(
-            description='Subtract Zero Time',
+            description='Sub Zero Time',
             value=False,
         )
 
@@ -158,8 +164,22 @@ class WidgetBase():
         self.wIntRangeSliderPixelY = IntRangeSliderGap(
             continuous_update=False, description="Spectra Region"
         )
+
+        # Slider to select spectra step size.
         self.wIntTextPixelYStep = wi.BoundedIntText(
             description='Spectra Stepsize', value=1, min=1,
+            layout=wi.Layout(width='180px',),
+        )
+
+        self.wCheckSpectraMean = wi.Checkbox(
+            description='Spectra Mean',
+            value=False
+        )
+
+        self.wDropdownSpectraMode = wi.Dropdown(
+            description='Spectra Mode',
+            options=['Index', 'Region'],
+            value='Index',
             layout=wi.Layout(width='180px',),
         )
 
@@ -198,7 +218,7 @@ class WidgetBase():
             continuous_update=False, description="Delay Region",
         )
         self.wCheckDelayMedian = wi.Checkbox(
-            description='Delay Median', value=False, disabled=True
+            description='Delay Median', value=False, disabled=False
         )
 
         # Dropdown to choose how Baseline or IR data gets send.
@@ -267,7 +287,7 @@ class WidgetBase():
 
         # Dropdown to toggle the visibility of Raw Normalized or None Spectra
         self.wDropShowSpectra = wi.Dropdown(
-            options=["Raw", "Normalized", "None"],
+            options=["Raw", "Normalized"],
             description='Select Spectra',
             value="Raw",
             layout=self.wTextCentralWl.layout,
@@ -320,11 +340,13 @@ class WidgetBase():
                 self.wDropFrameMode,
             ]),
             wi.HBox([
-                self.wIntSliderSmooth,
                 self.wIntRangeSliderPixelY,
+                self.wCheckSpectraMean,
                 self.wIntTextPixelYStep,
+                self.wDropdownSpectraMode,
             ]),
             wi.HBox([
+                self.wIntSliderSmooth,
                 self.wIntRangeSliderPixelX,
             ])
         ])
@@ -361,8 +383,11 @@ class WidgetBase():
             self.wIntSliderSmooth,
             self.wCheckSubBaseline,
             self.wCheckShowBaseline,
+            self.wCheckShowBleach,
             self.wDropShowBleach,
             self.wDropShowSpectra,
+            self.wCheckSpectraMean,
+            self.wDropdownSpectraMode,
             self.wDropShowTrace,
             self.wTextBaselineOffset,
             self.wIntTextPumped,
@@ -379,7 +404,8 @@ class WidgetBase():
             'subBaseline': self.wCheckSubBaseline,
             'showBaseline': self.wCheckShowBaseline,
             'checkDelayMedian': self.wCheckDelayMedian,
-            'showBleach': self.wDropShowBleach,
+            'checkBleach': self.wCheckShowBleach,
+            'selectBleach': self.wDropShowBleach,
             'delayMode': self.wDropdownDelayMode,
             'frameMode': self.wDropFrameMode,
             'smoothSlider': self.wIntSliderSmooth,
@@ -406,6 +432,8 @@ class WidgetBase():
             'bleachZeroTimeSubtraction': self.wCheckShowZeroTimeSubtraction,
             'showSpectra': self.wDropShowSpectra,
             'showTrace': self.wDropShowTrace,
+            'spectraMean': self.wCheckSpectraMean,
+            'spectraMode': self.wDropdownSpectraMode,
         }
 
     def _conf_widget_with_data(self):
@@ -523,8 +551,8 @@ class WidgetBase():
         self.wTextVisWl.observe(self.x_spec_renew, "value")
         self.wIntTextPumped.observe(self._on_pumped_index_changed, "value")
         self.wIntTextUnpumped.observe(self._on_unpumped_index_changed, "value")
-        self.wCheckDelayMedian.observe(self._on_delay_median_clicked, "value")
-        self.wDropdownDelayMode.observe(self._on_delay_mode_changed, "value")
+        #self.wCheckDelayMedian.observe(self._on_delay_median_clicked, "value")
+        #self.wDropdownDelayMode.observe(self._on_delay_mode_changed, "value")
         self.wCheckFrameMedian.observe(self._on_frame_median_clicked, "value")
         self.wDropFrameMode.observe(self._on_frame_mode_changed, "value")
         self.wButtonSaveRecord.on_click(self._on_save_record)
@@ -744,19 +772,29 @@ class WidgetBase():
         else:
             ret = self.data.rawData
 
-        if self.wCheckFrameMedian.value:
-            ret = ret[
-                    self.pp_delay_index,
-                    self.frame_slice,
-                    self.spec_slice,
-                  ]
-            ret = np.median(ret, FRAME_AXIS_INDEX)
+        if self.wDropdownDelayMode.value == 'Index':
+            ret = ret[slice(self.pp_delay_index, self.pp_delay_index + 1)]
         else:
-            ret = ret[
-                self.pp_delay_index,
-                self.frame_index,
-                self.spec_slice,
-            ]
+            ret = ret[self.pp_delay_slice]
+        if self.wCheckDelayMedian.value:
+            ret = np.median(ret, 0)
+        else:
+            ret = ret[0]
+
+        if self.wDropFrameMode.value == 'Index':
+            ret = ret[slice(self.frame_index, self.frame_index + 1)]
+        else:
+            ret = ret[self.frame_slice]
+        if self.wCheckFrameMedian.value:
+            ret = np.median(ret, 0)
+        else:
+            ret = ret[0]
+
+        # Spectra Mode playes a role in baseline and IR setting but not
+        # in viewing.
+        ret = ret[self.spec_slice]
+        if self.wCheckSpectraMean.value:
+            ret = np.median(ret, 0, keepdims=True)
 
         if self.wIntSliderSmooth.value is not 0:
             ret = medfilt(ret, (1, self.wIntSliderSmooth.value))
@@ -929,8 +967,6 @@ class WidgetFigures():
             pass
 
     def plot_spec(self, ax):
-        if self.wDropShowSpectra.value == "None":
-            return
         if not self.wCheckShowSpectra.value:
             return
 
@@ -947,7 +983,7 @@ class WidgetFigures():
             )
 
     def plot_bleach(self, ax):
-        if self.wDropShowBleach.value is not "None":
+        if self.wCheckShowSpectra.value:
             label = "Bleach{}-{}".format(
                 self.wIntTextPumped.value,
                 self.wIntTextUnpumped.value
@@ -1073,8 +1109,8 @@ class IRTab(WidgetBase, WidgetFigures):
         self.wIntRangeSliderPixelX.layout.visibility = 'hidden'
         self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
         show_box = wi.HBox([
-            self.wCheckShowBaseline,
             self.wCheckShowSpectra,
+            self.wCheckShowBaseline,
             self.wCheckSubBaseline,
         ])
         self.children = wi.VBox([
@@ -1189,18 +1225,18 @@ class RecordTab(WidgetBase, WidgetFigures):
         show_box = wi.VBox([
             wi.HBox([
                 self.wTextBaselineOffset,
-                self.wDropShowSpectra,
-                self.wCheckAutoscale,
             ]),
             wi.HBox([
+                self.wCheckShowSpectra,
                 self.wCheckShowBaseline,
-                self.wCheckShowNorm,
                 self.wCheckSubBaseline,
+                self.wCheckShowBleach,
+                self.wCheckShowNorm,
             ]),
             wi.HBox([
-                self.wDropShowTrace,
+                self.wDropShowSpectra,
                 self.wDropShowBleach,
-                self.wCheckAutoscaleTrace,
+                self.wDropShowTrace,
             ])
         ])
         bleach_box = wi.HBox([
