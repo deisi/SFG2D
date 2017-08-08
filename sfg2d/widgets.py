@@ -179,7 +179,7 @@ class WidgetBase():
         self.wDropdownSpectraMode = wi.Dropdown(
             description='Spectra Mode',
             options=['Index', 'Region'],
-            value='Index',
+            value='Region',
             layout=wi.Layout(width='180px',),
         )
 
@@ -242,7 +242,7 @@ class WidgetBase():
         )
 
         # Dropdown to choos how Baseline and IR data gest send
-        self.wDropFrameMode = wi.Dropdown(
+        self.wDropdownFrameMode = wi.Dropdown(
             description="Frame Mode", value="Index",
             options=["Index", "Region"],
             layout=wi.Layout(width='180px',)
@@ -337,7 +337,7 @@ class WidgetBase():
                 self.wSliderFrame,
                 self.wCheckFrameMedian,
                 self.wRangeSliderFrame,
-                self.wDropFrameMode,
+                self.wDropdownFrameMode,
             ]),
             wi.HBox([
                 self.wIntRangeSliderPixelY,
@@ -388,6 +388,8 @@ class WidgetBase():
             self.wDropShowSpectra,
             self.wCheckSpectraMean,
             self.wDropdownSpectraMode,
+            self.wDropdownDelayMode,
+            self.wDropdownFrameMode,
             self.wDropShowTrace,
             self.wTextBaselineOffset,
             self.wIntTextPumped,
@@ -407,7 +409,7 @@ class WidgetBase():
             'checkBleach': self.wCheckShowBleach,
             'selectBleach': self.wDropShowBleach,
             'delayMode': self.wDropdownDelayMode,
-            'frameMode': self.wDropFrameMode,
+            'frameMode': self.wDropdownFrameMode,
             'smoothSlider': self.wIntSliderSmooth,
             'smoothBase': self.wIntSliderSmoothBase,
             'autoscale': self.wCheckAutoscale,
@@ -554,7 +556,7 @@ class WidgetBase():
         #self.wCheckDelayMedian.observe(self._on_delay_median_clicked, "value")
         #self.wDropdownDelayMode.observe(self._on_delay_mode_changed, "value")
         self.wCheckFrameMedian.observe(self._on_frame_median_clicked, "value")
-        self.wDropFrameMode.observe(self._on_frame_mode_changed, "value")
+        self.wDropdownFrameMode.observe(self._on_frame_mode_changed, "value")
         self.wButtonSaveRecord.on_click(self._on_save_record)
         self.wCheckShowZeroTimeSubtraction.observe(
             self._set_zero_time_subtraction, "value"
@@ -654,13 +656,13 @@ class WidgetBase():
 
     def _on_frame_median_clicked(self, new=None):
         if self.wCheckFrameMedian.value:
-            self.wDropFrameMode.value = "Region"
+            self.wDropdownFrameMode.value = "Region"
             self.wSliderFrame.disabled = True
         else:
             self.wSliderFrame.disabled = False
 
     def _on_frame_mode_changed(self, new=None):
-        if self.wDropFrameMode.value == "Index":
+        if self.wDropdownFrameMode.value == "Index":
             self.wCheckFrameMedian.value = False
 
     def _on_delay_mode_changed(self, new=None):
@@ -718,6 +720,7 @@ class WidgetBase():
     def fnames(self):
         return _filter_fnames(self.wTextFolder.value)
 
+    # DEPRECATED
     @property
     def pp_delay_index(self):
         """PP Delay index value."""
@@ -727,6 +730,12 @@ class WidgetBase():
     def pp_delay_slice(self):
         """PP Delay index Slice"""
         return _rangeSlider_to_slice(self.wIntRangeSliderPPDelay)
+
+    @property
+    def pp_delay_selected(self):
+        if self.wDropdownDelayMode.value == "Index":
+            return _slider_int_to_slice(self.wSliderPPDelay)
+        return self.pp_delay_slice
 
     @property
     def frame_index(self):
@@ -765,6 +774,7 @@ class WidgetBase():
     def y_spec(self):
         """Y data of the *Signal* plot."""
 
+
         if self.wDropShowSpectra.value == "Normalized":
             ret = self.data.normalized
         elif self.wCheckSubBaseline.value:
@@ -772,33 +782,9 @@ class WidgetBase():
         else:
             ret = self.data.rawData
 
-        if self.wDropdownDelayMode.value == 'Index':
-            ret = ret[slice(self.pp_delay_index, self.pp_delay_index + 1)]
-        else:
-            ret = ret[self.pp_delay_slice]
-        if self.wCheckDelayMedian.value:
-            ret = np.median(ret, 0)
-        else:
-            ret = ret[0]
+        ret = self._select_with_gui(ret)
 
-        if self.wDropFrameMode.value == 'Index':
-            ret = ret[slice(self.frame_index, self.frame_index + 1)]
-        else:
-            ret = ret[self.frame_slice]
-        if self.wCheckFrameMedian.value:
-            ret = np.median(ret, 0)
-        else:
-            ret = ret[0]
-
-        # Spectra Mode playes a role in baseline and IR setting but not
-        # in viewing.
-        ret = ret[self.spec_slice]
-        if self.wCheckSpectraMean.value:
-            ret = np.median(ret, 0, keepdims=True)
-
-        if self.wIntSliderSmooth.value is not 0:
-            ret = medfilt(ret, (1, self.wIntSliderSmooth.value))
-        return ret.T
+        return ret
 
     @property
     def x_base(self):
@@ -970,10 +956,14 @@ class WidgetFigures():
         if not self.wCheckShowSpectra.value:
             return
 
-        lines = ax.plot(self.x_spec, self.y_spec)
-        _set_rangeSlider_num_to_label(
-            lines, self.spec_slice, "Spec"
-        )
+        lines = []
+        for delay in self.y_spec:
+            for frame in delay:
+                for spectrum in frame:
+                    lines.append(ax.plot(self.x_spec, spectrum)[0])
+        #_set_rangeSlider_num_to_label(
+        #    lines, self.spec_slice, "Spec"
+        #)
 
     def plot_base(self, ax):
         if self.wCheckShowBaseline.value:
@@ -1023,6 +1013,42 @@ class WidgetFigures():
         # Called when the ylim of the `Signal` plot is changed
         self._autoscale_buffer_2 = _lims2buffer(self.axes[1])
 
+    def _select_with_gui(self, data):
+        """Use the GUI settings to select a subset of data.
+
+        Parameters
+        ----------
+        data: 4d numpy array with data
+
+        Returns
+        -------
+        4d numpy array.
+            pp_delays were selected
+        """
+
+        if self.wDropdownDelayMode.value == "Index":
+            delay_slice = _slider_int_to_slice(self.wSliderPPDelay)
+        else:
+            delay_slice = self.pp_delay_slice
+
+        if self.wDropdownFrameMode.value == "Index":
+            frame_slice = _slider_int_to_slice(self.wSliderFrame)
+        else:
+            frame_slice = self.frame_slice
+
+        data = data[
+                  delay_slice,
+                  frame_slice,
+                  self.spec_slice,
+              ]
+        if self.wCheckDelayMedian.value:
+            data = np.median(data, PP_INDEX, keepdims=True)
+        if self.wCheckFrameMedian.value:
+            data = np.median(data, FRAME_AXIS_INDEX, keepdims=True)
+        if self.wIntSliderSmooth.value is not 0:
+            data = medfilt(data, (1, 1, 1, self.wIntSliderSmooth.value))
+        return data
+
 class BaselineTab(WidgetBase, WidgetFigures):
     def __init__(self, figsize=(8, 6), **kwargs):
         super().__init__(figsize=figsize, **kwargs)
@@ -1067,29 +1093,7 @@ class BaselineTab(WidgetBase, WidgetFigures):
     @property
     def to_base(self):
         """Y data to be send on Set Baseline button press."""
-        ret = self.data.rawData
-        if self.wDropdownDelayMode.value == "Index":
-            delay_slice = _slider_int_to_slice(self.wSliderPPDelay)
-        else:
-            delay_slice = self.pp_delay_slice
-
-        if self.wDropFrameMode.value == "Index":
-            frame_slice = _slider_int_to_slice(self.wSliderFrame)
-        else:
-            frame_slice = self.frame_slice
-
-        ret = ret[
-                  delay_slice,
-                  frame_slice,
-                  self.spec_slice,
-              ]
-        if self.wCheckDelayMedian.value:
-            ret = np.median(ret, PP_INDEX, keepdims=True)
-        if self.wCheckFrameMedian.value:
-            ret = np.median(ret, FRAME_AXIS_INDEX, keepdims=True)
-        if self.wIntSliderSmooth.value is not 0:
-            ret = medfilt(ret, (1, 1, 1, self.wIntSliderSmooth.value))
-        return ret
+        return self._select_with_gui(self.data.rawData)
 
 
 class IRTab(WidgetBase, WidgetFigures):
@@ -1152,33 +1156,11 @@ class IRTab(WidgetBase, WidgetFigures):
 
     @property
     def to_norm(self):
-        """Y data to be send on Set IR button press."""
-        ret = self.data.basesubed
-        if self.wDropdownDelayMode.value == "Index":
-            delay_slice = _slider_int_to_slice(self.wSliderPPDelay)
-        else:
-            delay_slice = self.pp_delay_slice
-
-        if self.wDropFrameMode.value == "Index":
-            frame_slice = _slider_int_to_slice(self.wSliderFrame)
-        else:
-            frame_slice = self.frame_slice
-
-        ret = ret[
-                  delay_slice,
-                  frame_slice,
-                  self.spec_slice,
-              ]
-        if self.wCheckDelayMedian.value:
-            ret = np.median(ret, PP_INDEX, keepdims=True)
-        if self.wCheckFrameMedian.value:
-            ret = np.median(ret, FRAME_AXIS_INDEX, keepdims=True)
-        if self.wIntSliderSmooth.value is not 0:
-            ret = medfilt(ret, (1, 1, 1, self.wIntSliderSmooth.value))
-        return ret
+        """The property that gets exported to the Record tab if one clickes.
+        Send IR."""
+        return self._select_with_gui(self.data.basesubed)
 
 
-# TODO Find Better name
 class RecordTab(WidgetBase, WidgetFigures):
     def __init__(self, central_wl=None, vis_wl=810, figsize=(10, 4), **kwargs):
         """Plotting gui based on the SfgRecord class as a data backend.
@@ -1471,7 +1453,7 @@ class PumpProbe():
                 tab.wSliderFrame,
                 tab.wRangeSliderFrame,
                 tab.wCheckFrameMedian,
-                tab.wDropFrameMode,
+                tab.wDropdownFrameMode,
                 tab.wIntSliderSmooth,
                 tab.wIntRangeSliderPixelY,
                 tab.wIntTextPixelYStep,
