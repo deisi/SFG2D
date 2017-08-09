@@ -770,6 +770,23 @@ class WidgetBase():
         """X Pixel slice."""
         return _rangeSlider_to_slice(self.wIntRangeSliderPixelX)
 
+    def _append_identifier(self, label_base):
+        """Append identifier to label string for plots."""
+        # TODO This also depends on mode.
+        if self.wCheckDelayMedian.value:
+            label_base += 'D[{0}:{1}]_'
+        else:
+            label_base += 'D[{0}]_'
+        if self.wCheckFrameMedian.value:
+            label_base += 'F[{2}:{3}]_'
+        else:
+            label_base += 'F[{2}]_'
+        if self.wCheckSpectraMean.value:
+            label_base += 'S[{4}:{5}]'
+        else:
+            label_base += 'S[{4}]'
+        return label_base
+
     @property
     def x_spec(self):
         """X data of the *Signal* plot. """
@@ -805,18 +822,12 @@ class WidgetBase():
     @property
     def y_base(self):
         """y data of the baseline in the *Signal* plot."""
-
-        y = self.data.base[
-                self.pp_delay_index,
-                self.frame_index,
-                self.spec_slice,
-                :]
-        return y.T
+        return self._select_with_gui(self.data.base)
 
     @property
     def x_norm(self):
         """x_data of the norm plot."""
-        return self.x_spec
+        return self._select_with_gui(self.data.norm)
 
     @property
     def y_norm(self):
@@ -900,6 +911,7 @@ class WidgetBase():
 
         return data.T
 
+
 class WidgetFigures():
     """Collect figure init and update functions within this class"""
     axes_grid = np.array([[]])  # a 2d array with the figure axes
@@ -963,31 +975,27 @@ class WidgetFigures():
         except TypeError:
             pass
 
-    def plot_spec(self, ax):
-        if not self.wCheckShowSpectra.value:
-            return
+    def _plot_gui_selected(self, data, ax, label_base=""):
+        """Plot gui selected data.
 
-        label_base = 'Spec'
-        if self.wCheckDelayMedian.value:
-            label_base += '_D[{0}:{1}]'
-        else:
-            label_base += '_D[{0}]'
-        if self.wCheckFrameMedian.value:
-            label_base += '_F[{2}:{3}]'
-        else:
-            label_base += '_F[{2}]'
-        if self.wCheckSpectraMean.value:
-            label_base += '_S[{4}:{5}]'
-        else:
-            label_base += '_S[{4}]'
+        Unified function that plots. self.y_spec, self.y_base and
+        self.y_norm.
 
-        for delay_index in range(len(self.y_spec)):
-            delay = self.y_spec[delay_index]
+        data: 4d array.
+        ax: matplotlib axis."""
+        initial = True
+        for delay_index in range(len(data)):
+            delay = data[delay_index]
             for frame_index in range(len(delay)):
                 frame = delay[frame_index]
                 for spectrum_index in range(len(frame)):
                     spectrum = frame[spectrum_index]
-                    label_str = label_base.format(
+                    if initial:
+                        initial = False
+                    else:
+                        label_base = ''
+
+                    label_str = self._append_identifier(label_base).format(
                         self.pp_delay_selected.start + delay_index,
                         self.pp_delay_selected.stop,
                         self.frame_selected.start + frame_index,
@@ -996,31 +1004,34 @@ class WidgetFigures():
                         self.spec_slice.stop
                     )
                     ax.plot(self.x_spec, spectrum, label=label_str)
-        #_set_rangeSlider_num_to_label(
-        #    lines, self.spec_slice, "Spec"
-        #)
+
+    def plot_spec(self, ax):
+        if not self.wCheckShowSpectra.value:
+            return
+
+        self._plot_gui_selected(self.y_spec, ax, 'Spec_')
 
     def plot_base(self, ax):
-        if self.wCheckShowBaseline.value:
-            lines = ax.plot(self.x_base, self.y_base)
-            _set_rangeSlider_num_to_label(
-                lines, self.spec_slice, "Baseline"
-            )
+        if not self.wCheckShowBaseline.value:
+            return
 
-    def plot_bleach(self, ax):
-        if self.wCheckShowSpectra.value:
-            label = "Bleach{}-{}".format(
-                self.wIntTextPumped.value,
-                self.wIntTextUnpumped.value
-            )
-            ax.plot(self.x_bleach, self.y_bleach, label=label)
+        self._plot_gui_selected(self.y_base, ax, 'Base_')
 
     def plot_norm(self, ax):
-        if self.wCheckShowNorm.value:
-            lines = ax.plot(self.x_norm, self.y_norm)
-            _set_rangeSlider_num_to_label(
-                lines, self.spec_slice, 'Norm'
-            )
+        if not self.wCheckShowNorm.value:
+            return
+
+        self._plot_gui_selected(self.y_norm, ax, 'Norm_')
+
+    def plot_bleach(self, ax):
+        if not self.wCheckShowBleach.value:
+            return
+
+        label = "Bleach{}-{}".format(
+            self.wIntTextPumped.value,
+            self.wIntTextUnpumped.value
+        )
+        ax.plot(self.x_bleach, self.y_bleach, label=label)
 
     def plot_sum(self, ax):
         # TODO is this needed or is this automatically cached?
@@ -1080,6 +1091,8 @@ class WidgetFigures():
             data = np.median(data, PP_INDEX, keepdims=True)
         if self.wCheckFrameMedian.value:
             data = np.median(data, FRAME_AXIS_INDEX, keepdims=True)
+        if self.wCheckSpectraMean.value:
+            data = np.median(data, SPEC_INDEX, keepdims=True)
         if self.wIntSliderSmooth.value is not 0:
             data = medfilt(data, (1, 1, 1, self.wIntSliderSmooth.value))
         return data
