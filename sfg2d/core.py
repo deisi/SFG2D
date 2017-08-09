@@ -137,15 +137,6 @@ class SfgRecord():
         # 1d array with wavenumber values
         self._wavenumber = None
 
-        # 3d array of absolute bleach
-        self._bleach_abs = None
-
-        # 3d array of relative bleach
-        self._bleach_rel = None
-
-        # 3d array of absolute bleach after normalization
-        self._bleach_norm = None
-
         # Error of absolute bleach
         self._bleach_absE = None
 
@@ -153,7 +144,7 @@ class SfgRecord():
         self._bleach_relE = None
 
         # Error of normalized bleach
-        self._bleach_normE = None
+        self._bleach_abs_normE = None
 
         # 3d Array of pumped data
         self._pumped = None
@@ -192,16 +183,16 @@ class SfgRecord():
         self._static_corr = None
 
         # Region of interest x_pixel
-        self.rois_x_pixel = [(None, None)]
+        self.rois_x_pixel = [slice(None, None)]
 
         # Region of interest y_pixel/spectra
-        self.roi_spectra = (None, None)
+        self.roi_spectra = slice(None, None)
 
         # Region of interest frames
-        self.roi_frames = (None, None)
+        self.roi_frames = slice(None, None)
 
         # Region of interest pp_delays
-        self.roi_delays = [None, None]
+        self.roi_delays = slice(None, None)
 
         if isinstance(fname, type(None)):
             return
@@ -256,9 +247,6 @@ class SfgRecord():
         self._data = self._rawData
         self._basesubed = None
         self._normalized = None
-        self._bleach_rel = None
-        self._bleach_abs = None
-        self._bleach_norm = None
         self._pumped = None
         self._unpumped = None
         self._pumped_norm = None
@@ -308,8 +296,6 @@ class SfgRecord():
         # Reset the dependent properties
         self._basesubed = None
         self._normalized = None
-        self._bleach_abs = None
-        self._bleach_norm = None
         self._pumped = None
         self._unpumped = None
         self._pumped_norm = None
@@ -326,8 +312,6 @@ class SfgRecord():
         # Reset the dependent properties
         self._basesubed = None
         self._normalized = None
-        self._bleach_abs = None
-        self._bleach_norm = None
         self._pumped = None
         self._unpumped = None
         self._pumped_norm = None
@@ -373,7 +357,6 @@ class SfgRecord():
         self._norm = value * np.ones_like(self.rawData)
         # Reset dependent properties
         self._normalized = None
-        self._bleach_norm = None
         self._pumped_norm = None
         self._unpumped_norm = None
 
@@ -487,9 +470,6 @@ class SfgRecord():
     def zero_time_subtraction(self, value):
         self._zero_time_subtraction = value
         # Reset dependen properties
-        self._bleach_abs = None
-        self._bleach_rel = None
-        self._bleach_norm = None
         self._pumped = None
         self._unpumped = None
         self._pumped_norm = None
@@ -869,9 +849,6 @@ class SfgRecord():
         self._pumped_index = value
         # Because we set a new index bleach and pumped must be recalculated.
         self._pumped = None
-        self._bleach_norm = None
-        self._bleach_abs = None
-        self._bleach_rel = None
         self._pumped_norm = None
 
     @property
@@ -926,9 +903,6 @@ class SfgRecord():
         # Beacause we setted a new index on the unpumped spectrum we must
         # reset the bleach.
         self._unpumped = None
-        self._bleach_abs = None
-        self._bleach_rel = None
-        self._bleach_norm = None
         self._unpumped_norm = None
 
     @property
@@ -1067,7 +1041,7 @@ class SfgRecord():
                                  normalized, zero_time_subtraction)
 
     def calc_bleach_rel(self, pumped=None, unpumped=None,
-                        zero_time_subtraction=True,):
+                        normalized=False, zero_time_subtraction=True,):
         """Calculate the relative bleach
 
         Parameters
@@ -1078,6 +1052,8 @@ class SfgRecord():
         unpumped: index or None
             like pumped only for unpumped None defaults to
             `SfgRecord._unpumped_index`
+        normalized: boolean
+            Use normalized data.
         zero_time_subtraction: bollean default true
             subtract the 0th pp_delay index. This corrects for constant
             offset between pumped and unpumped data.
@@ -1086,7 +1062,7 @@ class SfgRecord():
             'relative',
             pumped,
             unpumped,
-            normalized=False,
+            normalized,
             zero_time_subtraction=zero_time_subtraction
         )
 
@@ -1099,21 +1075,19 @@ class SfgRecord():
         baselinesubstracted pumped and unpumped signal.
 
         """
-        if isinstance(self._bleach_abs, type(None)):
-            self._bleach_abs = self.calc_bleach_abs(
-                normalized=False,
-                zero_time_subtraction=self.zero_time_subtraction
-            )
-        return self._bleach_abs
+        ret = self.calc_bleach_abs(
+            normalized=False,
+            zero_time_subtraction=self.zero_time_subtraction
+        )
+        return ret
 
     @property
-    def bleach_norm(self):
-        if isinstance(self._bleach_norm, type(None)):
-            self._bleach_norm = self.calc_bleach_abs(
-                normalized=True,
-                zero_time_subtraction=self.zero_time_subtraction
-            )
-        return self._bleach_norm
+    def bleach_abs_norm(self):
+        ret = self._bleach_abs_norm = self.calc_bleach_abs(
+            normalized=True,
+            zero_time_subtraction=self.zero_time_subtraction
+        )
+        return ret
 
     @property
     def bleach_rel(self):
@@ -1122,11 +1096,20 @@ class SfgRecord():
         3d array with relative bleached data.
 
         """
-        if isinstance(self._bleach_rel, type(None)):
-            self._bleach_rel = self.calc_bleach_rel(
-                zero_time_subtraction=self.zero_time_subtraction
-            )
-        return self._bleach_rel
+        ret = self.calc_bleach_rel(
+            normalized=False,
+            zero_time_subtraction=self.zero_time_subtraction
+        )
+        return ret
+
+    @property
+    def bleach_rel_norm(self):
+        """Relative bleach from normalized data."""
+        ret = self.calc_bleach_rel(
+            normalized=True,
+            zero_time_subtraction=self.zero_time_subtraction
+        )
+        return ret
 
     def x_pixel_median(self, attr="basesubed", x_pixel_slice=slice(None, None),
                        **kwargs):
@@ -1143,8 +1126,12 @@ class SfgRecord():
                          X_PIXEL_INDEX, keepdims=True)
         return data
 
-    def trace(self, attr="bleach_rel", x_pixel_slice=slice(None, None),
-              frame_slice=slice(None, None)):
+    def trace(
+            self,
+            attr="bleach_rel",
+            x_pixel_slice=slice(None, None),
+            frame_slice=slice(None, None)
+    ):
         """Return traces of the SfgRecord.
 
         A trace is an mean over a pixel region and an median of a frame
@@ -1183,16 +1170,11 @@ class SfgRecord():
             ret.append(
                 self.trace(
                     attr,
-                    slice(*roi_x_pixel),
-                    slice(*self.roi_frames)
+                    roi_x_pixel,
+                    self.roi_frames,
                 )
             )
         return np.array(ret)
-
-    @property
-    def traces_bleach_rel(self):
-        """trace of relative bleach."""
-        return self._traces_property("bleach_rel")
 
     @property
     def traces_bleach_abs(self):
@@ -1200,9 +1182,19 @@ class SfgRecord():
         return self._traces_property("bleach_abs")
 
     @property
-    def traces_bleach_norm(self):
+    def traces_bleach_abs_norm(self):
         """trace of normalized absolute bleach."""
-        return self._traces_property("bleach_norm")
+        return self._traces_property("bleach_abs_norm")
+
+    @property
+    def traces_bleach_rel(self):
+        """trace of relative bleach."""
+        return self._traces_property("bleach_rel")
+
+    @property
+    def traces_bleach_rel_norm(self):
+        """trace of relative bleach."""
+        return self._traces_property("bleach_rel_norm")
 
     @property
     def traces_normalized(self):
@@ -1252,8 +1244,8 @@ class SfgRecord():
             ret.append(
                 self.traceE(
                     attr,
-                    slice(*roi_x_pixel),
-                    slice(*self.roi_frames)
+                    roi_x_pixel,
+                    self.roi_frames
                 )
             )
         return np.array(ret)
