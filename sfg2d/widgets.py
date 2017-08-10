@@ -56,6 +56,11 @@ class WidgetBase():
         # Buffer to save autoscale values with.
         self._autoscale_buffer = [None, None]
         self._autoscale_buffer_2 = [None, None]
+        # Buffer to save x_rois upon switching data.
+        self._rois_x_pixel_buffer = [slice(None, None)]
+        # Buffer unpumped and pumped data throughout switching data files
+        self._unpumped_index_buffer = None
+        self._pumped_index_buffer = None
         # List of widgets to display
         self.children = []
 
@@ -168,6 +173,11 @@ class WidgetBase():
         self.wRangeZeroTime = IntRangeSliderGap(
             description="Zero Time",
             value=(0, 1), continuous_update=False,
+        )
+
+        # Snap pixel roi.
+        self.wSnapXRoi = wi.Button(
+            description="Snap X Region"
         )
 
         # Checkbox to toggle the zero_time suntraction of bleach data
@@ -632,6 +642,7 @@ class WidgetBase():
             self._on_baseline_offset_changed, "value"
         )
         self.wRangeZeroTime.observe(self._set_zero_time_selec, "value")
+        self.wSnapXRoi.on_click(self._snap_x_roi)
         self._init_figure_observers()
 
     def _on_folder_submit(self, new=None):
@@ -698,6 +709,7 @@ class WidgetBase():
         self._set_roi_frames()
         self._set_roi_spectra()
         self._set_roi_delays()
+        self._set_pumped_index()
         # Deactivating the observers here prevents flickering
         # and unneeded calls of _update_figure. Thus we
         # call it manually after a recall of _init_observer
@@ -707,7 +719,8 @@ class WidgetBase():
         #print("keep figures unobserved: ", keep_figure_unobserved)
 
     def _set_roi_x_pixel(self, new=None):
-        self.data.rois_x_pixel[0] = slice(*self.wRangeSliderPixelX.value)
+        self._rois_x_pixel_buffer[0] = slice(*self.wRangeSliderPixelX.value)
+        self.data.rois_x_pixel = self._rois_x_pixel_buffer
 
     def _set_roi_frames(self, new=None):
         self.data.roi_frames = slice(*self.wRangeSliderFrame.value)
@@ -716,7 +729,11 @@ class WidgetBase():
         self.data.roi_spectra = self.spec_slice
 
     def _set_roi_delays(self, new=None):
-        self.data.roi_delays = slice(*self.wRangeSliderPPDelay.value)
+        self.data.roi_delays = self.wRangeSliderPPDelay.slice
+
+    def _set_pumped_index(self, new=None):
+        self.data.unpumped_index = self._unpumped_index_buffer
+        self.data.pumped_index = self._pumped_index_buffer
 
     def x_spec_renew(self, new={}):
         """Renew calibration according to gui."""
@@ -764,9 +781,11 @@ class WidgetBase():
 
     def _on_pumped_index_changed(self, new=None):
         """Reset Bleach related properties."""
+        self._pumped_index_buffer = self.wIntTextPumped.value
         self.data.pumped_index = self.wIntTextPumped.value
 
     def _on_unpumped_index_changed(self, new=None):
+        self._unpumped_index_buffer = self.wIntTextUnpumped.value
         self.data.unpumped_index = self.wIntTextUnpumped.value
 
     def _set_zero_time_subtraction(self, new=None):
@@ -782,6 +801,12 @@ class WidgetBase():
     def _on_save_record(self, new=None):
         fname = self.folder + '/' + self.wTextSaveRecord.value
         self.data.save(fname)
+
+    def _snap_x_roi(self, new=None):
+        self.data.rois_x_pixel.append(self.wRangeSliderPixelX.slice)
+        # We want to be able to save the snaps throghout different data sets.
+        self._rois_x_pixel_buffer = self.data.rois_x_pixel
+        self._update_figure()
 
     @property
     def central_wl(self):
@@ -1054,7 +1079,7 @@ class WidgetFigures():
         except TypeError:
             pass
 
-    def _plot_basic(self, data, ax, label_base=""):
+    def _plot_spec(self, data, ax, label_base=""):
         """Plot the basic 4d data types of the data record.
 
         Unified function that plots. self.y_spec, self.y_base and
@@ -1085,56 +1110,66 @@ class WidgetFigures():
                     ax.plot(self.x_spec, spectrum, label=label_str)
 
     def _plot_traces(self, data, ax, label_base=''):
+        initial = True
         for roi_index in range(len(data)):
             # data is of shape [roi, pp_delay, spectra]
             roi = data[roi_index]
-            ax.plot(self.x_trace, roi, "-o",
-                    label=label_base + str(roi_index))
+            roi_slice = self.data.rois_x_pixel[roi_index]
+            if initial:
+                initial = False
+            else:
+                label_base = ""
+            x_region = np.sort(self.x_spec[roi_slice])
+            label_str = label_base + '{:.0f}-{:.0f}'.format(
+                x_region[0],
+                x_region[-1]
+            )
+            ax.plot(self.x_trace, roi, "-o", label=label_str)
 
     def _plot_rawData(self, ax):
         if not self.wCheckShowRawData.value:
             return
-        self._plot_basic(self.y_rawData, ax, 'RawData\n')
+        self._plot_spec(self.y_rawData, ax, 'RawData\n')
 
     def _plot_basesubed(self, ax):
         if not self.wCheckShowBasesubed.value:
             return
-        self._plot_basic(self.y_basesubed, ax, 'Basesubed\n')
+        self._plot_spec(self.y_basesubed, ax, 'Basesubed\n')
 
     def _plot_normalized(self, ax):
         if not self.wCheckShowNormalized.value:
             return
-        self._plot_basic(self.y_normalized, ax, 'Normalized\n')
+        self._plot_spec(self.y_normalized, ax, 'Normalized\n')
 
     def _plot_base(self, ax):
         if not self.wCheckShowBase.value:
             return
-        self._plot_basic(self.y_base, ax, 'Base\n')
+        self._plot_spec(self.y_base, ax, 'Base\n')
 
     def _plot_norm(self, ax):
         if not self.wCheckShowNorm.value:
             return
-        self._plot_basic(self.y_norm, ax, 'Norm\n')
+        self._plot_spec(self.y_norm, ax, 'Norm\n')
 
     def _plot_bleach_abs(self, ax):
         if not self.wCheckShowBleachAbs.value:
             return
-        self._plot_basic(self.y_bleach_abs, ax, "BleachAbs\n")
+        self._plot_spec(self.y_bleach_abs, ax, "BleachAbs\n")
 
     def _plot_bleach_abs_norm(self, ax):
         if not self.wCheckShowBleachAbsNorm.value:
             return
-        self._plot_basic(self.y_bleach_abs_norm, ax, "BleachAbsNorm\n")
+        self._plot_spec(self.y_bleach_abs_norm, ax, "BleachAbsNorm\n")
 
     def _plot_bleach_rel(self, ax):
         if not self.wCheckShowBleachRel.value:
             return
-        self._plot_basic(self.y_bleach_rel, ax, "BleachRel\n")
+        self._plot_spec(self.y_bleach_rel, ax, "BleachRel\n")
 
     def _plot_bleach_rel_abs(self, ax):
         if not self.wCheckShowBleachRelNorm.value:
             return
-        self._plot_basic(self.y_bleach_rel_norm, ax, "BleachRelNorm\n")
+        self._plot_spec(self.y_bleach_rel_norm, ax, "BleachRelNorm\n")
 
     def _plot_traces_bleach_abs(self, ax):
         if not self.wCheckShowTracesBleachAbs.value:
@@ -1184,6 +1219,8 @@ class WidgetFigures():
         self._plot_bleach_abs_norm(ax)
         self._plot_bleach_rel(ax)
         self._plot_bleach_rel_abs(ax)
+        ax.set_title(self._x_spec_title)
+        ax.set_xlabel(self.x_spec_label)
 
     def plot_traces(self, ax):
         self._plot_traces_bleach_abs(ax)
@@ -1194,7 +1231,9 @@ class WidgetFigures():
         self._plot_traces_bleach_basesubed(ax)
         self._plot_traces_bleach_normalized(ax)
         ax.set_xlabel('pp delay / fs')
-        ax.set_ylabel('Trace')
+        ax.set_title('Trace')
+        ax.legend()
+
 
     def redraw_figure(self):
         self._fig.canvas.draw()
@@ -1209,6 +1248,29 @@ class WidgetFigures():
     def _on_ax1_lim_changed(self, new=None):
         # Called when the ylim of the `Signal` plot is changed
         self._autoscale_buffer_2 = _lims2buffer(self.axes[1])
+
+    @property
+    def x_spec_label(self):
+        """x axis label of the spec plot"""
+        if self.wDropdownCalib.value == 'wavenumber':
+            ret = r"Wavenumber/cm$^{-1}$"
+        elif self.wDropdownCalib.value == 'nm':
+            ret = "Wavelength/nm"
+        else:
+            ret = "Pixel"
+        return ret
+
+    @property
+    def _x_spec_title(self):
+        """Title of the spec plot."""
+        if self.wDropdownDelayMode.value == 'Index':
+            return "Delay {} fs".format(
+                self.data.pp_delays[self.pp_delay_selected.start]
+            )
+        else:
+            return "Delay {} - {} fs".format(
+                self.x_trace[0], self.x_trace[-1]
+            )
 
     def _append_identifier(self, label_base):
         """Append identifier to label string for plots."""
@@ -1237,6 +1299,7 @@ class BaselineTab(WidgetBase, WidgetFigures):
         super()._init_widget()
         self.wRangeSliderPixelX.layout.visibility = 'hidden'
         self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
+        self.wCheckShowBase.value = False
         self.children = wi.VBox([
             self._data_box,
             self._signal_box,
@@ -1290,6 +1353,7 @@ class IRTab(WidgetBase, WidgetFigures):
         self.data.data += 1
         self.wRangeSliderPixelX.layout.visibility = 'hidden'
         self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
+        self.wCheckShowBase.value = False
         show_box = wi.HBox([
             self.wCheckShowRawData,
             self.wCheckShowBasesubed,
@@ -1383,6 +1447,7 @@ class RecordTab(WidgetBase, WidgetFigures):
         # self.children is the widget we are rendering up on call.
         show_box = wi.VBox([
             wi.HBox([
+                self.wSnapXRoi,
                 self.wTextBaselineOffset,
             ]),
             wi.HBox([
@@ -1899,6 +1964,7 @@ def _set_rangeSlider_num_to_label(lines, sliceObj, label_base=""):
 
 
 class IntRangeSliderGap(IntRangeSlider):
+    """A Ranged slider with enforced gap."""
     @validate('value')
     def enforce_gap(self, proposal):
         gap = 1

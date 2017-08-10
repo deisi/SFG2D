@@ -860,6 +860,8 @@ class SfgRecord():
 
     @pumped_index.setter
     def pumped_index(self, value):
+        if not value:
+            return
         if not value <= self.number_of_y_pixel:
             raise IOError("Cant set pumped index bigger then data dim.")
         self._pumped_index = value
@@ -913,6 +915,8 @@ class SfgRecord():
 
     @unpumped_index.setter
     def unpumped_index(self, value):
+        if not value:
+            return
         if not value <= self.number_of_x_pixel:
             raise IOError("Cant set unpumped index bigger then data dim.")
         self._unpumped_index = value
