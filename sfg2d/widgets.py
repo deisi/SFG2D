@@ -107,61 +107,67 @@ class WidgetBase():
 
         # Checkbox to toggle visibility of bleach
         self.wCheckShowBleachAbs = wi.Checkbox(
-            description='Bleach Abs',
+            description='Abs',
             value=False,
         )
 
         # Checkbox to toggle visibility of bleach
         self.wCheckShowBleachAbsNorm = wi.Checkbox(
-            description='Bleach Abs Norm',
+            description='Abs Norm',
             value=False,
         )
 
         # Checkbox to toggle visibility of bleach
         self.wCheckShowBleachRel = wi.Checkbox(
-            description='Bleach Rel',
+            description='Rel',
             value=False,
         )
 
         # Checkbox to toggle visibility of bleach
         self.wCheckShowBleachRelNorm = wi.Checkbox(
-            description='Bleach Rel Norm',
+            description='Rel Norm',
             value=False,
         )
 
         self.wCheckShowTracesBleachAbs = wi.Checkbox(
-            description='Trace Bleach Abs',
+            description='Bleach Abs',
             value=False,
         )
 
         self.wCheckShowTracesBleachAbsNorm = wi.Checkbox(
-            description='Trace Bleach Abs Norm',
+            description='Bleach Abs Norm',
             value=False,
         )
 
         self.wCheckShowTracesBleachRel = wi.Checkbox(
-            description='Trace Bleach Rel',
+            description='Bleach Rel',
             value=False,
         )
 
         self.wCheckShowTracesBleachRelNorm = wi.Checkbox(
-            description='Trace Bleach Rel Norm',
+            description='Bleach Rel Norm',
             value=False,
         )
 
         self.wCheckShowTracesRawData = wi.Checkbox(
-            description='Trace Raw',
+            description='Raw',
             value=True,
         )
 
         self.wCheckShowTracesBasesubed = wi.Checkbox(
-            description='Trace Basesubed',
+            description='Basesubed',
             value=False,
         )
 
         self.wCheckShowTracesNormalized = wi.Checkbox(
-            description='Trace Normalized',
+            description='Normalized',
             value=False,
+        )
+
+        # Region slice to select index for zero_time_subtraction
+        self.wRangeZeroTime = IntRangeSliderGap(
+            description="Zero Time",
+            value=(0, 1), continuous_update=False,
         )
 
         # Checkbox to toggle the zero_time suntraction of bleach data
@@ -438,6 +444,7 @@ class WidgetBase():
             self.wIntTextPumped,
             self.wIntTextUnpumped,
             self.wCheckShowZeroTimeSubtraction,
+            self.wRangeZeroTime,
         ]
 
         # Upon saving the gui state these widgets get saved
@@ -485,6 +492,7 @@ class WidgetBase():
             'showRawData': self.wCheckShowRawData,
             'showBasesubed': self.wCheckShowBasesubed,
             'showNormalized': self.wCheckShowNormalized,
+            'zeroTimeSelec': self.wRangeZeroTime,
         }
 
     def _conf_widget_with_data(self):
@@ -536,6 +544,7 @@ class WidgetBase():
         _set_range_slider_options(self.wRangeSliderPixelX, X_PIXEL_INDEX)
         _set_int_slider_options(self.wSliderPPDelay, PP_INDEX)
         _set_int_slider_options(self.wSliderFrame, FRAME_AXIS_INDEX)
+        _set_range_slider_options(self.wRangeZeroTime, PP_INDEX)
 
         if isinstance(self.central_wl, type(None)):
             self.wTextCentralWl.value = 0
@@ -622,6 +631,7 @@ class WidgetBase():
         self.wTextBaselineOffset.observe(
             self._on_baseline_offset_changed, "value"
         )
+        self.wRangeZeroTime.observe(self._set_zero_time_selec, "value")
         self._init_figure_observers()
 
     def _on_folder_submit(self, new=None):
@@ -763,6 +773,9 @@ class WidgetBase():
         self.data.zero_time_subtraction = \
             self.wCheckShowZeroTimeSubtraction.value
 
+    def _set_zero_time_selec(self, new=None):
+        self.data.zero_time_selec = self.wRangeZeroTime.slice
+
     def _on_baseline_offset_changed(self, new=None):
         self.data.baseline_offset = self.wTextBaselineOffset.value
 
@@ -800,32 +813,32 @@ class WidgetBase():
     @property
     def pp_delay_slice(self):
         """PP Delay index Slice"""
-        return _rangeSlider_to_slice(self.wRangeSliderPPDelay)
+        return self.wRangeSliderPPDelay.slice
 
     @property
     def pp_delay_selected(self):
         if self.wDropdownDelayMode.value == "Index":
             return _slider_int_to_slice(self.wSliderPPDelay)
-        return _rangeSlider_to_slice(self.wRangeSliderPPDelay)
+        return self.wRangeSliderPPDelay.slice
 
     @property
     def frame_selected(self):
         """Gui selected frame slice."""
         if self.wDropdownFrameMode.value == "Index":
             return _slider_int_to_slice(self.wSliderFrame)
-        return _rangeSlider_to_slice(self.wRangeSliderFrame)
+        return self.wRangeSliderFrame.slice
 
     @property
     def spec_slice(self):
         """Specta slice/Y-Pixel slice."""
-        sl = _rangeSlider_to_slice(self.wRangeSliderPixelY)
+        sl = self.wRangeSliderPixelY.slice
         ret = slice(sl.start, sl.stop, self.wIntTextPixelYStep.value)
         return ret
 
     @property
     def x_pixel_slice(self):
         """X Pixel slice."""
-        return _rangeSlider_to_slice(self.wRangeSliderPixelX)
+        return self.wRangeSliderPixelX.slice
 
     @property
     def x_spec(self):
@@ -1379,26 +1392,33 @@ class RecordTab(WidgetBase, WidgetFigures):
                 self.wCheckShowNorm,
                 self.wCheckShowNormalized,
             ]),
-            wi.HBox([
-                self.wCheckShowBleachAbs,
-                self.wCheckShowBleachAbsNorm,
-                self.wCheckShowBleachRel,
-                self.wCheckShowBleachRelNorm,
+            wi.VBox([
+                wi.Label("Bleach:"),
+                wi.HBox([
+                   self.wCheckShowBleachAbs,
+                   self.wCheckShowBleachAbsNorm,
+                   self.wCheckShowBleachRel,
+                   self.wCheckShowBleachRelNorm,
+                ]),
             ]),
-            wi.HBox([
-                self.wCheckShowTracesRawData,
-                self.wCheckShowTracesBasesubed,
-                self.wCheckShowTracesNormalized,
-                self.wCheckShowTracesBleachAbs,
-                self.wCheckShowTracesBleachAbsNorm,
-                self.wCheckShowTracesBleachRel,
-                self.wCheckShowTracesBleachRelNorm,
-            ])
+            wi.VBox([
+                wi.Label("Traces:"),
+                wi.HBox([
+                    self.wCheckShowTracesRawData,
+                    self.wCheckShowTracesBasesubed,
+                    self.wCheckShowTracesNormalized,
+                    self.wCheckShowTracesBleachAbs,
+                    self.wCheckShowTracesBleachAbsNorm,
+                    self.wCheckShowTracesBleachRel,
+                    self.wCheckShowTracesBleachRelNorm,
+                ]),
+            ]),
         ])
         bleach_box = wi.HBox([
             self.wIntTextPumped,
             self.wIntTextUnpumped,
             self.wCheckShowZeroTimeSubtraction,
+            self.wRangeZeroTime,
         ])
         self.children = wi.VBox([
             self._data_box,
@@ -1490,7 +1510,7 @@ class ImgView(WidgetBase):
 
         axl = self.axes[1]
         axl.clear()
-        y_slice = _rangeSlider_to_slice(self.wRangeSliderPixelY)
+        y_slice = self.wRangeSliderPixelY.slice
         view_data2 = self.data.data[
             self.pp_delay_selected.start, self.wRangeSliderFrame.value[0], y_slice
         ].sum(Y_PIXEL_INDEX)
@@ -1831,12 +1851,9 @@ def _slider_range_to_slice(range_value_tuple, max):
         return slice(range_value_tuple[0], range_value_tuple[1]+1)
     return slice(range_value_tuple[0]-1, range_value_tuple[1])
 
+
 def _slider_int_to_slice(slider):
     return slice(slider.value, slider.value+1)
-
-def _rangeSlider_to_slice(rangedSlider):
-    """Get a slice from a ranged slider."""
-    return slice(*rangedSlider.value)
 
 
 def to_slice(attribute):
@@ -1847,7 +1864,7 @@ def to_slice(attribute):
     def _to_slice(f):
         def wrapper(self, *args):
             widget = getattr(self, attribute)
-            return _rangeSlider_to_slice(widget)
+            return slice(*widget.value)
         return wrapper
     return _to_slice
 
@@ -1880,6 +1897,7 @@ def _set_rangeSlider_num_to_label(lines, sliceObj, label_base=""):
         line.set_label(label)
         j += 1
 
+
 class IntRangeSliderGap(IntRangeSlider):
     @validate('value')
     def enforce_gap(self, proposal):
@@ -1897,4 +1915,9 @@ class IntRangeSliderGap(IntRangeSlider):
             else:
                 min = max - gap
         return (min, max)
+
+    @property
+    def slice(self):
+        return slice(*self.value)
+
 #### End of helper functions

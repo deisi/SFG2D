@@ -170,6 +170,9 @@ class SfgRecord():
         # Boolean to toggle default zero_time subtraction
         self._zero_time_subtraction = True
 
+        # list/slice of delay indexes for zero_time_subtraction
+        self._zero_time_selec = [0]
+
         # array of bleach value at negative time
         self.zero_time_abs = None
 
@@ -470,6 +473,19 @@ class SfgRecord():
     def zero_time_subtraction(self, value):
         self._zero_time_subtraction = value
         # Reset dependen properties
+        self._pumped = None
+        self._unpumped = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
+
+    @property
+    def zero_time_selec(self):
+        """Slice/List to select delays for zero time subtraction."""
+        return self._zero_time_selec
+
+    @zero_time_selec.setter
+    def zero_time_selec(self, value):
+        self._zero_time_selec = value
         self._pumped = None
         self._unpumped = None
         self._pumped_norm = None
@@ -941,9 +957,14 @@ class SfgRecord():
         else:
             raise NotImplemented()
 
-    def _calc_bleach(self, operation,
-                     pumped=None, unpumped=None, normalized=False,
-                     zero_time_subtraction=True):
+    def _calc_bleach(
+        self,
+        operation,
+        pumped=None,
+        unpumped=None,
+        normalized=False,
+        zero_time_subtraction=True
+    ):
         """Calculate bleach using the given operation.
 
         operation: string
@@ -1008,7 +1029,7 @@ class SfgRecord():
             bleach = pumped - unpumped
 
         if zero_time_subtraction:
-            zero_time = bleach[0].copy()
+            zero_time = bleach[self.zero_time_selec].mean(0)
             bleach -= zero_time
             # Recorretion for zero_time offset needed because
             # data is expected to be at 1 for negative times.
