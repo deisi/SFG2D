@@ -1276,16 +1276,20 @@ class SfgRecord():
         return np.array(ret)
 
     @property
-    def tracesE_bleach_rel(self):
-        return self._tracesE_property(attr="bleach_rel")
-
-    @property
     def tracesE_bleach_abs(self):
         return self._tracesE_property(attr="bleach_abs")
 
     @property
-    def tracesE_bleach_norm(self):
-        return self._tracesE_property(attr="bleach_norm")
+    def tracesE_bleach_abs_norm(self):
+        return self._tracesE_property(attr="bleach_abs_norm")
+
+    @property
+    def tracesE_bleach_rel(self):
+        return self._tracesE_property(attr="bleach_rel")
+
+    @property
+    def tracesE_bleach_rel_norm(self):
+        return self._tracesE_property(attr="bleach_rel_norm")
 
     @property
     def tracesE_normalized(self):

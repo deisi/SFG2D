@@ -11,6 +11,7 @@ import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
 from traitlets import validate
 from ipywidgets import IntRangeSlider
+import plotly.graph_objs as go
 
 from .core import SfgRecord, concatenate_list_of_SfgRecords
 from .utils.consts import X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX, FRAME_AXIS_INDEX, PP_INDEX, PIXEL
@@ -40,7 +41,6 @@ class WidgetBase():
         # SfgRecord obj holding the data.
         self.data = data
         # 4 dim numpy array representing the baseline
-        self.data_base = np.zeros_like(self.data.data, dtype="int64")
 
         # Internal objects
         # Figure to draw on
@@ -72,6 +72,7 @@ class WidgetBase():
         from IPython.display import display
         self._conf_widget_with_data()
         self._init_observer()
+        self._init_figure_observers()
         self._update_figure()
         display(self.children)
         self.fig
@@ -643,7 +644,7 @@ class WidgetBase():
         )
         self.wRangeZeroTime.observe(self._set_zero_time_selec, "value")
         self.wSnapXRoi.on_click(self._snap_x_roi)
-        self._init_figure_observers()
+        #self._init_figure_observers()
 
     def _on_folder_submit(self, new=None):
         """Called when folder is changed."""
@@ -1016,6 +1017,23 @@ class WidgetBase():
         return data[:, delay_slice]
 
 
+class WidgetPlots():
+    """Plotly Base plotting backend."""
+    def __init__(self):
+        # Plotly figure obj
+        self.figure = go.Figure()
+        # List of plotly data object to plot on the figure
+        self.data = []
+        # Plotly layout obj for the figure.
+        self.layout = go.Layout()
+
+    def _update_figure(self):
+        pass
+
+    def _init_figure(self):
+        pass
+
+
 class WidgetFigures():
     """Collect figure init and update functions within this class"""
     axes_grid = np.array([[]])  # a 2d array with the figure axes
@@ -1027,6 +1045,12 @@ class WidgetFigures():
     @property
     def axes(self):
         return self._fig.axes
+
+    def redraw_figure(self):
+        """This forces matplotlib to update the figure canvas."""
+        self._fig.canvas.draw()
+        for ax in self.axes:
+            ax.figure.canvas.draw()
 
     def _update_figure(self):
         # OVERWRITE THIS FUNCTION
@@ -1233,12 +1257,6 @@ class WidgetFigures():
         ax.set_xlabel('pp delay / fs')
         ax.set_title('Trace')
         ax.legend()
-
-
-    def redraw_figure(self):
-        self._fig.canvas.draw()
-        for ax in self.axes:
-            ax.figure.canvas.draw()
 
     def _on_ax0_lim_changed(self, new=None):
         """Callback for the *Signal* axis."""
