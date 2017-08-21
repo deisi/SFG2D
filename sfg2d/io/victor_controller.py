@@ -48,7 +48,7 @@ def get_from_victor_controller(fpath, **kwargs):
     return ret, pp_delays
 
 def read_header(fpath):
-    """Read informaion from fileheader adn return as dictionary."""
+    """Read informaion from fileheader and return as dictionary."""
     ret = {}
     with open(fpath) as f:
         for line in f:
@@ -79,8 +79,10 @@ def translate_header_to_metadata(header_dict):
             ret["timefile"] = value
 
         # Wavelength => CentralWavelength
-        if "Wavelength" in key:
+        if "Central-Wavelength" == key:
             ret["central_wl"] = int(value)
 
+        if "vis-Wavelength" == key:
+            ret["vis_wl"] = int(value)
 
     return ret
