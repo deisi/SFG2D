@@ -439,6 +439,19 @@ class SfgRecord():
         return ret
 
     @property
+    def exposure_time(self):
+        return self.metadata.get("exposure_time")
+
+    @property
+    def exposure_time_ms(self):
+        """Exposure time in microseconds for convenience."""
+        return int(self.metadata.get("exposure_time").microseconds/10**3)
+
+    @property
+    def exporsure_time_s(self):
+        return self.metadata.get("exposure_time").seconds
+
+    @property
     def number_of_frames(self):
         """Number of frames"""
         return self.data.shape[FRAME_AXIS_INDEX]
@@ -1207,13 +1220,19 @@ class SfgRecord():
         [rois_x_pixel, delays, y_specs]
         """
         ret = []
+        only_one_spec = ('bleach_', 'pumped_', 'unpumped_')
+        if any([teststr in attr for teststr in only_one_spec]):
+            roi_spectra = slice(None, None)
+        else:
+            roi_spectra = self.roi_spectra
+
         for roi_x_pixel in self.rois_x_pixel_trace:
             ret.append(
                 self.trace(
                     attr,
                     roi_x_pixel,
                     self.roi_frames,
-                    self.roi_spectra,
+                    roi_spectra,
                     self.roi_delays,
                 )
             )
@@ -1712,7 +1731,11 @@ class SfgRecord():
         if isinstance(roi_frames, type(None)):
             roi_frames = self.roi_frames
         if isinstance(roi_spectra, type(None)):
-            roi_spectra = self.roi_spectra
+            only_one_spec = ('bleach', 'pumped', 'unpumped')
+            if any([teststr in y_property for teststr in only_one_spec]):
+                roi_spectra = [0]
+            else:
+                roi_spectra = self.roi_spectra
         if isinstance(roi_x_pixel_spec, type(None)):
             roi_x_pixel_spec = self.roi_x_pixel_spec
 
@@ -1776,7 +1799,23 @@ class SfgRecord():
                 **plt_kwg
             )
 
+    def plot_time_track(
+            self,
+            y_property='rawData',
+            x_property='index',
+            roi_x_pixel=slice(None, None),
+            roi_spectra=slice(None, None),
+            ax=None,
+            plt_kwg={},
+    ):
+        """Make a plot of the time track data."""
+        if not ax:
+            ax = plt.gca()
 
+        data = self._time_track(
+            property=y_property, roi_x_pixel=roi_x_pixel
+        )[:, roi_spectra]
+        ax.plot(data, **plt_kwg)
 
 
 def concatenate_list_of_SfgRecords(list_of_records):

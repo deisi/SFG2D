@@ -54,10 +54,72 @@ def multipage_pdf(plot_func):
         print("Saved figure to: {}".format(path.abspath(name)))
     return make_multipage_pdf
 
-def plot(*args, **kwargs):
-    """Wrapper for default matplotlib.plot that adds xlabel as wavenumbers"""
-    plt.plot(*args, **kwargs)
-    plt.xlabel('Wavenumbers in cm$^{-1}$')
+
+def spec_plot(
+    record,
+    ax=None,
+    xlabel="Wavenumber 1/cm",
+    ylabel="Counts",
+    title="",
+    x_property="wavenumber",
+    y_property="basesubed",
+    plt_kwgs={},
+):
+    """Plot Wrapper."""
+    if not ax:
+        ax = plt.gca()
+
+    record.plot_spec(
+        ax=ax,
+        x_property=x_property,
+        y_property=y_property,
+        **plt_kwgs,
+    )
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+
+
+def trace_plot(
+        record,
+        ax=None,
+        xlabel="Time in fs",
+        ylabel="Mean Counts per Peak",
+        title="",
+        y_property="traces_basesubed",
+        plt_kwgs={},
+):
+    if not ax:
+        ax = plt.gca()
+    record.plot_trace(ax=ax, y_property=y_property, **plt_kwgs)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+
+def bleach_plot(
+        record,
+        ax=None,
+        xlabel="Wavenumber 1/cm",
+        ylabel="Relative Bleach",
+        title="",
+        x_property="wavenumber",
+        y_property="bleach_rel_norm",
+        plt_kwgs={},
+):
+    @multipage_pdf
+    def plot(index):
+
+    record.plot_bleach(
+        y_property=attribute, 
+        roi_delays=slice(index, index+1),
+        x_property="wavenumber"
+    )
+
+    title("{} @ {} fs".format(record.metadata.get("sample"), record.pp_delays[index]))
+    # Usually the limits need some tweaking
+    #xlim(2000, 3000) 
+    ylim(0.4, 1.1)
+    xlabel("wavenumber in 1/cm")
 
 
 def plot_time(time, data, **kwargs):
