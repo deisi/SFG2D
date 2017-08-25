@@ -2,7 +2,8 @@ __version__ = '0.6.0'
 
 from . import io, utils, plotting, widgets, fit
 
-from .core import SfgRecord, concatenate_list_of_SfgRecords
+from .core import (SfgRecord, concatenate_list_of_SfgRecords,
+                   SfgRecords_from_file_list)
 
 from .io.veronica import read_auto, read_time_scan, read_scan_stack, read_save
 

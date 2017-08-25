@@ -1954,6 +1954,7 @@ def to_slice(attribute):
 
 def _lims2buffer(ax):
     """Set buffer values according to axis"""
+    
     buffer = [None, None]
     buffer[0] = list(ax.get_xlim())
     buffer[1] = list(ax.get_ylim())

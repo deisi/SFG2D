@@ -74,6 +74,11 @@ class SfgRecord():
     """
     def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)),
                  base=None, norm=None, baseline_offset=0):
+
+        ## Beacaue I know it will happen and we cans safely deal with it.
+        #np.seterr(divide='ignore')
+        #np.seterr(invalid='ignore')
+
         # 1d Array of pump-probe delay values
         self.pp_delays = np.array([0])
 
@@ -199,6 +204,9 @@ class SfgRecord():
 
         # Region of interest pp_delays
         self.roi_delays = slice(None, None)
+
+        # Subreions of interest for pump probe
+        self.rois_delays_pump_probe = [slice(None, None)]
 
         if isinstance(fname, type(None)):
             return
@@ -360,6 +368,8 @@ class SfgRecord():
         if self.isNormalized:
             self.un_normalize()
             self.isNormalized = False
+        # Make 0 values very small so division is not a problem.
+        value[np.isin(value, 0)] = 1e-08
         self._norm = value * np.ones_like(self.rawData)
         # Reset dependent properties
         self._normalized = None
@@ -629,6 +639,7 @@ class SfgRecord():
                                                self.wavenumber.max())
         msg += 'Baseline @ {}\n'.format(self.base.mean((0, 1, 3)))
         msg += 'Norm with {}\n'.format(self.norm.mean((0, 1, 3)))
+        msg += 'Metadata is {}\n'.format(self.metadata)
         return msg
 
     def get_wavenumber(self, vis_wl):
@@ -646,7 +657,7 @@ class SfgRecord():
         """Calculate index positions of wavenumbers.
 
         Tries to find matching index values for given wavenumbers.
-        The wavenumbers dont need to be exact. Closes match will
+        The wavenumbers dont need to be exact. Closest match will
         be used.
 
         Parameters
@@ -665,6 +676,24 @@ class SfgRecord():
         if sort:
             ret = np.sort(ret)
         return ret
+
+    @property
+    def rois_x_wavenumber_trace(self):
+        """x rois in wavenumber coordinates."""
+        ret = []
+        for sl in self.rois_x_pixel_trace:
+            ret.append(
+                slice(int(self.wavenumber[sl].min()), int(self.wavenumber[sl].max()))
+            )
+        return ret
+
+    @rois_x_wavenumber_trace.setter
+    def rois_x_wavenumber_trace(self, value):
+        self.rois_x_pixel_trace = []
+        for sl in value:
+            self.rois_x_pixel_trace.append(
+                slice(*self.wavenumbers2index([sl.stop, sl.start]))
+            )
 
     def _spectra_selector(self, propery=''):
         data = getattr(self, propery)
@@ -766,6 +795,12 @@ class SfgRecord():
         """
         if isinstance(self._normalized, type(None)):
             self._normalized = self.get_normalized()
+            number_of_nan_infs = np.count_nonzero(
+                np.isnan(self._normalized) | np.isinf(self._normalized)
+               )
+            self.normalized_nan_infs = number_of_nan_infs
+            np.nan_to_num(self._normalized, copy=False)
+
         return self._normalized
 
     def get_normalized(self, use_rawData=True):
@@ -784,6 +819,7 @@ class SfgRecord():
             ret = (self.rawData - self.base) / self.norm
         else:
             ret = self.data / self.norm
+
         return ret
 
     def normalize(self, inplace=False, use_rawData=True):
@@ -978,12 +1014,13 @@ class SfgRecord():
             raise NotImplemented()
 
     def _calc_bleach(
-        self,
-        operation,
-        pumped=None,
-        unpumped=None,
-        normalized=False,
-        zero_time_subtraction=True
+            self,
+            operation,
+            pumped=None,
+            unpumped=None,
+            normalized=False,
+            zero_time_subtraction=True,
+            nan2num=True,
     ):
         """Calculate bleach using the given operation.
 
@@ -999,6 +1036,9 @@ class SfgRecord():
         zero_time_subtraction : boolean
             substitute the first spectrum from the data to account for
             the constant offset.
+        nan2num: Boolean
+            If True replace nans with 0 and infs with finite numbers.
+            Only used during calculation of realtive bleach.
 
         Returns
         -------
@@ -1042,9 +1082,10 @@ class SfgRecord():
             unpumped = self.unpumped
 
         if relative:
+            # Prevent division by zero
+            # Because our measurment is not that good. We can safely do this.
+            unpumped[np.isin(unpumped, 0)] = 1e-08
             bleach = pumped / unpumped
-            # The infs and nans demand this to be a masked array
-            bleach = np.ma.masked_invalid(bleach)
         else:
             bleach = pumped - unpumped
 
@@ -1152,29 +1193,14 @@ class SfgRecord():
         )
         return ret
 
-    def x_pixel_median(self, attr="basesubed", x_pixel_slice=slice(None, None),
-                       **kwargs):
-        """Median of x_pixel_slice retion.
-
-        attr: string
-            attribute to get data from
-        x_pixel_slice: slice
-            to select x_pixel region.
-        """
-
-        data = getattr(self, attr)
-        data = np.median(data[:, :, :, x_pixel_slice],
-                         X_PIXEL_INDEX, keepdims=True)
-        return data
-
     # TODO add a frame median method and use keepdims in trace calculation.
     def trace(
             self,
             attr="bleach_rel",
-            x_pixel_slice=slice(None, None),
+            delay_slice=slice(None, None),
             frame_slice=slice(None, None),
             spectra_slice=slice(None, None),
-            delay_slice=slice(None, None),
+            x_pixel_slice=slice(None, None),
     ):
         """Return traces of the SfgRecord.
 
@@ -1229,11 +1255,11 @@ class SfgRecord():
         for roi_x_pixel in self.rois_x_pixel_trace:
             ret.append(
                 self.trace(
-                    attr,
-                    roi_x_pixel,
-                    self.roi_frames,
-                    roi_spectra,
-                    self.roi_delays,
+                    attr=attr,
+                    delay_slice=self.roi_delays,
+                    frame_slice=self.roi_frames,
+                    spectra_slice=roi_spectra,
+                    x_pixel_slice=roi_x_pixel,
                 )
             )
         return np.array(ret)
@@ -1349,7 +1375,7 @@ class SfgRecord():
     def tracesE_basesubed(self):
         return self._tracesE_property(attr="basesubed")
 
-    def _time_track(self, property="rawData", roi_x_pixel=slice(None, None)):
+    def _time_track(self, property="basesubed", roi_x_pixel=slice(None, None)):
         """Return a time track.
 
         A time track is the mean of each spectrum vs its temporal position
@@ -1362,6 +1388,27 @@ class SfgRecord():
                 order="F"
         )
         return ret
+
+    def _frame_track(
+            self,
+            property='basesubed',
+            roi_x_pixel=slice(None, None),
+            roi_delays=slice(None, None),
+    ):
+        """A frame track.
+
+        Frame track is an pixel wise and delay wise average of the data."""
+        data = getattr(self, property)
+        data = data[roi_delays, :, :, roi_x_pixel].mean(PP_INDEX_P).mean(X_PIXEL_INDEX)
+        return data
+
+    @property
+    def frame_track_basesubed(self):
+        return self._frame_track(
+            property="basesubed",
+            roi_x_pixel=self.roi_x_pixel_spec,
+            roi_delays=self.roi_delays
+        )[self.roi_frames, self.roi_spectra]
 
     def get_linear_baseline(self, start_slice=None,
                             stop_slice=None, data_attr="rawData"):
@@ -1713,15 +1760,30 @@ class SfgRecord():
             roi_spectra=None,
             roi_x_pixel_spec=None,
             frame_med=True,
+            delay_mean=False,
             medfilt_kernel=(1),
             ax=None,
-            plt_kwg={},
+            **kwargs
     ):
         """Plot a spectra property.
 
         Subselection of data is done by using rois.
         x_rois_elms subselectrs the SfgRecord.rois_x_pixel property for
         this plot.
+
+        Parameters
+        ----------
+        y_property: y attribute to plot
+        x_property: x attribute to plot
+        roi_delays: roi of delays to take into account
+        roi_frames: roi of frames to take into account
+        roi_spectra: roi of spectra to take into account
+        roi_x_pixel_spec: roi of x_pixel to take into account
+        frame_med: Calculate median over roi_frames
+        delay_mean: Calculate median over delay_roi
+        medfilt_kernel: Kernel of moving median filter moving over pixels.
+            Must be an uneven number.
+        **kwargs are passed to matplotlib plot.
         """
         if not ax:
             ax = plt.gca()
@@ -1748,6 +1810,8 @@ class SfgRecord():
         ]
         if frame_med:
             y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
+        if delay_mean:
+            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
         for delay_index in range(len(y_data)):
             delay = y_data[delay_index]
             for frame_index in range(len(delay)):
@@ -1757,27 +1821,45 @@ class SfgRecord():
                         frame[spectrum_index],
                         medfilt_kernel
                     )
-                    ax.plot(x_data, spectrum, **plt_kwg)
+                    ax.plot(x_data, spectrum, **kwargs)
 
     def plot_bleach(
             self,
             y_property="bleach_abs",
+            rois_delays=None,
             **kwargs
     ):
-        """See SfgRecord.plot_spec for **kwargs**"""
-        # There is always only one bleach spectrum.
-        self.plot_spec(
-            y_property,
-            roi_spectra=[0],
-            **kwargs,
-        )
+        """Plot Bleach of Record.
+
+        Parameters
+        ----------
+        y_property: attribute to get data from
+        rois_delays: List of slices or None.
+            If None `SfgRecord.rois_delays_pump_probe`
+            is used.
+        **kwargs are passed to `SfgRecord.plot_spec`
+        but roi_delays is overwritten with elements from
+        `SfgRecord.rois_delays_pump_probe` and roi_spectra is
+        forced to 1, because there is always only one spec
+        """
+
+        if not rois_delays:
+            rois_delays = self.rois_delays_pump_probe
+        for roi_delay in rois_delays:
+            # There is always only one bleach spectrum.
+            self.plot_spec(
+                y_property=y_property,
+                roi_delays=roi_delay,
+                roi_spectra=[0],
+                **kwargs,
+               )
 
     def plot_trace(
             self,
             y_property="traces_rawData",
             frame_med=True,
             ax=None,
-            plt_kwg={},
+            **kwargs
     ):
         """Plot a trace"""
 
@@ -1796,17 +1878,17 @@ class SfgRecord():
                 x_data,
                 y_data[roi_index], "-o",
                 label=label,
-                **plt_kwg
+                **kwargs
             )
 
     def plot_time_track(
             self,
-            y_property='rawData',
+            y_property='basesubed',
             x_property='index',
             roi_x_pixel=slice(None, None),
             roi_spectra=slice(None, None),
             ax=None,
-            plt_kwg={},
+            **kwargs
     ):
         """Make a plot of the time track data."""
         if not ax:
@@ -1815,7 +1897,7 @@ class SfgRecord():
         data = self._time_track(
             property=y_property, roi_x_pixel=roi_x_pixel
         )[:, roi_spectra]
-        ax.plot(data, **plt_kwg)
+        ax.plot(data, **kwargs)
 
 
 def concatenate_list_of_SfgRecords(list_of_records):
@@ -1849,3 +1931,10 @@ def concatenate_list_of_SfgRecords(list_of_records):
         else:
             ret.metadata[key] = values
     return ret
+
+def SfgRecords_from_file_list(list):
+    """Import a list of files as a single SfgRecord.
+
+    list: list of filepaths to import SfgRecords from.
+    """
+    return concatenate_list_of_SfgRecords([SfgRecord(elm) for elm in list])
