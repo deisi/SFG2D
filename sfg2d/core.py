@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 from .io.veronica import pixel_to_nm, get_from_veronika
 from .io.victor_controller import get_from_victor_controller
 from .utils import (
-    nm_to_ir_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX,
-    FRAME_AXIS_INDEX, PIXEL, PP_INDEX, find_nearest_index
+    nm_to_ir_wavenumbers, nm_to_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX,
+    FRAME_AXIS_INDEX, PIXEL, PP_INDEX, SPEC_INDEX, find_nearest_index
 )
 from .utils.consts import (VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC,
                            FRAME_AXIS_INDEX_P,  PP_INDEX_P)
@@ -647,10 +647,11 @@ class SfgRecord():
 
         # Reversed, because if vis_wl or central_wl are useless,
         # we have at least flipped the spectrum.
-        ret = self.pixel[::-1]
+        #ret = self.pixel[::-1]
         if isinstance(vis_wl, type(None)) or vis_wl < 1:
-            return ret
-        ret = nm_to_ir_wavenumbers(self.wavelength, vis_wl)
+            ret = nm_to_wavenumbers(self.wavelength)
+        else:
+            ret = nm_to_ir_wavenumbers(self.wavelength, vis_wl)
         return ret
 
     def wavenumbers2index(self, wavenumbers, sort=False):
@@ -683,7 +684,8 @@ class SfgRecord():
         ret = []
         for sl in self.rois_x_pixel_trace:
             ret.append(
-                slice(int(self.wavenumber[sl].min()), int(self.wavenumber[sl].max()))
+                slice(int(self.wavenumber[sl].min()),
+                      int(self.wavenumber[sl].max()))
             )
         return ret
 
@@ -1620,12 +1622,11 @@ class SfgRecord():
         for key in metadata:
             self.metadata[key] = metadata[key]
 
-        # Add default VIS_WL if nothing there yet
-        #print("Vis_wl: ", self.metadata.get("vis_wl"), VIS_WL)
-        if isinstance(self.metadata.get("vis_wl"), type(None)):
+        # Explicitly given VIS_WL overwrite file vis_wl.
+        if not isinstance(VIS_WL, type(None)):
             self.metadata["vis_wl"] = VIS_WL
-        # Add default pumpr_freq
-        if isinstance(self.metadata.get("pump_freq"), type(None)):
+        # Explicitly given pump_freq overwrites file pump_freq
+        if not isinstance(PUMP_FREQ, type(None)):
             self.metadata["pump_freq"] = PUMP_FREQ
 
     def copy(self):
@@ -1751,9 +1752,9 @@ class SfgRecord():
         # Reset internal properties so we leave with a clean SfgRecord
         return ret
 
-    def plot_spec(
+    def subselect(
             self,
-            y_property="rawData",
+            y_property="basesubed",
             x_property='pixel',
             roi_delays=None,
             roi_frames=None,
@@ -1761,7 +1762,81 @@ class SfgRecord():
             roi_x_pixel_spec=None,
             frame_med=True,
             delay_mean=False,
-            medfilt_kernel=(1),
+            spectra_mean=False,
+            pixel_mean=False,
+            medfilt_pixel=1,
+    ):
+        """Select subset of data and apply comom operations.
+
+        Subselection of data is done by using rois.
+        x_rois_elms subselectrs the SfgRecord.rois_x_pixel property for
+        this plot.
+
+        Parameters
+        ----------
+        y_property: y attribute to subselect.
+        roi_delays: roi of delays to take into account
+        roi_frames: roi of frames to take into account
+        roi_spectra: roi of spectra to take into account
+        roi_x_pixel_spec: roi of x_pixel to take into account
+        frame_med: Calculate median over roi_frames
+        delay_mean: Calculate median over delay_roi
+        spectra_mean: Calculate mean over spectra
+        medfilt_pixel: Number of pixel moving median filter applies to.
+            Must be an uneven number.
+
+        Returns tuple of arrays
+        1d array with selected x_data,
+        4d numpy array. [pp_delay, frames, spectra, pixel]
+        with y_data
+
+        """
+
+        if isinstance(roi_delays, type(None)):
+            roi_delays = self.roi_delays
+        if isinstance(roi_frames, type(None)):
+            roi_frames = self.roi_frames
+        if isinstance(roi_spectra, type(None)):
+            only_one_spec = ('bleach', 'pumped', 'unpumped')
+            if any([teststr in y_property for teststr in only_one_spec]):
+                roi_spectra = [0]
+            else:
+                roi_spectra = self.roi_spectra
+        if isinstance(roi_x_pixel_spec, type(None)):
+            roi_x_pixel_spec = self.roi_x_pixel_spec
+
+        x_data = getattr(self, x_property)[roi_x_pixel_spec]
+        y_data = getattr(self, y_property)[
+            roi_delays,
+            roi_frames,
+            roi_spectra,
+            roi_x_pixel_spec,
+        ]
+        if frame_med:
+            y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
+        if delay_mean:
+            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
+        if spectra_mean:
+            y_data = np.mean(y_data, SPEC_INDEX, keepdims=True)
+        if medfilt_pixel != 1:
+            y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
+        if pixel_mean:
+            y_data = np.mean(y_data, X_PIXEL_INDEX, keepdims=True)
+        return x_data, y_data
+
+    def plot_spec(
+            self,
+            y_property="basesubed",
+            x_property='pixel',
+            roi_delays=None,
+            roi_frames=None,
+            roi_spectra=None,
+            roi_x_pixel_spec=None,
+            frame_med=True,
+            delay_mean=False,
+            spectra_mean=False,
+            pixel_mean=False,
+            medfilt_pixel=1,
             ax=None,
             **kwargs
     ):
@@ -1788,39 +1863,22 @@ class SfgRecord():
         if not ax:
             ax = plt.gca()
 
-        if isinstance(roi_delays, type(None)):
-            roi_delays = self.roi_delays
-        if isinstance(roi_frames, type(None)):
-            roi_frames = self.roi_frames
-        if isinstance(roi_spectra, type(None)):
-            only_one_spec = ('bleach', 'pumped', 'unpumped')
-            if any([teststr in y_property for teststr in only_one_spec]):
-                roi_spectra = [0]
-            else:
-                roi_spectra = self.roi_spectra
-        if isinstance(roi_x_pixel_spec, type(None)):
-            roi_x_pixel_spec = self.roi_x_pixel_spec
-
-        x_data = getattr(self, x_property)[roi_x_pixel_spec]
-        y_data = getattr(self, y_property)[
+        x_data, y_data = self.subselect(
+            y_property,
+            x_property,
             roi_delays,
             roi_frames,
             roi_spectra,
             roi_x_pixel_spec,
-        ]
-        if frame_med:
-            y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
-        if delay_mean:
-            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
-        for delay_index in range(len(y_data)):
-            delay = y_data[delay_index]
-            for frame_index in range(len(delay)):
-                frame = delay[frame_index]
-                for spectrum_index in range(len(frame)):
-                    spectrum = medfilt(
-                        frame[spectrum_index],
-                        medfilt_kernel
-                    )
+            frame_med,
+            delay_mean,
+            spectra_mean,
+            pixel_mean,
+            medfilt_pixel,
+            )
+        for delay in y_data:
+            for frame in delay:
+                for spectrum in frame:
                     ax.plot(x_data, spectrum, **kwargs)
 
     def plot_bleach(

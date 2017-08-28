@@ -11,7 +11,7 @@ from .utils.consts import FRAME_AXIS_INDEX_P, PP_INDEX_P
 
 
 def ioff(func):
-    """Decorator to make plotting temporally non interactive."""
+    """Decorator to make plotting non interactive temporally ."""
     def make_ioff(*args, **kwargs):
         plt.ioff()
         func(*args, **kwargs)
@@ -68,6 +68,7 @@ def multipage_pdf(plot_func):
         print("Saved figure to: {}".format(path.abspath(name)))
     return make_multipage_pdf
 
+
 def save_figs_to_multipage_pdf(figs, fpath):
     """Save a list of figures into a multipage pdf.
 
@@ -94,7 +95,7 @@ def spec_plot(
     title="",
     x_property="wavenumber",
     y_property="basesubed",
-    plt_kwgs={},
+    **kwargs
 ):
     """Plot Wrapper."""
     if not ax:
@@ -104,7 +105,7 @@ def spec_plot(
         ax=ax,
         x_property=x_property,
         y_property=y_property,
-        **plt_kwgs,
+        **kwargs,
     )
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -184,7 +185,7 @@ def bleach_plot_slider(
         record.plot_bleach(
             ax=ax,
             y_property=y_property,
-            roi_delays=slice(index, index+1),
+            rois_delays=[slice(index, index+1)],
             x_property=x_property,
             label="{} fs".format(record.pp_delays[index]),
             **kwargs
@@ -241,7 +242,7 @@ def bleach_plot_pdf(
         record.plot_bleach(
             ax=ax,
             y_property=y_property,
-            roi_delays=slice(index, index+1),
+            rois_delays=[slice(index, index+1)],
             x_property=x_property,
             label="{} fs".format(record.pp_delays[index]),
             **kwargs
