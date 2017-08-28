@@ -11,7 +11,7 @@ from .utils.consts import FRAME_AXIS_INDEX_P, PP_INDEX_P
 
 
 def ioff(func):
-    """Decorator to make plotting temporally non interactive."""
+    """Decorator to make plotting non interactive temporally ."""
     def make_ioff(*args, **kwargs):
         plt.ioff()
         func(*args, **kwargs)
@@ -68,6 +68,7 @@ def multipage_pdf(plot_func):
         print("Saved figure to: {}".format(path.abspath(name)))
     return make_multipage_pdf
 
+
 def save_figs_to_multipage_pdf(figs, fpath):
     """Save a list of figures into a multipage pdf.
 
@@ -94,7 +95,7 @@ def spec_plot(
     title="",
     x_property="wavenumber",
     y_property="basesubed",
-    plt_kwgs={},
+    **kwargs
 ):
     """Plot Wrapper."""
     if not ax:
@@ -104,7 +105,7 @@ def spec_plot(
         ax=ax,
         x_property=x_property,
         y_property=y_property,
-        **plt_kwgs,
+        **kwargs,
     )
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -184,7 +185,7 @@ def bleach_plot_slider(
         record.plot_bleach(
             ax=ax,
             y_property=y_property,
-            roi_delays=slice(index, index+1),
+            rois_delays=[slice(index, index+1)],
             x_property=x_property,
             label="{} fs".format(record.pp_delays[index]),
             **kwargs
@@ -241,7 +242,7 @@ def bleach_plot_pdf(
         record.plot_bleach(
             ax=ax,
             y_property=y_property,
-            roi_delays=slice(index, index+1),
+            rois_delays=[slice(index, index+1)],
             x_property=x_property,
             label="{} fs".format(record.pp_delays[index]),
             **kwargs
@@ -419,8 +420,10 @@ def contour(
     -------
     matplotlib.fig
         The figure of the plot
-    tuple of matpotlib.axes
-        The three axes of the three subplots.
+    ax: The main axis of the contour plot
+    axl: The left axis. The plot of the bleach
+    axb: The bottom axis. The traces
+    axr: The right axis: The normalized static spectrum.
     """
 
     # Prepare the data.
@@ -437,9 +440,9 @@ def contour(
         )
     z = medfilt(z, (1, pixel_med))
     z = double_resample(z, N, 1)
-    xx = x[record.roi_delays]
+    xx = x[record.roi_delay]
     yy = y[record.roi_x_pixel_spec]
-    zz = z[record.roi_delays]
+    zz = z[record.roi_delay]
 
     # prepare figure and axes
     if not fig:
@@ -484,10 +487,12 @@ def contour(
         for index in range(len(record.rois_delays_pump_probe)):
             roi_delay = record.rois_delays_pump_probe[index]
             y_axl = yy
-            x_axl = np.median(
-                record.bleach_rel[roi_delay, :, 0, record.roi_x_pixel_spec],
-                FRAME_AXIS_INDEX_P,
-            ).mean(PP_INDEX_P)
+            x_axl = record.subselect(
+                y_property='bleach_rel',
+                roi_delay=roi_delay,
+                frame_med=True,
+                delay_mean=True,
+            )[1].squeeze()
             axl.plot(x_axl, y_axl)
             color = axl.get_lines()[-1].get_color()
             x_axl = x[roi_delay]
@@ -499,18 +504,18 @@ def contour(
                     linestyles="dashed",
                     color=color
                    )
+        if axl.get_xlim()[0] < 0:
+             axl.set_xlim(left=0)
+        if axl.get_xlim()[1] < 1.2:
+             axl.set_xlim(right=1.2)
 
     if show_axr:
         y_axr = yy
-        x_axr = np.median(
-            record.unpumped_norm[
-                record.roi_delays,
-                record.roi_frames,
-                0,
-                record.roi_x_pixel_spec
-            ],
-            FRAME_AXIS_INDEX_P,
-        ).mean(PP_INDEX_P)
+        x_axr = record.subselect(
+            y_property="unpumped_norm",
+            frame_med=True,
+            delay_mean=True
+        )[1].squeeze()
         axr.plot(x_axr, y_axr)
         color = axr.get_lines()[-1].get_color()
 

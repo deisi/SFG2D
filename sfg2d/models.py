@@ -387,7 +387,8 @@ class GaussianModel(CurveFitter):
         ----------
         xdata: array
         ydata: array
-        p0: array of starting values
+        p0: array of starting values, with
+            [A, mu, sigma, c]
         metdata: dictionary with metdata.
         """
         super().__init__(*args, **kwargs)

@@ -85,7 +85,6 @@ def get_metadata_from_filename(fpath):
     except FileNotFoundError:
         pass
 
-
     _match_booleans("pu", "pump")
     _match_booleans("pr", "probe")
     _match_booleans("vis", "vis")
@@ -93,6 +92,13 @@ def get_metadata_from_filename(fpath):
     _match_booleans("chop", "chopper")
     _match_booleans("purge", "purge")
 
+    # Get temperature of sample
+    match_temp = re.search("_(\d+)C", ffile)
+    match_temp2 = re.search("_C(\d+)", ffile)
+    if match_temp:
+        metadata["Temperature"] = match_temp.group(1)
+    elif match_temp2:
+        metadata["Temperature"] = match_temp2.group(1)
     return metadata
 
 
