@@ -1,3 +1,6 @@
+from numpy import median
+from scipy.signal import resample
+
 def double_resample(x, num, axis=0, **kwargs):
     """Use FFT bases resample twiche to FFT filter data and keep axis size constant.
 
@@ -10,10 +13,19 @@ def double_resample(x, num, axis=0, **kwargs):
     **kwargs get passed to both `scipy.signal.resample` method calls
 
     """
-    from scipy.signal import resample
     # Downsample
     ret = resample(x, num, axis=axis, **kwargs)
     # Upsample
     ret = resample(ret, x.shape[axis], axis=axis, **kwargs)
 
     return ret
+
+def replace_pixel(record, pixel, region=5):
+    """Replace a given pixel in the raw data of record by a median of its surrounding.
+
+    Usefull to cope with broken pixels.
+    """
+
+    record.rawData[:, :, :, pixel] = median(
+        record.rawData[:, :, :, pixel-region: pixel+region]
+    )

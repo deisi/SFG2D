@@ -8,4 +8,4 @@ from .consts import (
     X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX,
     PP_INDEX, PIXEL, FRAME_AXIS_INDEX
 )
-from .filter import double_resample
+from .filter import double_resample, replace_pixel
