@@ -304,11 +304,19 @@ def time_track(
 def frame_track(
         record,
         ax=None,
+        y_property='basesubed',
+        frame_track_kwg={},
         **kwargs
 ):
+    """Sane default for plotting a frame track.
+
+    frame_track_kwg are passed to `SfgRecord.frame_track`"""
+    if y_property:
+        frame_track_kwg["y_property"] = y_property
     if not ax:
         ax = plt.gca()
-    ax.plot(record.frame_track_basesubed, "-o", **kwargs)
+    data = record.frame_track(**frame_track_kwg)
+    ax.plot(data, "-o", **kwargs)
     ax.set_title("Mean Signal vs Frame Number")
     ax.set_xlabel("Frame Number")
     ax.set_ylabel("Mean Counts")
@@ -504,10 +512,10 @@ def contour(
                     linestyles="dashed",
                     color=color
                    )
-        if axl.get_xlim()[0] < 0:
-             axl.set_xlim(left=0)
-        if axl.get_xlim()[1] < 1.2:
-             axl.set_xlim(right=1.2)
+        #if axl.get_xlim()[0] < 0:
+        #     axl.set_xlim(left=0)
+        #if axl.get_xlim()[1] < 1.2:
+        #     axl.set_xlim(right=1.2)
 
     if show_axr:
         y_axr = yy

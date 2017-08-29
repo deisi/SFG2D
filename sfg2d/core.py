@@ -1435,22 +1435,34 @@ class SfgRecord():
         )
         return ret
 
-    def _frame_track(
+    def frame_track(
             self,
-            property='basesubed',
-            roi_x_pixel=slice(None, None),
-            roi_delay=slice(None, None),
+            **kwargs
+
     ):
         """A frame track.
 
-        Frame track is an pixel wise and delay wise average of the data."""
-        data = getattr(self, property)
-        data = data[roi_delay, :, :, roi_x_pixel].mean(PP_INDEX_P).mean(X_PIXEL_INDEX)
+        Frame track is an average over pixel and delay coordinates.
+
+        **kwargs are passed to SfgRecord.subselect.
+        But the following keys are forced to be:
+        *delay_mean* : True
+        *frame_med* : False and
+        *pixel_mean* : True
+
+        Returns
+        2d numpy array with [frames, spectra] dimensions.
+
+        """
+        kwargs["delay_mean"] = True
+        kwargs["frame_med"] = False
+        kwargs["pixel_mean"] = True
+        data = self.subselect(**kwargs)[1][0, :, :, 0]
         return data
 
     @property
     def frame_track_basesubed(self):
-        return self._frame_track(
+        return self.frame_track(
             property="basesubed",
             roi_x_pixel=self.roi_x_pixel_spec,
             roi_delay=self.roi_delay
