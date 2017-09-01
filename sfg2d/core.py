@@ -222,7 +222,7 @@ class SfgRecord():
 
         if isinstance(base, type(None)):
             base = BASE_SPEC
-        if not isinstance(base, type(None)):
+        else:
             if isinstance(base, str):
                 base = SfgRecord(base).data
                 self.base = base
@@ -231,7 +231,7 @@ class SfgRecord():
 
         if isinstance(norm, type(None)):
             norm = NORM_SPEC
-        if not isinstance(norm, type(None)):
+        else:
             if isinstance(norm, str):
                 norm = SfgRecord(norm).data
                 self.norm = norm
@@ -457,6 +457,11 @@ class SfgRecord():
         if len(value.shape) != 4:
             raise IOError("Can't set shape %s to data" % value.shape)
         self._data = value
+
+    @property
+    def frames(self):
+        """Array of frames"""
+        return np.arange(self.number_of_frames)
 
     @property
     def dates(self):
@@ -1804,7 +1809,7 @@ class SfgRecord():
             roi_frames=None,
             roi_spectra=None,
             roi_x_pixel_spec=None,
-            frame_med=True,
+            frame_med=False,
             delay_mean=False,
             spectra_mean=False,
             pixel_mean=False,
@@ -1849,7 +1854,13 @@ class SfgRecord():
         if isinstance(roi_x_pixel_spec, type(None)):
             roi_x_pixel_spec = self.roi_x_pixel_spec
 
-        x_data = getattr(self, x_property)[roi_x_pixel_spec]
+        x_data = getattr(self, x_property)
+        if x_property in ('pixel', 'wavenumber', 'wavelength'):
+            x_data = x_data[roi_x_pixel_spec]
+        elif x_property is "pp_delays":
+            x_data = x_data[roi_delay]
+        elif x_property is "frames":
+            x_data = x_data[roi_frames]
         y_data = getattr(self, y_property)[
             roi_delay,
             roi_frames,

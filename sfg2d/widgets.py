@@ -11,7 +11,6 @@ import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
 from traitlets import validate
 from ipywidgets import IntRangeSlider
-import plotly.graph_objs as go
 
 from .core import SfgRecord, concatenate_list_of_SfgRecords
 from .utils.consts import X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX, FRAME_AXIS_INDEX, PP_INDEX, PIXEL
@@ -1020,6 +1019,7 @@ class WidgetBase():
 class WidgetPlots():
     """Plotly Base plotting backend."""
     def __init__(self):
+        import plotly.graph_objs as go
         # Plotly figure obj
         self.figure = go.Figure()
         # List of plotly data object to plot on the figure

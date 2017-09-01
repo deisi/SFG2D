@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from scipy.optimize import curve_fit
 from scipy.stats import norm
-from sfg2d.utils.static import gaus_func
+
 
 class CurveFitter():
     """Base Class to add curve fit capabilities to model classes."""
@@ -95,6 +95,7 @@ class CurveFitter():
              show_fit_line=False,
              number_of_samples=100,
              show_box=False,
+             box_coords=None,
              show_fit_range=False,
              data_plot_kw={'linestyle': '-',
                            'label': 'data',
@@ -120,6 +121,9 @@ class CurveFitter():
             Show nummeric fit result as a text box on the plot.
         show_fit_range: boolean
             show what data was used for the fit.
+        box_coords: Optinal update the box_coords.
+            box_coords are a tuple of (x,y) coords in
+            axis coordinates, thus from 0 to 1
         """
         if not fig:
             fig = plt.gcf()
@@ -133,6 +137,9 @@ class CurveFitter():
         )
 
         if show_box:
+            if not isinstance(box_coords, type(None)):
+                self.box_coords = box_coords
+
             text = ''
             for i in range(len(self.pnames)):
                 pname = self.pnames[i]

@@ -1,13 +1,11 @@
-from os import path, mkdir
+from os import path
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from scipy.signal import medfilt
 import numpy as np
 
-from .utils import get_interval_index
 from .utils.filter import double_resample
-from .utils.consts import FRAME_AXIS_INDEX_P, PP_INDEX_P
 
 
 def ioff(func):
@@ -86,6 +84,42 @@ def save_figs_to_multipage_pdf(figs, fpath):
 
     print("Saved figure to: {}".format(path.abspath(fpath)))
 
+def plot_spec(xdata, ydata, ax=None, **kwargs):
+    """
+    Plot data with pixel axis of ydata as x-axis
+
+    xdata: 1d numpy array for x-axis values.
+    ydata: 4d numpy array with [delay, frame, spec, pixel]
+    ax: axis obj to plot on
+    xlabel: Label of the x-axis
+
+    **kwargs are passed to ax.plot
+
+    """
+    if not ax:
+        ax = plt.gca()
+
+    for delay in ydata:
+        for frame in delay:
+            for spec in frame:
+                ax.plot(xdata, spec.T, **kwargs)
+
+def plot_trace(xdata, ydata, ax=None, **kwargs):
+    """
+    data is the result of a subselection.
+
+    This plot has delays on its x-axis
+    """
+    if not ax:
+        ax = plt.gca()
+
+    # Transpose because we want the delay axis to be the last axis
+    # of the array.
+    y = ydata.T
+    for pixel in y:
+        for spec in pixel:
+            for frame in spec:
+                ax.plot(xdata, frame.T, **kwargs)
 
 def spec_plot(
     record,

@@ -27,5 +27,5 @@ def replace_pixel(record, pixel, region=5):
     """
 
     record.rawData[:, :, :, pixel] = median(
-        record.rawData[:, :, :, pixel-region: pixel+region]
+        record.rawData[:, :, :, pixel-region: pixel+region], -1
     )

@@ -81,13 +81,11 @@ def find_nearest_index(input_array, points):
     ret = abs(wavenumbers - points).argmin(1)
     return ret
 
-def savefig(filename, dpi=150, pgf=False, **kwargs):
+def savefig(filename, formats=['png', 'pdf'], **kwargs):
     import matplotlib.pyplot as plt
-    '''save figure as pdf and png'''
-    if pgf:
-        plt.savefig('{}.pgf'.format(filename), **kwargs)
-    plt.savefig('{}.pdf'.format(filename), **kwargs)
-    plt.savefig('{}.png'.format(filename), dpi=dpi, **kwargs)
+    '''save figure as given formats.'''
+    for fformat in formats:
+        plt.savefig('{}.{}'.format(filename, fformat), **kwargs)
     print("Saved figure to: {}".format(path.abspath(filename)))
 
 
