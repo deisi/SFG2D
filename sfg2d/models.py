@@ -14,13 +14,14 @@ class CurveFitter():
                  fit_slice=(None, None, None), fname=None):
         self.xdata = xdata
         self.ydata = ydata
-        self.sigma = sigma # y-errors.
+        self.sigma = sigma # 1/y-errors.
         self.p0 = p0  # Initial fit values
         self.p = None  # The fit result parameters
         self.cov = None  # The covariance of the fit
         self.jac = None  # The jacobean Matrix of the DGL
         self.bounds = bounds  # Boundary conditions for the fit
         self.metadata = metadata  # Some additional metadata
+        self._xsample_num = 400
         # Coordinates of the fit result box in fig coordinates
         self.box_coords = box_coords
         # Effective slice of the fit to take into account.
@@ -36,6 +37,8 @@ class CurveFitter():
         """Make a least square fit"""
         if not kwargs.get("bounds"):
             kwargs["bounds"] = self.bounds
+        if not kwargs.get('sigam'):
+            kwargs['sigma'] = self.sigma
         self.p, self.cov = curve_fit(
             self.fit_func,
             self.xdata[self.fit_slice],
@@ -72,7 +75,7 @@ class CurveFitter():
         for i in range(len(self.pnames)):
             pname = self.pnames[i]
             perror = pname + '_error'
-            ret[perror] = self.cov[i, i]**2
+            ret[perror] = np.sqrt(self.cov[i, i])
         return ret
 
     @property
@@ -86,6 +89,10 @@ class CurveFitter():
     def X2_start(self):
         """The unreduced Chi2 of the starting parameters."""
         return np.square(self.yfit_start - self.ydata).sum()
+
+    @property
+    def xsample(self):
+        return np.linspace(self.xdata[0], self.xdata[-1], self._xsample_num)
 
     def plot(self,
              fig=None, ax=None,
@@ -104,6 +111,7 @@ class CurveFitter():
              fitl_plot_kw={},
              fitp_plot_kw={},
              vlines_param_dict={},
+             **kwgs
 
     ):
         """Convenience function to show the results.
@@ -124,6 +132,7 @@ class CurveFitter():
         box_coords: Optinal update the box_coords.
             box_coords are a tuple of (x,y) coords in
             axis coordinates, thus from 0 to 1
+        kwgs get passed to all plots.
         """
         if not fig:
             fig = plt.gcf()
@@ -152,16 +161,19 @@ class CurveFitter():
                     transform=ax.transAxes)
 
         if show_data:
-            ax.plot(self.xdata, self.ydata, **data_plot_kw)
+            if isinstance(self.sigma, type(None)):
+                ax.plot(self.xdata, self.ydata, **data_plot_kw, **kwgs)
+            else:
+                plt.errorbar(self.xdata, self.ydata, yerr=self.sigma, axes=ax, **data_plot_kw)
         if show_start_curve:
             ax.plot(x_sample, self.fit_func(x_sample, *self.p0),
-                    label="start", **start_plot_kw)
+                    label="start", **start_plot_kw, **kwgs)
         if show_fit_points:
             ax.plot(self.xdata, self.yfit,
-                    "-o", label='fit', **fitp_plot_kw)
+                        "-o", label='fit', **fitp_plot_kw, **kwgs)
         if show_fit_line:
             ax.plot(x_sample, self.fit_res(x_sample),
-                    label="fit", **fitl_plot_kw)
+                    label="fit", **fitl_plot_kw, **kwgs)
         if show_fit_range:
             ax.vlines(
                 [self.xdata[self.fit_slice.start],
@@ -227,7 +239,8 @@ class FourLevelMolKin(CurveFitter):
         self.gSigma = gSigma  # width of the excitation
         self.rtol = rtol  # Precition of the numerical integrator.
         self.atol = atol
-        self.N0 = N0  # Starting conditions of the Populations
+        # Starting conditions of the Populations, not to be confuesed with starting conditions of the plot
+        self.N0 = N0
         self.full_output = full_output
         self.infodict = None  # Infodict return of the Odeint.
         super().__init__(*args, **kwargs)

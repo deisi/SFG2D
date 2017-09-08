@@ -1,8 +1,9 @@
 """Module to import data from the victor controller."""
-import os, datetime
+import datetime
 import numpy as np
 
 from sfg2d.utils.consts import PIXEL, SPECS
+
 
 def get_from_victor_controller(fpath, **kwargs):
     """Import data from victor controller

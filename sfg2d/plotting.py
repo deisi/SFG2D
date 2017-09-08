@@ -244,7 +244,7 @@ def bleach_plot_slider(
     return fig, ax
 
 @ioff
-def bleach_plot_pdf(
+def bleach_plotzt_pdf(
         record,
         sfile,
         sfolder="./figures/",
@@ -254,7 +254,13 @@ def bleach_plot_pdf(
         ylim=None,
         num_base='bl{}',
         xlabel='Wavenumber in 1/cm',
+        ylabel=None,
         l_kwgs={"loc": "lower left"},
+        title_prefix=None,
+        medfilt_pixel=5,
+        plot_kwgs={},
+        scale=1,
+        delay_offset=0,
         **kwargs
 ):
     """Multipage pdf for the bleach plot.
@@ -268,25 +274,39 @@ def bleach_plot_pdf(
     """
 
     # Makte ion and ioff use a decorator.
+    subselect_kws = dict(**kwargs)
+    subselect_kws.setdefault('frame_med', True)
+    subselect_kws.setdefault('x_property', x_property)
+    subselect_kws.setdefault('y_property', y_property)
+    subselect_kws.setdefault('medfilt_pixel', medfilt_pixel)
     figs = []
     for index in range(record.number_of_pp_delays):
         fig, ax = plt.subplots(num=num_base.format(index))
         figs.append(fig)
 
-        record.plot_bleach(
-            ax=ax,
-            y_property=y_property,
-            rois_delays=[slice(index, index+1)],
-            x_property=x_property,
-            label="{} fs".format(record.pp_delays[index]),
-            **kwargs
+        x, y = record.subselect(
+            roi_delay=slice(index, index+1),
+            **subselect_kws,
         )
+        plot_spec(x, scale*y, ax=ax, **plot_kwgs)
 
+        #record.plot_bleach(
+        #    ax=ax,
+        #    y_property=y_property,
+        #    rois_delays=[slice(index, index+1)],
+        #    x_property=x_property,
+        #    label="{} fs".format(record.pp_delays[index]),
+        #    **kwargs
+        #)
+
+        if not title_prefix:
+            title_prefix = record.metadata('material')
         ax.set_title("{} @ {} fs".format(
-            record.metadata.get("sample"), record.pp_delays[index])
+            title_prefix, record.pp_delays[index]+delay_offset)
         )
         ax.set_xlim(xlim)
         ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
 
     # Prepare axes limits
     if isinstance(ylim, type(None)):
@@ -419,6 +439,7 @@ def contour(
         pixel_med=3,
         N=30,
         fig=None,
+        figsize=(9, 6),
         show_y_lines=True,
         show_x_lines=True,
         show_colorbar=True,
@@ -487,8 +508,9 @@ def contour(
     zz = z[record.roi_delay]
 
     # prepare figure and axes
+    ax, axr, axb, axl = None, None, None, None
     if not fig:
-        fig = plt.figure(figsize=(9, 6))
+        fig = plt.figure(figsize=figsize)
 
     # I need a array structured ax return for that to work
     if show_axl and show_axb and show_axr:

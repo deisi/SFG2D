@@ -191,11 +191,11 @@ class SfgRecord():
         # 4d array of values for the static drift correction.
         self._static_corr = None
 
-        # Region of interest x_pixel
-        self.rois_x_pixel_trace = [slice(None, None)]
-
         # Region of interest for the x_spec
         self.roi_x_pixel_spec = slice(None, None)
+
+        # Region of interest x_pixel
+        self.rois_x_pixel_trace = [slice(None, None)]
 
         # Region of interest y_pixel/spectra
         self.roi_spectra = slice(None, None)
@@ -645,6 +645,14 @@ class SfgRecord():
         self._wavenumber = None
 
     @property
+    def pump_freq(self):
+        return self.metadata.get('pump_freq')
+
+    @pump_freq.setter
+    def pump_freq(self, value):
+        self.metadata['pump_freq'] = value
+
+    @property
     def wavenumber(self):
         """Numpy array of wavenumbers in 1/cm.
 
@@ -667,9 +675,9 @@ class SfgRecord():
         >>> SfgRecord.wavenumber
         """
 
-        if isinstance(self._wavenumber, type(None)):
-            vis_wl = self.metadata.get("vis_wl")
-            self._wavenumber = self.get_wavenumber(vis_wl)
+        #if isinstance(self._wavenumber, type(None)):
+        vis_wl = self.metadata.get("vis_wl")
+        self._wavenumber = self.get_wavenumber(vis_wl)
         return self._wavenumber
 
     @wavenumber.setter
@@ -726,6 +734,20 @@ class SfgRecord():
         if sort:
             ret = np.sort(ret)
         return ret
+
+    def wavenumber2pixelSlice(self, sl):
+        """Get pixels from wavenumber slice"""
+        return slice(*self.wavenumbers2index([sl.stop, sl.start]))
+
+    @property
+    def roi_x_wavenumber_spec(self):
+        sl = self.roi_x_pixel_spec
+        x = self.wavenumber[sl]
+        return slice(int(x.min()), int(x.max()))
+
+    @roi_x_wavenumber_spec.setter
+    def roi_x_wavenumber_spec(self, value):
+        self.roi_x_pixel_spec = slice(*self.wavenumbers2index([value.stop, value.start]))
 
     @property
     def rois_x_wavenumber_trace(self):
@@ -1371,7 +1393,7 @@ class SfgRecord():
         """
         data = getattr(self, attr)
         # I dont think this is correct but for now okay.
-        data = np.mean(data[delay_slice, :, spectra_slice, x_pixel_slice],
+        data = np.median(data[delay_slice, :, spectra_slice, x_pixel_slice],
                        X_PIXEL_INDEX)
         data = sem(data[:, frame_slice], FRAME_AXIS_INDEX_P)
         return data
@@ -1607,6 +1629,18 @@ class SfgRecord():
             for key, value in self.saveable.items():
                 if key in imp.keys():
                     setattr(self, value, imp[key])
+                    this = getattr(self, value)
+                    rshape = getattr(this, 'shape')
+                    if rshape == ():
+                        setattr(self, value, this[()])
+            # Reset Metadata dict.
+            #self.metadata = self.metadata[()]
+            #self.roi_x_pixel_spec = self.roi_x_pixel_spec[()]
+            #self.roi_delay = self.roi_delay[()]
+            #self.roi_frames = self.roi_frames[()]
+            #self.roi_spectra =  self.roi_spectra[()]
+            #self.rois_delays_pump_probe = self.rois_delays_pump_probe[()]
+            #self.rois_x_pixel_trace = self.rois_x_pixel_trace[()]
             #self.rawData = imp['rawdata']
             #self.wavenumber = imp['wavenumber']
             #self.wavelength = imp['wavelength']
@@ -1815,7 +1849,7 @@ class SfgRecord():
             pixel_mean=False,
             medfilt_pixel=1,
     ):
-        """Select subset of data and apply comom operations.
+        """Select subset of data and apply commom operations.
 
         Subselection of data is done by using rois.
         x_rois_elms subselectrs the SfgRecord.rois_x_pixel property for
@@ -1876,7 +1910,7 @@ class SfgRecord():
         if medfilt_pixel != 1:
             y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
         if pixel_mean:
-            y_data = np.mean(y_data, X_PIXEL_INDEX, keepdims=True)
+            y_data = np.median(y_data, X_PIXEL_INDEX, keepdims=True)
         return x_data, y_data
 
     def plot_spec(
