@@ -58,8 +58,8 @@ class WidgetBase():
         # Buffer to save x_rois upon switching data.
         self._rois_x_pixel_buffer = [slice(None, None)]
         # Buffer unpumped and pumped data throughout switching data files
-        self._unpumped_index_buffer = None
-        self._pumped_index_buffer = None
+        self._unpumped_index_buffer = 0
+        self._pumped_index_buffer = 1
         # List of widgets to display
         self.children = []
 
@@ -720,7 +720,7 @@ class WidgetBase():
 
     def _set_roi_x_pixel(self, new=None):
         self._rois_x_pixel_buffer[0] = slice(*self.wRangeSliderPixelX.value)
-        self.data.rois_x_pixel = self._rois_x_pixel_buffer
+        self.data.rois_x_pixel_trace = self._rois_x_pixel_buffer
 
     def _set_roi_frames(self, new=None):
         self.data.roi_frames = slice(*self.wRangeSliderFrame.value)
@@ -803,7 +803,7 @@ class WidgetBase():
         self.data.save(fname)
 
     def _snap_x_roi(self, new=None):
-        self.data.rois_x_pixel.append(self.wRangeSliderPixelX.slice)
+        self.data.rois_x_pixel_trace.append(self.wRangeSliderPixelX.slice)
         # We want to be able to save the snaps throghout different data sets.
         self._rois_x_pixel_buffer = self.data.rois_x_pixel
         self._update_figure()
@@ -1138,7 +1138,7 @@ class WidgetFigures():
         for roi_index in range(len(data)):
             # data is of shape [roi, pp_delay, spectra]
             roi = data[roi_index]
-            roi_slice = self.data.rois_x_pixel[roi_index]
+            roi_slice = self.data.rois_x_pixel_trace[roi_index]
             if initial:
                 initial = False
             else:
