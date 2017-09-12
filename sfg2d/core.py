@@ -1849,7 +1849,7 @@ class SfgRecord():
             pixel_mean=False,
             medfilt_pixel=1,
     ):
-        """Select subset of data and apply commom operations.
+        """Select subset of data and apply common operations.
 
         Subselection of data is done by using rois.
         x_rois_elms subselectrs the SfgRecord.rois_x_pixel property for
