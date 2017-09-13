@@ -192,22 +192,22 @@ class SfgRecord():
         self._static_corr = None
 
         # Region of interest for the x_spec
-        self.roi_x_pixel_spec = slice(None, None)
+        self.roi_x_pixel_spec = slice(0, PIXEL)
 
         # Region of interest x_pixel
-        self.rois_x_pixel_trace = [slice(None, None)]
+        self.rois_x_pixel_trace = [slice(0, PIXEL)]
 
         # Region of interest y_pixel/spectra
-        self.roi_spectra = slice(None, None)
+        self.roi_spectra = slice(0, None)
 
         # Region of interest frames
-        self.roi_frames = slice(None, None)
+        self.roi_frames = slice(0, None)
 
         # Region of interest pp_delays
-        self.roi_delay = slice(None, None)
+        self.roi_delay = slice(0, None)
 
         # Subreions of interest for pump probe
-        self.rois_delays_pump_probe = [slice(None, None)]
+        self.rois_delays_pump_probe = [slice(0, None)]
 
         if isinstance(fname, type(None)):
             return
@@ -568,7 +568,7 @@ class SfgRecord():
     @property
     def central_wl(self):
         """Central wavelength of the grating in nm."""
-        return self.metadata.get("central_wl", 0)
+        return self.metadata.get("central_wl", 1)
 
     @central_wl.setter
     def central_wl(self, value):
@@ -608,30 +608,13 @@ class SfgRecord():
         The above example sets 800 nm as the central wavelength, and forced
         a recalculation of the wavelength data.
         """
-        if isinstance(self._wavelength, type(None)):
-            cw = self.metadata.get("central_wl")
-            if not cw:
-                return self.pixel
-            self._wavelength = self.get_wavelength(cw)
+        cw = self.central_wl
+        self._wavelength = pixel_to_nm(self.pixel, cw)
         return self._wavelength
 
     @wavelength.setter
     def wavelength(self, arg):
         self._wavelength = arg
-
-    def get_wavelength(self, cw):
-        """Get wavelength in nm.
-
-        Parameters:
-        -----------
-        cw: number
-            central wavelength of the camera.
-        """
-        ret = self.pixel.copy()
-        if isinstance(cw, type(None)) or cw < 1:
-            return ret
-        ret = pixel_to_nm(self.pixel, cw)
-        return ret
 
     @property
     def vis_wl(self):
@@ -675,9 +658,12 @@ class SfgRecord():
         >>> SfgRecord.wavenumber
         """
 
-        #if isinstance(self._wavenumber, type(None)):
         vis_wl = self.metadata.get("vis_wl")
-        self._wavenumber = self.get_wavenumber(vis_wl)
+        if isinstance(vis_wl, type(None)) or vis_wl < 1:
+            self._wavenumber = nm_to_wavenumbers(self.wavelength)
+        else:
+            self._wavenumber = nm_to_ir_wavenumbers(self.wavelength, vis_wl)
+        self._wavenumber = np.nan_to_num(self._wavenumber)
         return self._wavenumber
 
     @wavenumber.setter
@@ -698,18 +684,6 @@ class SfgRecord():
         msg += 'Norm with {}\n'.format(self.norm.mean((0, 1, 3)))
         msg += 'Metadata is {}\n'.format(self.metadata)
         return msg
-
-    def get_wavenumber(self, vis_wl):
-        """return calculated wavenumbers."""
-
-        # Reversed, because if vis_wl or central_wl are useless,
-        # we have at least flipped the spectrum.
-        #ret = self.pixel[::-1]
-        if isinstance(vis_wl, type(None)) or vis_wl < 1:
-            ret = nm_to_wavenumbers(self.wavelength)
-        else:
-            ret = nm_to_ir_wavenumbers(self.wavelength, vis_wl)
-        return ret
 
     def wavenumbers2index(self, wavenumbers, sort=False):
         """Calculate index positions of wavenumbers.
@@ -1683,6 +1657,17 @@ class SfgRecord():
         """Read metadata of the file"""
 
         from .utils.metadata import get_metadata_from_filename
+
+        # Update datadependent rois
+        if not self.roi_spectra.stop:
+            self.roi_spectra = slice(self.roi_spectra.start,
+                                     self.number_of_spectra)
+        if not self.roi_frames.stop:
+            self.roi_frames = slice(self.roi_frames.start,
+                                    self.number_of_frames)
+        if not self.roi_delay.stop:
+            self.roi_delay = slice(self.roi_delay.start,
+                                   self.number_of_pp_delays)
 
         if self._type == "npz":
             # We skipp this step here, bacuse metadata is extracted from the

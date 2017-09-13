@@ -625,6 +625,7 @@ class WidgetBase():
         self.wDropdownDelayMode.observe(self._on_delay_mode_changed, "value")
         self.wCheckFrameMedian.observe(self._on_frame_median_clicked, "value")
         self.wDropdownFrameMode.observe(self._on_frame_mode_changed, "value")
+        self.wRangeSliderPixelX.observe(self._set_roi_x_pixel_spec, "value")
         self.wRangeSliderTracePixelX.observe(self._set_roi_trace_x_pixel,
                                         "value")
         self.wRangeSliderFrame.observe(self._set_roi_frames,
@@ -697,6 +698,9 @@ class WidgetBase():
         self._update_figure()
         #print("keep figures unobserved: ", keep_figure_unobserved)
 
+    def _set_roi_x_pixel_spec(self, new=None):
+        self.data.roi_x_pixel_spec = self.wRangeSliderPixelX.slice
+
     def _set_roi_trace_x_pixel(self, new=None):
         self._rois_x_pixel_buffer[0] = slice(*self.wRangeSliderTracePixelX.value)
         self.data.rois_x_pixel_trace = self._rois_x_pixel_buffer
@@ -708,7 +712,7 @@ class WidgetBase():
         self.data.roi_spectra = self.spec_slice
 
     def _set_roi_delays(self, new=None):
-        self.data.roi_delays = self.wRangeSliderPPDelay.slice
+        self.data.roi_delay = self.wRangeSliderPPDelay.slice
 
     def _set_pumped_index(self, new=None):
         self.data.unpumped_index = self._unpumped_index_buffer
@@ -718,17 +722,6 @@ class WidgetBase():
         """Renew calibration according to gui."""
         self.data.central_wl = self.wTextCentralWl.value
         self.data.vis_wl = self.wTextVisWl.value
-        owner = new.get("owner")
-        if owner is self.wTextCentralWl and self.data.central_wl > 0 and self.data.vis_wl > 0:
-            self.data._wavelength = self.data.get_wavelength(self.data.central_wl)
-            self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
-        elif owner is self.wTextVisWl and self.data.vis_wl > 0:
-            self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
-        elif owner is self.wDropdownCalib:
-            if self.data.central_wl > 0:
-                self.data._wavelength = self.data.get_wavelength(self.data.central_wl)
-            if self.data.vis_wl > 0:
-                self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
 
     def _on_delay_median_clicked(self, new=None):
         if self.wCheckDelayMedian.value:
@@ -999,11 +992,11 @@ class WidgetFigures():
         for pixel in y:
             for spec in pixel:
                 for frame in spec:
-                    #label_str = label_base + '{:.0f}-{:.0f}'.format(
-                    #    x_region[0],
-                    #    x_region[-1]
-                    #)
-                    ax.plot(xdata, frame.T, '-o',)
+                    label_str = label_base + '{:.0f}-{:.0f}'.format(
+                        int(self.data.rois_x_pixel_trace[0].start),
+                        int(self.data.rois_x_pixel_trace[0].stop)
+                    )
+                    ax.plot(xdata, frame.T, '-o', label=label_str)
 
     def _plot_rawData(self, ax):
         if not self.wCheckShowRawData.value:
