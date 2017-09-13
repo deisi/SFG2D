@@ -36,7 +36,7 @@ class WidgetBase():
     *_unobserver* function.
     """
     def __init__(self, data=SfgRecord(), fig=None, ax=None,
-                 central_wl=None, vis_wl=None, figsize=None):
+                 central_wl=None, vis_wl=800, figsize=None):
         # SfgRecord obj holding the data.
         self.data = data
         # 4 dim numpy array representing the baseline
@@ -46,8 +46,6 @@ class WidgetBase():
         self._fig = fig
         # Central wavelength of the camera
         self._central_wl = central_wl
-        # Visible wavelength for wavenumber calculation
-        self._vis_wl = vis_wl
         # Size of the figure
         self._figsize = figsize
         # List of widgets that update the figure
@@ -244,7 +242,7 @@ class WidgetBase():
 
         # Slider to select the x-pixel range used within traces
         self.wRangeSliderTracePixelX = IntRangeSliderGap(
-            continuous_update=False, description="X Trace",
+            continuous_update=False, description="Trace Region",
             max=PIXEL, value=(int(PIXEL*0.40), int(PIXEL*0.6)),
         )
 
@@ -265,7 +263,7 @@ class WidgetBase():
         # Textbox to enter the wavelength of the upconversion photon
         # in nm.
         self.wTextVisWl = wi.FloatText(
-            description='Vis Wl', value=self.vis_wl,
+            description='Vis Wl', value=self.data.vis_wl,
             layout=self.wTextCentralWl.layout
         )
 
@@ -570,7 +568,7 @@ class WidgetBase():
         else:
             self.wTextCentralWl.value = self.central_wl
 
-        self.wTextVisWl.value = self.vis_wl
+        self.wTextVisWl.value = self.data.vis_wl
 
         # Currently not used.
         self.wSliderFrame.max = self.data.base.shape[
@@ -747,18 +745,18 @@ class WidgetBase():
     def x_spec_renew(self, new={}):
         """Renew calibration according to gui."""
         cw = self.wTextCentralWl.value
-        vis_wl = self.wTextVisWl.value
+        self.data.vis_wl = self.wTextVisWl.value
         owner = new.get("owner")
-        if owner is self.wTextCentralWl and cw > 0 and vis_wl > 0:
+        if owner is self.wTextCentralWl and cw > 0 and self.data.vis_wl > 0:
             self.data._wavelength = self.data.get_wavelength(cw)
-            self.data._wavenumber = self.data.get_wavenumber(vis_wl)
-        elif owner is self.wTextVisWl and vis_wl > 0:
-            self.data._wavenumber = self.data.get_wavenumber(vis_wl)
+            self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
+        elif owner is self.wTextVisWl and self.data.vis_wl > 0:
+            self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
         elif owner is self.wDropdownCalib:
             if cw > 0:
                 self.data._wavelength = self.data.get_wavelength(cw)
-            if vis_wl > 0:
-                self.data._wavenumber = self.data.get_wavenumber(vis_wl)
+            if self.data.vis_wl > 0:
+                self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
 
     def _on_delay_median_clicked(self, new=None):
         if self.wCheckDelayMedian.value:
@@ -824,17 +822,6 @@ class WidgetBase():
             if self.data.metadata.get('central_wl') != 0:
                 self._central_wl = self.data.metadata.get('central_wl')
         return self._central_wl
-
-    @property
-    def vis_wl(self):
-        """The wavelength of the visible.
-
-        The visible wavelength is used as upconversion number during the
-        calculation of the wavenumber values of the x axis of the *Signal*
-        plot."""
-        if not self._vis_wl:
-            return 0
-        return self._vis_wl
 
     @property
     def folder(self):
@@ -1056,21 +1043,6 @@ class WidgetFigures():
                     #)
                     ax.plot(xdata, frame.T, '-o',)
 
-   #     for roi_index in range(len(data)):
-   #         # data is of shape [roi, pp_delay, spectra]
-   #         roi = data[roi_index]
-   #         roi_slice = self.data.rois_x_pixel_trace[roi_index]
-   #         if initial:
-   #             initial = False
-   #         else:
-   #             label_base = ""
-   #         x_region = np.sort(self.x_spec[roi_slice])
-   #         label_str = label_base + '{:.0f}-{:.0f}'.format(
-   #             x_region[0],
-   #             x_region[-1]
-   #         )
-   #         ax.plot(self.x_trace, roi, "-o", label=label_str)
-
     def _plot_rawData(self, ax):
         if not self.wCheckShowRawData.value:
             return
@@ -1238,6 +1210,7 @@ class BaselineTab(WidgetBase, WidgetFigures):
         super()._init_widget()
         self.wRangeSliderTracePixelX.layout.visibility = 'hidden'
         self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
+        self.wRangeSliderPixelX.layout.visibility = 'hidden'
         self.wCheckShowBase.value = False
         self.children = wi.VBox([
             self._data_box,
@@ -1292,6 +1265,7 @@ class IRTab(WidgetBase, WidgetFigures):
         self.data.data += 1
         self.wRangeSliderTracePixelX.layout.visibility = 'hidden'
         self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
+        self.wRangeSliderPixelX.layout.visibility = 'hidden'
         self.wCheckShowBase.value = False
         show_box = wi.HBox([
             self.wCheckShowRawData,
@@ -1342,7 +1316,7 @@ class IRTab(WidgetBase, WidgetFigures):
 
 
 class RecordTab(WidgetBase, WidgetFigures):
-    def __init__(self, central_wl=None, vis_wl=810, figsize=(10, 4), **kwargs):
+    def __init__(self, central_wl=None, vis_wl=812, figsize=(10, 4), **kwargs):
         """Plotting gui based on the SfgRecord class as a data backend.
 
         Parameters

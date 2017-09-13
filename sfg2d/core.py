@@ -636,7 +636,7 @@ class SfgRecord():
     @property
     def vis_wl(self):
         """Wavelength of the visible in nm."""
-        return self.metadata.get("vis_wl")
+        return self.metadata.get("vis_wl", 800)
 
     @vis_wl.setter
     def vis_wl(self, value):
