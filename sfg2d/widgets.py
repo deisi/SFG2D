@@ -36,7 +36,7 @@ class WidgetBase():
     *_unobserver* function.
     """
     def __init__(self, data=SfgRecord(), fig=None, ax=None,
-                 central_wl=None, vis_wl=800, figsize=None):
+                 central_wl=674, vis_wl=800, figsize=None):
         # SfgRecord obj holding the data.
         self.data = data
         # 4 dim numpy array representing the baseline
@@ -45,7 +45,6 @@ class WidgetBase():
         # Figure to draw on
         self._fig = fig
         # Central wavelength of the camera
-        self._central_wl = central_wl
         # Size of the figure
         self._figsize = figsize
         # List of widgets that update the figure
@@ -248,7 +247,7 @@ class WidgetBase():
 
         # Textbox to enter central wavelength of the camera in nm
         self.wTextCentralWl = wi.FloatText(
-            description='Central Wl', value=self.central_wl,
+            description='Central Wl', value=self.data.central_wl,
             layout=wi.Layout(
                 width='180px',
             ),
@@ -563,11 +562,7 @@ class WidgetBase():
         _set_int_slider_options(self.wSliderFrame, FRAME_AXIS_INDEX)
         _set_range_slider_options(self.wRangeZeroTime, PP_INDEX)
 
-        if isinstance(self.central_wl, type(None)):
-            self.wTextCentralWl.value = 0
-        else:
-            self.wTextCentralWl.value = self.central_wl
-
+        self.wTextCentralWl.value = self.data.central_wl
         self.wTextVisWl.value = self.data.vis_wl
 
         # Currently not used.
@@ -590,8 +585,6 @@ class WidgetBase():
 
         self.wTextBaselineOffset.value = self.data.baseline_offset
 
-        self._toggle_central_wl()
-        self._toggle_vis_wl()
 
     def _init_figure_observers(self):
         """All observers that call the *update_figure_callback* """
@@ -668,26 +661,6 @@ class WidgetBase():
         with self.wSelectFile.hold_trait_notifications():
             self.wSelectFile.options = self.fnames
 
-    def _toggle_vis_wl(self, new=None):
-        """Toggle the vis wl text box according to calibration axis.
-
-        New: None
-            Dummy keyword, so function can be uses as a callback function."""
-        if self.wDropdownCalib.value == 'wavenumber':
-            self.wTextVisWl.disabled = False
-        else:
-            self.wTextVisWl.disabled = True
-
-    def _toggle_central_wl(self, new=None):
-        """Toggle the central wl text box according to calibration axis.
-
-        The new keyword exists, so it can also server as a callback function.
-        """
-        if self.wDropdownCalib.value == 'pixel' or self.data._type == 'spe':
-            self.wTextCentralWl.disabled = True
-        else:
-            self.wTextCentralWl.disabled = False
-
     def _load_data(self, new=None):
         """Update the internal data objects.
 
@@ -710,7 +683,6 @@ class WidgetBase():
                        for fname in self.wSelectFile.value]
             self.data = concatenate_list_of_SfgRecords(records)
         self._unobserve_figure()
-        self._central_wl = None
         self._set_zero_time_subtraction(None)
         self._set_roi_trace_x_pixel()
         self._set_roi_frames()
@@ -744,17 +716,17 @@ class WidgetBase():
 
     def x_spec_renew(self, new={}):
         """Renew calibration according to gui."""
-        cw = self.wTextCentralWl.value
+        self.data.central_wl = self.wTextCentralWl.value
         self.data.vis_wl = self.wTextVisWl.value
         owner = new.get("owner")
-        if owner is self.wTextCentralWl and cw > 0 and self.data.vis_wl > 0:
-            self.data._wavelength = self.data.get_wavelength(cw)
+        if owner is self.wTextCentralWl and self.data.central_wl > 0 and self.data.vis_wl > 0:
+            self.data._wavelength = self.data.get_wavelength(self.data.central_wl)
             self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
         elif owner is self.wTextVisWl and self.data.vis_wl > 0:
             self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
         elif owner is self.wDropdownCalib:
-            if cw > 0:
-                self.data._wavelength = self.data.get_wavelength(cw)
+            if self.data.central_wl > 0:
+                self.data._wavelength = self.data.get_wavelength(self.data.central_wl)
             if self.data.vis_wl > 0:
                 self.data._wavenumber = self.data.get_wavenumber(self.data.vis_wl)
 
@@ -781,8 +753,6 @@ class WidgetBase():
 
     def _on_calib_changed(self, new=None):
         """Calibration changed."""
-        self._toggle_vis_wl()
-        self._toggle_central_wl()
         self.x_spec_renew()
         self.wCheckAutoscale.value = True
 
@@ -814,14 +784,6 @@ class WidgetBase():
         # We want to be able to save the snaps throghout different data sets.
         self._rois_x_pixel_buffer = self.data.rois_x_pixel
         self._update_figure()
-
-    @property
-    def central_wl(self):
-        """Central wl used for x axis calibration of the *Spectrum* axis."""
-        if not self._central_wl:
-            if self.data.metadata.get('central_wl') != 0:
-                self._central_wl = self.data.metadata.get('central_wl')
-        return self._central_wl
 
     @property
     def folder(self):
@@ -1316,7 +1278,7 @@ class IRTab(WidgetBase, WidgetFigures):
 
 
 class RecordTab(WidgetBase, WidgetFigures):
-    def __init__(self, central_wl=None, vis_wl=812, figsize=(10, 4), **kwargs):
+    def __init__(self, central_wl=674, vis_wl=812, figsize=(10, 4), **kwargs):
         """Plotting gui based on the SfgRecord class as a data backend.
 
         Parameters

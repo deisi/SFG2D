@@ -568,7 +568,7 @@ class SfgRecord():
     @property
     def central_wl(self):
         """Central wavelength of the grating in nm."""
-        return self.metadata.get("central_wl")
+        return self.metadata.get("central_wl", 0)
 
     @central_wl.setter
     def central_wl(self, value):
