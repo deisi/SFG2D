@@ -84,6 +84,7 @@ def save_figs_to_multipage_pdf(figs, fpath):
 
     print("Saved figure to: {}".format(path.abspath(fpath)))
 
+
 def plot_spec(xdata, ydata, ax=None, **kwargs):
     """
     Plot data with pixel axis of ydata as x-axis
@@ -104,6 +105,7 @@ def plot_spec(xdata, ydata, ax=None, **kwargs):
             for spec in frame:
                 ax.plot(xdata, spec.T, **kwargs)
 
+
 def plot_trace(xdata, ydata, ax=None, **kwargs):
     """
     data is the result of a subselection.
@@ -121,54 +123,37 @@ def plot_trace(xdata, ydata, ax=None, **kwargs):
             for frame in spec:
                 ax.plot(xdata, frame.T, **kwargs)
 
-def spec_plot(
-    record,
-    ax=None,
-    xlabel="Wavenumber 1/cm",
-    ylabel="Counts",
-    title="",
-    x_property="wavenumber",
-    y_property="basesubed",
-    **kwargs
-):
-    """Plot Wrapper."""
-    if not ax:
-        ax = plt.gca()
 
-    record.plot_spec(
-        ax=ax,
-        x_property=x_property,
-        y_property=y_property,
-        **kwargs,
-    )
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-
-
-def trace_plot(
+def plot_contour(
         record,
-        ax=None,
-        xlabel="Time in fs",
-        ylabel="Mean Counts",
-        title=None,
-        y_property="traces_basesubed",
-        plt_kwgs={},
+        contour_kws={},
+        plot_kws={},
+        colorbar=True,
+        xlabel='Time in fs',
+        ylabel='Wavenumber in 1/cm',
 ):
-    if not ax:
-        ax = plt.gca()
+    """Make Contour plot.
 
-    if isinstance(title, type(None)):
-        title = "Trace {} Pumped @ {} 1/cm".format(
-            record.metadata.get('material'),
-            record.metadata.get("pump_freq")
-        )
+    Uses the SfgRecord.contour method to get data. contour_kws get passed
+    to SfgReco.contour, plot_kws get passed to plt.contourf.
 
-    record.plot_trace(ax=ax, y_property=y_property, **plt_kwgs)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    ax.legend()
+    If no levels for plot_kws are given, a 20 to 80 percentile with 15 levels is used.
+    """
+    plot_kws.setdefault('extend', 'both')
+    x, y, z = record.contour(**contour_kws)
+
+    if isinstance(plot_kws.get('levels'), type(None)):
+        start, stop = [np.percentile(z.flatten(), perc) for perc in (1, 80)]
+        levels = np.linspace(start, stop, 15)
+        plot_kws['levels'] = levels
+
+    plt.contourf(x, y, z, **plot_kws)
+    if colorbar:
+        plt.colorbar()
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
 
 
 def bleach_plot_slider(
@@ -242,6 +227,7 @@ def bleach_plot_slider(
         ax.figure.canvas.draw()
 
     return fig, ax
+
 
 @ioff
 def bleach_plotzt_pdf(
@@ -376,6 +362,61 @@ def frame_track(
     ax.set_ylabel("Mean Counts")
 
 
+
+
+
+
+# DEPRECATED
+def spec_plot(
+    record,
+    ax=None,
+    xlabel="Wavenumber 1/cm",
+    ylabel="Counts",
+    title="",
+    x_property="wavenumber",
+    y_property="basesubed",
+    **kwargs
+):
+    """Plot Wrapper."""
+    if not ax:
+        ax = plt.gca()
+
+    record.plot_spec(
+        ax=ax,
+        x_property=x_property,
+        y_property=y_property,
+        **kwargs,
+    )
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+
+
+def trace_plot(
+        record,
+        ax=None,
+        xlabel="Time in fs",
+        ylabel="Mean Counts",
+        title=None,
+        y_property="traces_basesubed",
+        plt_kwgs={},
+):
+    if not ax:
+        ax = plt.gca()
+
+    if isinstance(title, type(None)):
+        title = "Trace {} Pumped @ {} 1/cm".format(
+            record.metadata.get('material'),
+            record.metadata.get("pump_freq")
+        )
+
+    record.plot_trace(ax=ax, y_property=y_property, **plt_kwgs)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
+
+
 def plot_time(time, data, **kwargs):
     """ Wrapper function to plot formatted time on the x-axis
     and data on the y axis. If time is datetime obj, the time is
@@ -433,6 +474,7 @@ def errorshadow(x, y, dy, ax=None, **kwargs):
         ax = plt.gca()
     lines = ax.plot(x, y, **kwargs)
     ax.fill_between(x, y-dy, y+dy, color=lines[0].get_color(), alpha=0.5)
+
 
 def contour(
         record,
@@ -501,8 +543,10 @@ def contour(
             ],
             1
         )
-    z = medfilt(z, (1, pixel_med))
-    z = double_resample(z, N, 1)
+    if pixel_med:
+        z = medfilt(z, (1, pixel_med))
+    if N:
+        z = double_resample(z, N, 1)
     xx = x[record.roi_delay]
     yy = y[record.roi_x_pixel_spec]
     zz = z[record.roi_delay]

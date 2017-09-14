@@ -15,6 +15,7 @@ from .utils import (
 )
 from .utils.consts import (VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC,
                            FRAME_AXIS_INDEX_P,  PP_INDEX_P)
+from .utils.filter import double_resample
 
 
 class SfgRecord():
@@ -139,9 +140,11 @@ class SfgRecord():
 
         # 1d array with wavelength values
         self._wavelength = None
+        self._setted_wavelength = False
 
         # 1d array with wavenumber values
         self._wavenumber = None
+        self._setted_wavenumber = False
 
         # Error of absolute bleach
         self._bleach_absE = None
@@ -582,8 +585,6 @@ class SfgRecord():
         # here.
         if self.metadata.get("sp_type"):
             return
-        self._wavelength = None
-        self._wavenumber = None
 
     @property
     def wavelength(self):
@@ -608,12 +609,16 @@ class SfgRecord():
         The above example sets 800 nm as the central wavelength, and forced
         a recalculation of the wavelength data.
         """
+        if self._setted_wavelength:
+            return self._wavelength
         cw = self.central_wl
         self._wavelength = pixel_to_nm(self.pixel, cw)
         return self._wavelength
 
     @wavelength.setter
     def wavelength(self, arg):
+        print("Set Wavelength Called")
+        self._setted_wavelength = True
         self._wavelength = arg
 
     @property
@@ -624,8 +629,6 @@ class SfgRecord():
     @vis_wl.setter
     def vis_wl(self, value):
         self.metadata['vis_wl'] = value
-        # Must reset wavenumber
-        self._wavenumber = None
 
     @property
     def pump_freq(self):
@@ -658,6 +661,8 @@ class SfgRecord():
         >>> SfgRecord.wavenumber
         """
 
+        if self._setted_wavenumber:
+            return self._wavenumber
         vis_wl = self.metadata.get("vis_wl")
         if isinstance(vis_wl, type(None)) or vis_wl < 1:
             self._wavenumber = nm_to_wavenumbers(self.wavelength)
@@ -669,6 +674,7 @@ class SfgRecord():
     @wavenumber.setter
     def wavenumber(self, arg):
         """Setter for wavenumber propertie."""
+        self._setted_wavenumber = True
         self._wavenumber = arg
 
     def __repr__(self):
@@ -1607,27 +1613,6 @@ class SfgRecord():
                     rshape = getattr(this, 'shape')
                     if rshape == ():
                         setattr(self, value, this[()])
-            # Reset Metadata dict.
-            #self.metadata = self.metadata[()]
-            #self.roi_x_pixel_spec = self.roi_x_pixel_spec[()]
-            #self.roi_delay = self.roi_delay[()]
-            #self.roi_frames = self.roi_frames[()]
-            #self.roi_spectra =  self.roi_spectra[()]
-            #self.rois_delays_pump_probe = self.rois_delays_pump_probe[()]
-            #self.rois_x_pixel_trace = self.rois_x_pixel_trace[()]
-            #self.rawData = imp['rawdata']
-            #self.wavenumber = imp['wavenumber']
-            #self.wavelength = imp['wavelength']
-            #self.base = imp['base']
-            #self.metadata = imp['metadata'][()]
-            #self.dates = imp['dates']
-            #self.norm = imp['norm']
-            #self.pp_delays = imp['pp_delays']
-            #self._unpumped_index = imp['_unpumped_index'][()]
-            #self._pumped_index = imp['_pumped_index'][()]
-            ## The following only try because I have data files
-            ## that were created without these properties and I
-            ## don't want to break them.
             try:
                 self._rawDataE = imp['rawDataE']
                 self._normE = imp['normE']
@@ -1725,8 +1710,6 @@ class SfgRecord():
         ret._data = self._data.copy()
         ret._type = self._type
         ret._dates = self._dates
-        ret._wavelength = self.wavelength.copy()
-        ret._wavenumber = self.wavenumber.copy()
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
         ret.baseline_offset = self.baseline_offset
@@ -1766,8 +1749,6 @@ class SfgRecord():
         """
         ret = SfgRecord()
         ret.metadata = self.metadata
-        ret.wavelength = self.wavelength
-        ret.wavenumber = self.wavenumber
         ret.dates = [self.dates[0]]
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
@@ -1801,8 +1782,6 @@ class SfgRecord():
         ret = SfgRecord()
         ret.rawData = self.rawData.copy()
         ret.metadata = self.metadata
-        ret.wavelength = self.wavelength
-        ret.wavenumber = self.wavenumber
         ret.dates = self.dates
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
@@ -1820,6 +1799,76 @@ class SfgRecord():
         # Reset internal properties so we leave with a clean SfgRecord
         return ret
 
+    def subselect_property(
+            self,
+            prop,
+            roi=None,
+    ):
+        """Subselect given property. Use roi if given. If No roi given,
+        use build in roi."""
+        ret = getattr(self, prop)
+        if not isinstance(roi, type(None)):
+            ret = ret[roi]
+        else:
+            if prop in ('pixel', 'wavenumber', 'wavelength'):
+                ret = ret[self.roi_x_pixel_spec]
+            elif prop is "pp_delays":
+                ret = ret[self.roi_delay]
+            elif prop is "frames":
+                ret = ret[self.roi_frames]
+
+        return ret
+
+    def subselect_data(
+            self,
+            prop="basesubed",
+            roi_delay=None,
+            roi_frames=None,
+            roi_spectra=None,
+            roi_x_pixel_spec=None,
+            frame_med=False,
+            delay_mean=False,
+            spectra_mean=False,
+            pixel_mean=False,
+            medfilt_pixel=1,
+            resample_freqs=0
+    ):
+        """Subselect the 4d data structure. kwords work same as SfgRecord.subselect.
+        but return is only the y component.
+        """
+        if isinstance(roi_delay, type(None)):
+            roi_delay = self.roi_delay
+        if isinstance(roi_frames, type(None)):
+            roi_frames = self.roi_frames
+        if isinstance(roi_spectra, type(None)):
+            only_one_spec = ('bleach', 'pumped', 'unpumped')
+            if any([teststr in prop for teststr in only_one_spec]):
+                roi_spectra = [0]
+            else:
+                roi_spectra = self.roi_spectra
+        if isinstance(roi_x_pixel_spec, type(None)):
+            roi_x_pixel_spec = self.roi_x_pixel_spec
+
+        y_data = getattr(self, prop)[
+            roi_delay,
+            roi_frames,
+            roi_spectra,
+            roi_x_pixel_spec,
+        ]
+        if frame_med:
+            y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
+        if delay_mean:
+            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
+        if spectra_mean:
+            y_data = np.mean(y_data, SPEC_INDEX, keepdims=True)
+        if medfilt_pixel > 1:
+            y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
+        if resample_freqs:
+            y_data = double_resample(y_data, resample_freqs, X_PIXEL_INDEX)
+        if pixel_mean:
+            y_data = np.median(y_data, X_PIXEL_INDEX, keepdims=True)
+        return y_data
+
     def subselect(
             self,
             y_property="basesubed",
@@ -1833,6 +1882,7 @@ class SfgRecord():
             spectra_mean=False,
             pixel_mean=False,
             medfilt_pixel=1,
+            resample_freqs=0
     ):
         """Select subset of data and apply common operations.
 
@@ -1852,6 +1902,9 @@ class SfgRecord():
         spectra_mean: Calculate mean over spectra
         medfilt_pixel: Number of pixel moving median filter applies to.
             Must be an uneven number.
+        resample_freqs: Use FFT Transformation to resample with given
+            number of frequency components. 0 turs method off. Smaller
+            numbers mean more filtering.
 
         Returns tuple of arrays
         1d array with selected x_data,
@@ -1892,11 +1945,43 @@ class SfgRecord():
             y_data = np.mean(y_data, PP_INDEX, keepdims=True)
         if spectra_mean:
             y_data = np.mean(y_data, SPEC_INDEX, keepdims=True)
-        if medfilt_pixel != 1:
+        if medfilt_pixel > 1:
             y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
+        if resample_freqs:
+            y_data = double_resample(y_data, resample_freqs, X_PIXEL_INDEX)
         if pixel_mean:
             y_data = np.median(y_data, X_PIXEL_INDEX, keepdims=True)
         return x_data, y_data
+
+    def contour(
+            self,
+            y_property='wavenumber',
+            z_property='bleach_rel',
+            **subselect_kws
+    ):
+        """Returns data formatted for a contour plot.
+
+
+        subselect_kws get passed to SfgRecord.subselect_data.
+        defaults are adjusted with:
+        *y_property*: bleach_rel
+        *medfilt_kernel*: 5
+        *resample_reqs*: 30
+
+        """
+        subselect_kws.setdefault('prop', z_property)
+        subselect_kws.setdefault('medfilt_pixel', 11)
+        subselect_kws.setdefault('frame_med', True)
+
+        x = self.subselect_property('pp_delays', subselect_kws.get('roi_delay'))
+        y = self.subselect_property(y_property, subselect_kws.get('roi_x_pixel_spec'))
+        z = self.subselect_data(**subselect_kws)
+        z = z.squeeze().T
+        if len(z.shape) !=2:
+            raise IOError(
+                "Shape of subselected data can't be processed. Subselection was {}".format(subselect_kws)
+            )
+        return x, y, z
 
     def plot_spec(
             self,
@@ -2039,7 +2124,6 @@ def concatenate_list_of_SfgRecords(list_of_records):
 
     ret = SfgRecord()
     ret.metadata["central_wl"] = None
-    ret.wavelength = list_of_records[0].wavelength
     # TODO Rewrite this pythonic
     for attribute in concatable_attributes:
         setattr(

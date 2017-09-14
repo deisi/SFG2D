@@ -3,7 +3,6 @@ from glob import glob
 from collections import Counter
 
 import numpy as np
-from scipy.signal import medfilt
 from json import dump, load
 from traitlets import TraitError
 import matplotlib.pyplot as plt
@@ -13,7 +12,8 @@ from traitlets import validate
 from ipywidgets import IntRangeSlider
 
 from .core import SfgRecord, concatenate_list_of_SfgRecords
-from .utils.consts import X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX, FRAME_AXIS_INDEX, PP_INDEX, PIXEL
+from .utils.consts import (X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX,
+                           FRAME_AXIS_INDEX, PP_INDEX, PIXEL)
 
 debug = 0
 
@@ -775,7 +775,7 @@ class WidgetBase():
     def _snap_x_roi(self, new=None):
         self.data.rois_x_pixel_trace.append(self.wRangeSliderTracePixelX.slice)
         # We want to be able to save the snaps throghout different data sets.
-        self._rois_x_pixel_buffer = self.data.rois_x_pixel
+        self._rois_x_pixel_buffer = self.data.rois_x_pixel_trace
         self._update_figure()
 
     @property
@@ -847,7 +847,7 @@ class WidgetBase():
         )
         return self.data.subselect(**kwgs)
 
-    def select_trace(self, y_property):
+    def select_trace(self, y_property, roi_x_pixel=None):
         """Use settings of gui to susbelect data for trace."""
         kwgs = dict(
             y_property=y_property,
@@ -862,6 +862,29 @@ class WidgetBase():
             medfilt_pixel=self.wIntSliderSmooth.value,
         )
         return self.data.subselect(**kwgs)
+
+    def select_traces(self, y_property):
+        """Use settings of gui to susbelect data for traces."""
+        kwgs = dict(
+            y_property=y_property,
+            x_property='pp_delays',
+            roi_delay=self.wRangeSliderPPDelay.slice,
+            roi_frames=self.frame_selected,
+            roi_spectra=self.spec_slice,
+            frame_med=self.wCheckFrameMedian.value,
+            spectra_mean=self.wCheckSpectraMean.value,
+            pixel_mean=True,
+            medfilt_pixel=self.wIntSliderSmooth.value,
+        )
+        ret_shape = list(self.data.subselect(**kwgs)[1].shape)
+        ret_shape[3] = len(self.data.rois_x_pixel_trace)
+        ret = np.zeros(ret_shape)
+        for i in range(len(self.data.rois_x_pixel_trace)):
+            roi_x_pixel = self.data.rois_x_pixel_trace[i]
+            x, y = self.data.subselect(roi_x_pixel_spec=roi_x_pixel, **kwgs)
+            ret[:, :, :, i] = y[:, :, :, 0]
+        return x, ret
+
 
     @property
     def x_vlines(self):
@@ -1135,7 +1158,8 @@ class WidgetFigures():
             )
         else:
             return "Delay {} - {} fs".format(
-                self.x_trace[0], self.x_trace[-1]
+                self.data.pp_delays[self.data.roi_delay][0],
+                self.data.pp_delays[self.dataroi_delay][-1]
             )
 
     def _append_identifier(self, label_base):
@@ -1804,7 +1828,6 @@ def to_slice(attribute):
 
 def _lims2buffer(ax):
     """Set buffer values according to axis"""
-    
     buffer = [None, None]
     buffer[0] = list(ax.get_xlim())
     buffer[1] = list(ax.get_ylim())
