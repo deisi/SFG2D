@@ -241,6 +241,20 @@ class SfgRecord():
             else:
                 self.norm = norm
 
+    def __repr__(self):
+        msg = '# ppelays: {}\n'.format(self.number_of_pp_delays)
+        msg += '# frames: {}\n'.format(self.number_of_frames)
+        msg += '# y-pixel: {}\n'.format(self.number_of_y_pixel)
+        msg += '# x-pixel: {}\n'.format(self.number_of_x_pixel)
+        msg += 'Wavelength {:.0f} to {:.0f}\n'.format(self.wavelength.min(),
+                                              self.wavelength.max())
+        msg += 'Wavenumber: {:.0f} to {:.0f}\n'.format(self.wavenumber.min(),
+                                               self.wavenumber.max())
+        msg += 'Baseline @ {}\n'.format(self.base.mean((0, 1, 3)))
+        msg += 'Norm with {}\n'.format(self.norm.mean((0, 1, 3)))
+        msg += 'Metadata is {}\n'.format(self.metadata)
+        return msg
+
     @property
     def saveable(self):
         """A dict of the saveable properties.
@@ -277,7 +291,6 @@ class SfgRecord():
         saveable['rois_delays_pump_probe'] = 'rois_delays_pump_probe'
         return saveable
 
-
     @property
     def rawData(self):
         """Raw Data of the Record.
@@ -308,28 +321,6 @@ class SfgRecord():
         self._unpumped_norm = None
         self.isBaselineSubed = False
         self.isNormalized = False
-
-    @property
-    def rawDataE(self):
-        """Std error of the mean rawData.
-
-        See `SfgRecord.rawData` for further information."""
-        if isinstance(self._rawDataE, type(None)):
-            self._rawDataE = np.divide(
-                self.rawData.std(FRAME_AXIS_INDEX),
-                np.sqrt(self.number_of_frames)
-            )
-            self._rawDataE = np.expand_dims(self._rawDataE, 1)
-        return self._rawDataE
-
-    @rawDataE.setter
-    def rawDataE(self, value):
-        """See `SfgRecord.rawData` for further information."""
-        #if not isinstance(value, np.ndarray):
-        #    raise IOError("Can't use type %s for data" % type(value))
-        #if len(value.shape) != 4:
-        #    raise IOError("Can't set shape %s to data" % value.shape)
-        self._rawDataE = np.ones_like(self._rawData) * value
 
     @property
     def base(self):
@@ -373,27 +364,6 @@ class SfgRecord():
         self._unpumped_norm = None
 
     @property
-    def baseE(self):
-        """Error of the baseline/background.
-
-        4d array like `SfgRecord.rawData` wit error of base"""
-        if isinstance(self._baseE, type(None)):
-            self._baseE = np.divide(
-                self.base.std(FRAME_AXIS_INDEX),
-                np.sqrt(self.base.shape[FRAME_AXIS_INDEX])
-            )
-            self._baseE = np.expand_dims(self._baseE, 1)
-        return self._baseE
-
-    @baseE.setter
-    def baseE(self, value):
-        if not isinstance(value, np.ndarray):
-            raise IOError("Can't use type %s for data" % type(value))
-        if len(value.shape) != 4:
-            raise IOError("Can't set shape %s to data" % value.shape)
-        self._baseE = value
-
-    @property
     def norm(self):
         """Spectrum for normalization.
 
@@ -418,6 +388,86 @@ class SfgRecord():
         self._unpumped_norm = None
 
     @property
+    def basesubed(self):
+        """Baselinesubstracted data.
+
+        The rawData after baseline subtraction."""
+
+        if isinstance(self._basesubed, type(None)):
+            self._basesubed = self.rawData - self.base
+        return self._basesubed
+
+    @property
+    def normalized(self):
+        """Normalized data.
+
+        4D array like `SfgRecord.rawData` after normalizting.
+
+        Examples
+        --------
+        >>> import sfg2d
+        >>> bg = sfg2d.SfgRecod('path/to/baselinedata').make_avg()
+        >>> q0 = sfg2d.SfgRecod('path/to/quartz').make_avg()
+        >>> q0.base = bg.rawData
+        >>> data = sfg2d.SfgRecod('/path/to/data')
+        >>> data.norm = q0.basesubed
+        >>> data.base = bg.rawData
+        >>> data.normalized
+        """
+        if isinstance(self._normalized, type(None)):
+            self._normalized = self.basesubed / self.norm
+            number_of_nan_infs = np.count_nonzero(
+                np.isnan(self._normalized) | np.isinf(self._normalized)
+               )
+            self.normalized_nan_infs = number_of_nan_infs
+            np.nan_to_num(self._normalized, copy=False)
+
+        return self._normalized
+
+    @property
+    def rawDataE(self):
+        """Std error of the mean rawData.
+
+        See `SfgRecord.rawData` for further information."""
+        if isinstance(self._rawDataE, type(None)):
+            self._rawDataE = np.divide(
+                self.rawData.std(FRAME_AXIS_INDEX),
+                np.sqrt(self.number_of_frames)
+            )
+            self._rawDataE = np.expand_dims(self._rawDataE, 1)
+        return self._rawDataE
+
+    @rawDataE.setter
+    def rawDataE(self, value):
+        """See `SfgRecord.rawData` for further information."""
+        #if not isinstance(value, np.ndarray):
+        #    raise IOError("Can't use type %s for data" % type(value))
+        #if len(value.shape) != 4:
+        #    raise IOError("Can't set shape %s to data" % value.shape)
+        self._rawDataE = np.ones_like(self._rawData) * value
+
+    @property
+    def baseE(self):
+        """Error of the baseline/background.
+
+        4d array like `SfgRecord.rawData` wit error of base"""
+        if isinstance(self._baseE, type(None)):
+            self._baseE = np.divide(
+                self.base.std(FRAME_AXIS_INDEX),
+                np.sqrt(self.base.shape[FRAME_AXIS_INDEX])
+            )
+            self._baseE = np.expand_dims(self._baseE, 1)
+        return self._baseE
+
+    @baseE.setter
+    def baseE(self, value):
+        if not isinstance(value, np.ndarray):
+            raise IOError("Can't use type %s for data" % type(value))
+        if len(value.shape) != 4:
+            raise IOError("Can't set shape %s to data" % value.shape)
+        self._baseE = value
+
+    @property
     def normE(self):
         """Error of the normalization spectrum.
 
@@ -432,38 +482,50 @@ class SfgRecord():
 
     @normE.setter
     def normE(self, value):
-        #if not isinstance(value, np.ndarray):
-        #    raise IOError("Can't use type %s for data" % type(value))
-        #if len(value.shape) != 4:
-        #    raise IOError("Can't set shape %s to data" % value.shape)
         self._normE = np.ones_like(self._rawData) * value
 
     @property
-    def data(self):
-        """Buffer for processed data.
-
-        A buffer to store processed data in. You can put rawData, or
-        baseline subtract data or normalized data in this buffer. It
-        is mostly a convenience thing during interactive sessions.
-
-        Same structure asself._norm `SfgRecord.rawData`."""
-        ret = self._data
-        if isinstance(ret, type(None)):
-            ret = self.rawData
-        return ret
-
-    @data.setter
-    def data(self, value):
-        if not isinstance(value, np.ndarray):
-            raise IOError("Can't use type %s for data" % type(value))
-        if len(value.shape) != 4:
-            raise IOError("Can't set shape %s to data" % value.shape)
-        self._data = value
+    def exposure_time(self):
+        return self.metadata.get("exposure_time")
 
     @property
-    def frames(self):
-        """Array of frames"""
-        return np.arange(self.number_of_frames)
+    def exposure_time_ms(self):
+        """Exposure time in microseconds for convenience."""
+        return int(self.metadata.get("exposure_time").microseconds/10**3)
+
+    @property
+    def exporsure_time_s(self):
+        return self.metadata.get("exposure_time").seconds
+
+    @property
+    def number_of_frames(self):
+        """Number of frames"""
+        return self.rawData.shape[FRAME_AXIS_INDEX]
+
+    @property
+    def pixel(self):
+        """Iterable list of pixels."""
+        return np.arange(self.rawData.shape[X_PIXEL_INDEX])
+
+    @property
+    def number_of_y_pixel(self):
+        """Number of y_pixels/spectra."""
+        return self.rawData.shape[Y_PIXEL_INDEX]
+
+    @property
+    def number_of_spectra(self):
+        """Number of spectra/y_pixels."""
+        return self.number_of_y_pixel
+
+    @property
+    def number_of_x_pixel(self):
+        """Number of pixels."""
+        return self.rawData.shape[X_PIXEL_INDEX]
+
+    @property
+    def number_of_pp_delays(self):
+        """Number of pump probe time delays."""
+        return self.rawData.shape[PP_INDEX]
 
     @property
     def dates(self):
@@ -486,85 +548,21 @@ class SfgRecord():
         self._dates = value
 
     @property
+    def frames(self):
+        """Array of frames"""
+        return np.arange(self.number_of_frames)
+
+    @property
     def times(self):
         """List of timedeltas the spectra were recorded with."""
         ret = []
         time_of_a_scan = self.metadata['exposure_time']
-        for i in range(self.data.shape[1]):
-            for j in range(self.data.shape[0]):
+        for i in range(self.rawData.shape[1]):
+            for j in range(self.rawData.shape[0]):
                 ret.append(
                     (i * self.number_of_pp_delays + j) * time_of_a_scan
                 )
         return ret
-
-    @property
-    def exposure_time(self):
-        return self.metadata.get("exposure_time")
-
-    @property
-    def exposure_time_ms(self):
-        """Exposure time in microseconds for convenience."""
-        return int(self.metadata.get("exposure_time").microseconds/10**3)
-
-    @property
-    def exporsure_time_s(self):
-        return self.metadata.get("exposure_time").seconds
-
-    @property
-    def number_of_frames(self):
-        """Number of frames"""
-        return self.data.shape[FRAME_AXIS_INDEX]
-
-    @property
-    def pixel(self):
-        """Iterable list of pixels."""
-        return np.arange(self.data.shape[X_PIXEL_INDEX])
-
-    @property
-    def number_of_y_pixel(self):
-        """Number of y_pixels/spectra."""
-        return self.data.shape[Y_PIXEL_INDEX]
-
-    @property
-    def number_of_spectra(self):
-        """Number of spectra/y_pixels."""
-        return self.number_of_y_pixel
-
-    @property
-    def number_of_x_pixel(self):
-        """Number of pixels."""
-        return self.data.shape[X_PIXEL_INDEX]
-
-    @property
-    def number_of_pp_delays(self):
-        """Number of pump probe time delays."""
-        return self.data.shape[PP_INDEX]
-
-    @property
-    def zero_time_subtraction(self):
-        return self._zero_time_subtraction
-
-    @zero_time_subtraction.setter
-    def zero_time_subtraction(self, value):
-        self._zero_time_subtraction = value
-        # Reset dependen properties
-        self._pumped = None
-        self._unpumped = None
-        self._pumped_norm = None
-        self._unpumped_norm = None
-
-    @property
-    def zero_time_selec(self):
-        """Slice/List to select delays for zero time subtraction."""
-        return self._zero_time_selec
-
-    @zero_time_selec.setter
-    def zero_time_selec(self, value):
-        self._zero_time_selec = value
-        self._pumped = None
-        self._unpumped = None
-        self._pumped_norm = None
-        self._unpumped_norm = None
 
     @property
     def central_wl(self):
@@ -577,7 +575,7 @@ class SfgRecord():
 
         # For spe files we must rely on the stored
         # wavelength because  we cannot recalculate,
-        # since calibration parameters are not allways
+        # since calibration parameters are not always
         # known. From spe version 3 on they are amongst
         # the metadata, but that is not taken into account
         # here.
@@ -675,47 +673,36 @@ class SfgRecord():
         self._setted_wavenumber = True
         self._wavenumber = arg
 
-    def __repr__(self):
-        msg = '# ppelays: {}\n'.format(self.number_of_pp_delays)
-        msg += '# frames: {}\n'.format(self.number_of_frames)
-        msg += '# y-pixel: {}\n'.format(self.number_of_y_pixel)
-        msg += '# x-pixel: {}\n'.format(self.number_of_x_pixel)
-        msg += 'Wavelength {:.0f} to {:.0f}\n'.format(self.wavelength.min(),
-                                              self.wavelength.max())
-        msg += 'Wavenumber: {:.0f} to {:.0f}\n'.format(self.wavenumber.min(),
-                                               self.wavenumber.max())
-        msg += 'Baseline @ {}\n'.format(self.base.mean((0, 1, 3)))
-        msg += 'Norm with {}\n'.format(self.norm.mean((0, 1, 3)))
-        msg += 'Metadata is {}\n'.format(self.metadata)
-        return msg
+    @property
+    def pp_delays_ps(self):
+        """Time of pp_delay in ps."""
+        return self.pp_delays/1000
 
-    def wavenumbers2index(self, wavenumbers, sort=False):
-        """Calculate index positions of wavenumbers.
+    @property
+    def zero_time_subtraction(self):
+        return self._zero_time_subtraction
 
-        Tries to find matching index values for given wavenumbers.
-        The wavenumbers dont need to be exact. Closest match will
-        be used.
+    @zero_time_subtraction.setter
+    def zero_time_subtraction(self, value):
+        self._zero_time_subtraction = value
+        # Reset dependen properties
+        self._pumped = None
+        self._unpumped = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
 
-        Parameters
-        ----------
-        wavenumbers: iterable
-            list of wavenumbers to search for.
+    @property
+    def zero_time_selec(self):
+        """Slice/List to select delays for zero time subtraction."""
+        return self._zero_time_selec
 
-        sort: boolean
-            if ture, sort the index result by size, starting from the smallest.
-
-        Returns
-        -------
-        Numpy array with index positions of the searched wavenumbers.
-        """
-        ret = find_nearest_index(self.wavenumber, wavenumbers)
-        if sort:
-            ret = np.sort(ret)
-        return ret
-
-    def wavenumber2pixelSlice(self, sl):
-        """Get pixels from wavenumber slice"""
-        return slice(*self.wavenumbers2index([sl.stop, sl.start]))
+    @zero_time_selec.setter
+    def zero_time_selec(self, value):
+        self._zero_time_selec = value
+        self._pumped = None
+        self._unpumped = None
+        self._pumped_norm = None
+        self._unpumped_norm = None
 
     @property
     def roi_x_wavenumber_spec(self):
@@ -746,215 +733,6 @@ class SfgRecord():
                 slice(*self.wavenumbers2index([sl.stop, sl.start]))
             )
 
-    def _spectra_selector(self, propery=''):
-        data = getattr(self, propery)
-        return data[
-            self.roi_delay,
-            self.roi_frames,
-            self.roi_spectra,
-            self.rois_x_pixel[0]
-        ]
-
-    @property
-    def basesubed(self):
-        """Baselinesubstracted data.
-
-        The rawData after baseline subtraction."""
-
-        if isinstance(self._basesubed, type(None)):
-            self._basesubed = self.get_baselinesubed()
-        return self._basesubed
-
-    @property
-    def basesubedE(self):
-        """Data error after subtracting baseline."""
-        if isinstance(self._basesubedE, type(None)):
-            self._basesubedE = np.sqrt(self.rawDataE**2 + self.baseE**2)
-        return self._basesubedE
-
-    @basesubedE.setter
-    def basesubedE(self, value):
-        #if not isinstance(value, np.ndarray):
-        #    raise IOError("Can't use type %s for data" % type(value))
-        #if len(value.shape) != 4:
-        #    raise IOError("Can't set shape %s to data" % value.shape)
-        self._basesubedE = np.ones_like(self._rawData) * value
-
-    def get_baselinesubed(self, use_rawData=True):
-        """Get baseline subtracted data."""
-
-        if use_rawData or self.isNormalized:
-            ret = self.rawData - self.base
-        else:
-            ret = self.data - self.base
-        return ret
-
-    def sub_base(self, inplace=False, use_rawData=False):
-        """subsitute baseline of data
-
-        Use SfgRecord.base and substitute it from SfgRecord.data.
-
-        Parameters
-        ----------
-        inplace: boolean
-            If true, subsitute SfgRecord.base from SfgRecord.data inplace.
-
-        use_rawData: boolean
-            Subtract baseline from `SfgRecord.rawData` and not
-            `SfgRecord.data`.
-            If data is already normalized (`SfgRecord.isNormalized` is True)
-            then, this is always calculated from `SfgRecord.rawData`. So be
-            carefull about this when using filters, because they usually only
-            work on `SfgRecord.data` and not `SfgRecord.rawData`.
-
-        Returns
-        -------
-        Numpy array with SfgRecod.data subsituted by SfgRecord.base"""
-        ret = self.get_baselinesubed(use_rawData)
-        if inplace and not self.isBaselineSubed:
-            self.data = ret
-            # Toggle prevents multiple baseline substitutions
-            self.isBaselineSubed = True
-        return ret
-
-    def add_base(self, inplace=False):
-        """Add baseline to data.
-
-        Can be used to readd the baseline after subtraction the baseline."""
-        ret = self.data + self.base
-        if inplace and not self.isBaselineSubed:
-            self.data = ret
-            self.isBaselineSubed = False
-        return ret
-
-    @property
-    def normalized(self):
-        """Normalized data.
-
-        4D array like `SfgRecord.rawData` after normalizting.
-
-        Examples
-        --------
-        >>> import sfg2d
-        >>> bg = sfg2d.SfgRecod('path/to/baselinedata').make_avg()
-        >>> q0 = sfg2d.SfgRecod('path/to/quartz').make_avg()
-        >>> q0.base = bg.rawData
-        >>> data = sfg2d.SfgRecod('/path/to/data')
-        >>> data.norm = q0.basesubed
-        >>> data.base = bg.rawData
-        >>> data.normalized
-        """
-        if isinstance(self._normalized, type(None)):
-            self._normalized = self.get_normalized()
-            number_of_nan_infs = np.count_nonzero(
-                np.isnan(self._normalized) | np.isinf(self._normalized)
-               )
-            self.normalized_nan_infs = number_of_nan_infs
-            np.nan_to_num(self._normalized, copy=False)
-
-        return self._normalized
-
-    def get_normalized(self, use_rawData=True):
-        """Get normalized spectrum.
-        Parameters
-        ----------
-        use_rawData: boolean
-            Use `SfgRecod.rawData` to calculate result
-            else use `SfgRecod.data`
-        Return
-        ------
-        4d-numpy array with normalized data.
-        """
-
-        if use_rawData:
-            ret = (self.rawData - self.base) / self.norm
-        else:
-            ret = self.data / self.norm
-
-        return ret
-
-    def normalize(self, inplace=False, use_rawData=True):
-        """Normalize data.
-
-        Parameters
-        ----------
-        inplace : boolean default False
-            apply restult to `SfgRecod.data` buffer.
-        use_rawData : boolean default True
-            Recalculate normalized data using `SfgRecod.rawData`.
-        """
-        if not self.isBaselineSubed:
-            warnings.warn(
-                "Normalizing data although baseline is not substracted."
-                "Consider subtracting baseline with"
-                "SfgRecod.sub_base(inplace=True) first."
-            )
-        ret = self.get_normalized(use_rawData)
-        if inplace and not self.isNormalized:
-            self.data = ret
-            self.isNormalized = True
-        return ret
-
-    def un_normalize(self, inplace=False):
-        """un normalize `SfgRecod.data`
-
-        Reverse the normalization applied to `SfgRecod.data`.
-
-        Parameters
-        ----------
-        inplace: default False boolean
-            Apply to `SfgRecod.data`
-
-        Returns
-        -------
-        The unnormalized version of the data.
-        """
-        if not self.isBaselineSubed:
-            msg = "Normalizing data although baseline is not substracted."\
-                  "Consider subtracting baseline with"\
-                  "`SfgRecod.sub_base(inplace=True)` first."
-            warnings.warn(msg)
-        ret = self.data * self.norm
-        if inplace and self.isNormalized:
-            self.data = ret
-            self.isNormalized = False
-        return ret
-
-    @property
-    def normalizedE(self):
-        """Error of the normalized data."""
-        if isinstance(self._normalizedE, type(None)):
-            norm = np.expand_dims(self.norm.mean(FRAME_AXIS_INDEX), 1)
-            basesubed = np.expand_dims(self.basesubed.mean(FRAME_AXIS_INDEX), 1)
-            self._normalizedE = np.sqrt(
-                (self.basesubedE/norm)**2 + ((basesubed/(norm)**2 * self.normE))**2
-            )
-        return self._normalizedE
-
-    @normalizedE.setter
-    def normalizedE(self, value):
-        #if not isinstance(value, np.ndarray):
-        #    raise IOError("Can't use type %s for data" % type(value))
-        #if len(value.shape) != 4:
-        #    raise IOError("Can't set shape %s to data" % value.shape)
-        self._normalizedE = value * np.ones_like(self._rawData)
-
-    @property
-    def sum_argmax(self, frame_median=True,
-                   pixel_slice=slice(None, None)):
-        """argmax of pp_delay with biggest sum.
-
-        frame_median : bool
-            default true, Take median of frames.
-            if false give a framewise argmax."""
-        if frame_median:
-            ret = np.median(
-                self.data[:, :, :, pixel_slice], 1
-            ).sum(-1).argmax(0)
-        else:
-            ret = self.data[:, :, :, pixel_slice].sum(-1).argmax(0)
-        return ret
-
     @property
     def pumped_index(self):
         """Index value of the pumped data set.
@@ -975,43 +753,6 @@ class SfgRecord():
         self._pumped_norm = None
 
     @property
-    def pumped(self):
-        """Pumped data.
-
-        3d Array of the pumped data. If no pumped data is set explicit,
-        `SfgRecord.pumped_index` is used to get the pumped data."""
-        if isinstance(self._pumped, type(None)):
-            self.pumped = self.pumped_index
-        return self._pumped
-
-    @pumped.setter
-    def pumped(self, value):
-        if isinstance(value, int) or isinstance(value, np.integer):
-            self.pumped_index = value
-            # by using slice we keep data 4dim
-            sl = slice(value, value + 1)
-            self._pumped = self.basesubed[:, :, sl]
-        else:
-            raise NotImplemented()
-
-    @property
-    def pumped_norm(self):
-        """Pumped data normalized."""
-        if isinstance(self._pumped_norm, type(None)):
-            sl = slice(self.pumped_index, self.pumped_index+1)
-            self._pumped_norm = self.normalized[:, :, sl]
-        return self._pumped_norm
-
-    @pumped_norm.setter
-    def pumped_norm(self, value):
-        if isinstance(value, int) or isinstance(value, np.integer):
-            self.pumped_index = value
-            sl = slice(value, value + 1)
-            self._pumped_norm = self.normalized[:, :, sl]
-        else:
-            raise NotImplemented()
-
-    @property
     def unpumped_index(self):
         """y_pixel/spectra index of the unpumped data.
 
@@ -1028,119 +769,106 @@ class SfgRecord():
         self._unpumped = None
         self._unpumped_norm = None
 
-    @property
-    def unpumped(self):
-        """Unpumped data array.
-
-        3d numpy array with the unpumed data.
-        Uses `SfgRecord.unpumped_index`, to obtain unpumped data.
-        """
-        if isinstance(self._unpumped, type(None)):
-            self.unpumped = self.unpumped_index
-        return self._unpumped
-
-    @unpumped.setter
-    def unpumped(self, value):
-        if isinstance(value, int) or isinstance(value, np.integer):
-            self.unpumped_index = value
-            sl = slice(value, value + 1)
-            self._unpumped = self.basesubed[:, :, sl]
-        else:
-            raise NotImplemented()
-
-    @property
-    def unpumped_norm(self):
-        """Unpumped data normalized."""
-        if isinstance(self._unpumped_norm, type(None)):
-            self.unpumped_norm = self.unpumped_index
-        return self._unpumped_norm
-
-    @unpumped_norm.setter
-    def unpumped_norm(self, value):
-        if isinstance(value, int) or isinstance(value, np.integer):
-            self.unpumped_index = value
-            sl = slice(value, value + 1)
-            self._unpumped_norm = self.normalized[:, :, sl]
-        else:
-            raise NotImplemented()
-
-    def _calc_bleach(
+    def subselect_data(
             self,
-            operation,
-            pumped=None,
-            unpumped=None,
-            normalized=False,
-            zero_time_subtraction=True,
-            nan2num=True,
+            prop="normalized",
+            prop_kwgs={},
+            roi_delay=None,
+            roi_frames=None,
+            roi_spectra=None,
+            roi_pixel=None,
+            frame_med=False,
+            delay_mean=False,
+            spectra_mean=False,
+            pixel_mean=False,
+            medfilt_pixel=1,
+            resample_freqs=0
     ):
-        """Calculate bleach using the given operation.
+        """Subselect the 4d data structure. kwords work same as SfgRecord.subselect.
+        but return is only the y component.
 
-        operation: string
-            possible are: 'absolute', 'realtive', '-' or '/'
-        pumped: None, index or array
-            If None SfgRecord.pump is used. Else SfgRecord.pump is setted
-            by pumped
-        unpumped: None, index or array
-            Same as pumped only for unpumped
-        normalized:
-            use normalized data to calculate bleach.
-        zero_time_subtraction : boolean
-            substitute the first spectrum from the data to account for
-            the constant offset.
-        nan2num: Boolean
-            If True replace nans with 0 and infs with finite numbers.
-            Only used during calculation of realtive bleach.
-
-        Returns
-        -------
-        The calculated bleach result.
+        prop: Propertie
+        prop_kwgs: For Infered properties, spectial kwgs,
         """
-        bleach = np.zeros((
-            self.number_of_pp_delays,
-            self.number_of_frames,
-            1,
-            self.number_of_x_pixel,
-        ))
+        if isinstance(roi_delay, type(None)):
+            roi_delay = self.roi_delay
+        if isinstance(roi_frames, type(None)):
+            roi_frames = self.roi_frames
+        if isinstance(roi_spectra, type(None)):
+            only_one_spec = ('bleach', 'pumped', 'unpumped')
+            if any([teststr in prop for teststr in only_one_spec]):
+                roi_spectra = [0]
+            else:
+                roi_spectra = self.roi_spectra
+        if isinstance(roi_pixel, type(None)):
+            roi_pixel = self.roi_x_pixel_spec
 
-        if self.number_of_spectra < 2:
-            warnings.warn("Not enough spectra to calculate bleach.")
-            return bleach
+        # Real properties get be used directly
+        if prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm'):
+            y_data = getattr(self, prop)
+        # Infered properites need aditional kwgs
+        elif prop in ('pumped', 'unpumped', 'bleach_abs', 'bleach_rel'):
+            y_data = getattr(self, prop)(**prop_kwgs)
+        else:
+            raise NotImplementedError()
 
-        if "relative" in operation or '/' in operation:
+        y_data = y_data[
+                roi_delay,
+                roi_frames,
+                roi_spectra,
+                roi_pixel,
+               ]
+        if frame_med:
+            y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
+        if delay_mean:
+            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
+        if spectra_mean:
+            y_data = np.mean(y_data, SPEC_INDEX, keepdims=True)
+        if medfilt_pixel > 1:
+            y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
+        if resample_freqs:
+            y_data = double_resample(y_data, resample_freqs, X_PIXEL_INDEX)
+        if pixel_mean:
+            y_data = np.median(y_data, X_PIXEL_INDEX, keepdims=True)
+        return y_data
+
+    def pumped(self, **kwgs):
+        """Returns subselected_data at pumped index.
+
+        kwgs are same as for SfgRecord.subselect_data.
+        overwritten defaults are:
+        *prop*: normalized
+        *frame_med*: True
+        """
+        kwgs.setdefault('roi_spectra', [self.pumped_index])
+        kwgs.setdefault('prop', 'normalized')
+        kwgs.setdefault('frame_med', True)
+        return self.subselect_data(**kwgs)
+
+    def unpumped(self, **kwgs):
+        kwgs.setdefault('roi_spectra', [self.unpumped_index])
+        kwgs.setdefault('prop', 'normalized')
+        kwgs.setdefault('frame_med', True)
+        return self.subselect_data(**kwgs)
+
+    def _calc_bleach(self, opt, **kwgs):
+        """Calculate bleach of property with given operation."""
+
+        pumped = self.pumped(**kwgs)
+        unpumped = self.unpumped(**kwgs)
+
+        if "relative" in opt or '/' in opt:
             relative = True
-        elif "absolute" in operation or '-' in operation:
+            bleach = pumped / unpumped
+        elif "absolute" in opt or '-' in opt:
             relative = False
+            bleach = pumped - unpumped
         else:
             raise IOError(
-                "Must enter valid operation {} is invalid".format(operation)
+                "Must enter valid opt {} is invalid".format(opt)
             )
 
-        # Reset pumped and umpumped properties
-        # to ensure latest data is used.
-        # pumped and umpumped are index numbers
-        if not isinstance(pumped, type(None)):
-            self.pumped = pumped
-            self.pumped_norm = pumped
-        if not isinstance(unpumped, type(None)):
-            self.unpumped = unpumped
-            self.unpumped_norm = unpumped
-
-        if normalized:
-            pumped = self.pumped_norm
-            unpumped = self.unpumped_norm
-        else:
-            pumped = self.pumped
-            unpumped = self.unpumped
-
-        if relative:
-            # Prevent division by zero
-            # Because our measurment is not that good. We can safely do this.
-            unpumped[np.isin(unpumped, 0)] = 1e-08
-            bleach = pumped / unpumped
-        else:
-            bleach = pumped - unpumped
-
-        if zero_time_subtraction:
+        if self.zero_time_subtraction:
             zero_time = bleach[self.zero_time_selec].mean(0)
             bleach -= zero_time
             # Recorretion for zero_time offset needed because
@@ -1153,278 +881,191 @@ class SfgRecord():
                 self.zero_time_abs = zero_time
         return bleach
 
-    def calc_bleach_abs(self, pumped=None, unpumped=None,
-                        normalized=False, zero_time_subtraction=True):
-        """Calculate absolute bleach.
+    def bleach_abs(self, **kwgs):
+        return self._calc_bleach('-', **kwgs)
 
-        pumped: None, index or array
-            If None SfgRecod.pump is used. Else SfgRecord.pump is setted
-            by pumped
-        unpumped: None, index or array
-            Same as pumped only for unpumped
-        zero_time_subtraction : boolean
-            substitute the first spectrum from the data to account for
-            the constant offset.
+    def bleach_rel(self, **kwgs):
+        return self._calc_bleach('/', **kwgs)
 
-        Returns
-        -------
-        The calculated 3d bleach result.
+    def _calc_trace(self, **kwgs):
+        """"""
+        kwgs.setdefault('prop', 'bleach_rel')
+        kwgs.setdefault('frame_med', True)
+        kwgs.setdefault('pixel_mean', True)
+        return self.subselect_data(**kwgs)
+
+    def contour(
+            self,
+            y_property='wavenumber',
+            z_property='bleach_rel',
+            **subselect_kws
+    ):
+        """Returns data formatted for a contour plot.
+
+
+        subselect_kws get passed to SfgRecord.subselect_data.
+        defaults are adjusted with:
+        *y_property*: bleach_rel
+        *medfilt_kernel*: 5
+        *resample_freqs*: 30
+        Further susbelect_kws are:
+          *roi_delay*:  roi of delays
+          *roi_frames*:
+          *roi_spectra*:
+          *roi_pixel*:
+          *frame_med*:
+          *delay_mean*:
+          *spectra_mean*:
+          *pixel_mean*:
         """
-        return self._calc_bleach('absolute', pumped, unpumped,
-                                 normalized, zero_time_subtraction)
+        subselect_kws.setdefault('prop', z_property)
+        subselect_kws.setdefault('medfilt_pixel', 11)
+        subselect_kws.setdefault('frame_med', True)
 
-    def calc_bleach_rel(self, pumped=None, unpumped=None,
-                        normalized=False, zero_time_subtraction=True,):
-        """Calculate the relative bleach
+        x = self.subselect_property('pp_delays', subselect_kws.get('roi_delay'))
+        y = self.subselect_property(y_property, subselect_kws.get('roi_pixel'))
+        z = self.subselect_data(**subselect_kws)
+        z = z.squeeze().T
+        if len(z.shape) !=2:
+            raise IOError(
+                "Shape of subselected data can't be processed. Subselection was {}".format(subselect_kws)
+            )
+        return x, y, z
+
+
+    @property
+    def basesubedE(self):
+        """Data error after subtracting baseline."""
+        if isinstance(self._basesubedE, type(None)):
+            self._basesubedE = np.sqrt(self.rawDataE**2 + self.baseE**2)
+        return self._basesubedE
+
+    @basesubedE.setter
+    def basesubedE(self, value):
+        #if not isinstance(value, np.ndarray):
+        #    raise IOError("Can't use type %s for data" % type(value))
+        #if len(value.shape) != 4:
+        #    raise IOError("Can't set shape %s to data" % value.shape)
+        self._basesubedE = np.ones_like(self._rawData) * value
+
+    @property
+    def normalizedE(self):
+        """Error of the normalized data."""
+        if isinstance(self._normalizedE, type(None)):
+            norm = np.expand_dims(self.norm.mean(FRAME_AXIS_INDEX), 1)
+            basesubed = np.expand_dims(self.basesubed.mean(FRAME_AXIS_INDEX), 1)
+            self._normalizedE = np.sqrt(
+                (self.basesubedE/norm)**2 + ((basesubed/(norm)**2 * self.normE))**2
+            )
+        return self._normalizedE
+
+    @normalizedE.setter
+    def normalizedE(self, value):
+        self._normalizedE = value * np.ones_like(self._rawData)
+
+    def subselect_property(
+            self,
+            prop,
+            roi=None,
+    ):
+        """Subselect given property. Use roi if given. If No roi given,
+        use build in roi."""
+        ret = getattr(self, prop)
+        if not isinstance(roi, type(None)):
+            ret = ret[roi]
+        else:
+            if prop in ('pixel', 'wavenumber', 'wavelength'):
+                ret = ret[self.roi_x_pixel_spec]
+            elif prop is "pp_delays":
+                ret = ret[self.roi_delay]
+            elif prop is "frames":
+                ret = ret[self.roi_frames]
+
+        return ret
+
+    def subselect(
+            self,
+            y_property="basesubed",
+            x_property='pixel',
+            roi_delay=None,
+            roi_frames=None,
+            roi_spectra=None,
+            roi_pixel=None,
+            frame_med=False,
+            delay_mean=False,
+            spectra_mean=False,
+            pixel_mean=False,
+            medfilt_pixel=1,
+            resample_freqs=0
+    ):
+        """Select subset of data and apply common operations.
+
+        Subselection of data is done by using rois.
+        x_rois_elms subselectrs the SfgRecord.rois_x_pixel property for
+        this plot.
 
         Parameters
         ----------
-        pumped: index or None
-            y_pixel/spectra index of the pumped spectrum. Default is None,
-            and will make it use `SfgRecord._pumped_index`
-        unpumped: index or None
-            like pumped only for unpumped None defaults to
-            `SfgRecord._unpumped_index`
-        normalized: boolean
-            Use normalized data.
-        zero_time_subtraction: bollean default true
-            subtract the 0th pp_delay index. This corrects for constant
-            offset between pumped and unpumped data.
-        """
-        return self._calc_bleach(
-            'relative',
-            pumped,
-            unpumped,
-            normalized,
-            zero_time_subtraction=zero_time_subtraction
-        )
+        y_property: y attribute to subselect.
+        roi_delay: roi of delays to take into account
+        roi_frames: roi of frames to take into account
+        roi_spectra: roi of spectra to take into account
+        roi_pixel: roi of x_pixel to take into account
+        frame_med: Calculate median over roi_frames
+        delay_mean: Calculate median over delay_roi
+        spectra_mean: Calculate mean over spectra
+        medfilt_pixel: Number of pixel moving median filter applies to.
+            Must be an uneven number.
+        resample_freqs: Use FFT Transformation to resample with given
+            number of frequency components. 0 turs method off. Smaller
+            numbers mean more filtering.
 
-    @property
-    def bleach_abs(self):
-        """Absolute bleached data.
-
-        3d array with bleached data result.
-        The Absolute bleach is calculated by subtracting two
-        baselinesubstracted pumped and unpumped signal.
+        Returns tuple of arrays
+        1d array with selected x_data,
+        4d numpy array. [pp_delay, frames, spectra, pixel]
+        with y_data
 
         """
-        ret = self.calc_bleach_abs(
-            normalized=False,
-            zero_time_subtraction=self.zero_time_subtraction
-        )
-        return ret
 
-    @property
-    def bleach_abs_norm(self):
-        ret = self._bleach_abs_norm = self.calc_bleach_abs(
-            normalized=True,
-            zero_time_subtraction=self.zero_time_subtraction
-        )
-        return ret
+        if isinstance(roi_delay, type(None)):
+            roi_delay = self.roi_delay
+        if isinstance(roi_frames, type(None)):
+            roi_frames = self.roi_frames
+        if isinstance(roi_spectra, type(None)):
+            only_one_spec = ('bleach', 'pumped', 'unpumped')
+            if any([teststr in y_property for teststr in only_one_spec]):
+                roi_spectra = [0]
+            else:
+                roi_spectra = self.roi_spectra
+        if isinstance(roi_pixel, type(None)):
+            roi_pixel = self.roi_x_pixel_spec
 
-    @property
-    def bleach_rel(self):
-        """Relative bleached data
-
-        3d array with relative bleached data.
-
-        """
-        ret = self.calc_bleach_rel(
-            normalized=False,
-            zero_time_subtraction=self.zero_time_subtraction
-        )
-        return ret
-
-    @property
-    def bleach_rel_norm(self):
-        """Relative bleach from normalized data."""
-        ret = self.calc_bleach_rel(
-            normalized=True,
-            zero_time_subtraction=self.zero_time_subtraction
-        )
-        return ret
-
-    # TODO add a frame median method and use keepdims in trace calculation.
-    def trace(
-            self,
-            attr="bleach_rel",
-            delay_slice=slice(None, None),
-            frame_slice=slice(None, None),
-            spectra_slice=slice(None, None),
-            x_pixel_slice=slice(None, None),
-    ):
-        """Return traces of the SfgRecord.
-
-        A trace is an mean over a pixel region and an median of a frame
-        region.
-
-        attr: string
-            attribute to get the data from.
-        x_pixel_slice: slice
-            slice to calc mean over
-        frame_slice: slice
-            frame slice to calculate median over.
-        spectra_slice: spectra of interest.
-
-        Returns
-        --------
-        2d array with:
-        [delays, specs]
-        """
-        data = getattr(self, attr)
-        # Frame median must be calculated first, to get rid of spikes.
-        # This is a violation of the programming idiom but its the only
-        # way I could come up with a sensible soltuion.
-        data = np.median(
-            data[
-                delay_slice,
-                frame_slice,
-                spectra_slice,
-                x_pixel_slice
-            ],
-            FRAME_AXIS_INDEX_P,
-        ).mean(X_PIXEL_INDEX)
-        return data
-
-    def _traces_property(self, attr):
-        """Generator for the trace properties.
-        attr: string
-            attribute to get data of.
-
-        Returns
-        -------
-        3d array with:
-        [rois_x_pixel, delays, y_specs]
-        """
-        ret = []
-        only_one_spec = ('bleach_', 'pumped_', 'unpumped_')
-        if any([teststr in attr for teststr in only_one_spec]):
-            roi_spectra = slice(None, None)
-        else:
-            roi_spectra = self.roi_spectra
-
-        for roi_x_pixel in self.rois_x_pixel_trace:
-            ret.append(
-                self.trace(
-                    attr=attr,
-                    delay_slice=self.roi_delay,
-                    frame_slice=self.roi_frames,
-                    spectra_slice=roi_spectra,
-                    x_pixel_slice=roi_x_pixel,
-                )
-            )
-        return np.array(ret)
-
-    @property
-    def traces_bleach_abs(self):
-        """trace of absolute bleach."""
-        return self._traces_property("bleach_abs")
-
-    @property
-    def traces_bleach_abs_norm(self):
-        """trace of normalized absolute bleach."""
-        return self._traces_property("bleach_abs_norm")
-
-    @property
-    def traces_bleach_rel(self):
-        """trace of relative bleach."""
-        return self._traces_property("bleach_rel")
-
-    @property
-    def traces_bleach_rel_norm(self):
-        """trace of relative bleach."""
-        return self._traces_property("bleach_rel_norm")
-
-    @property
-    def traces_normalized(self):
-        """trace of normalized data."""
-        return self._traces_property("normalized")
-
-    @property
-    def traces_rawData(self):
-        """trace of raw data."""
-        return self._traces_property("rawData")
-
-    @property
-    def traces_basesubed(self):
-        """trace of basesubed"""
-        return self._traces_property("basesubed")
-
-    def traceE(
-            self,
-            attr='bleach_rel',
-            x_pixel_slice=slice(None, None),
-            frame_slice=slice(None, None),
-            spectra_slice=slice(None, None),
-            delay_slice=slice(None, None),
-    ):
-        """Std error of the mean for a trace.
-
-        Currently this is not an exact result, because normalization and
-        background subtraction are ignored.
-
-        Calculated from frames variations.
-
-        Returns
-        --------
-        2d array with [delays, spectras]
-        """
-        data = getattr(self, attr)
-        # I dont think this is correct but for now okay.
-        data = np.median(data[delay_slice, :, spectra_slice, x_pixel_slice],
-                       X_PIXEL_INDEX)
-        data = sem(data[:, frame_slice], FRAME_AXIS_INDEX_P)
-        return data
-
-    def _tracesE_property(self, attr):
-        """Generator for the Trace property.
-
-        It makes use of the same reshaping as SfgRecord._trace_property.
-
-        Returns
-        --------
-        3d array with [rois_x_pixel, delays, spectras]
-        """
-        ret = []
-        for roi_x_pixel in self.rois_x_pixel:
-            ret.append(
-                self.traceE(
-                    attr,
-                    roi_x_pixel,
-                    self.roi_frames,
-                    self.roi_spectra,
-                    self.roi_delay,
-                )
-            )
-        return np.array(ret)
-
-    @property
-    def tracesE_bleach_abs(self):
-        return self._tracesE_property(attr="bleach_abs")
-
-    @property
-    def tracesE_bleach_abs_norm(self):
-        return self._tracesE_property(attr="bleach_abs_norm")
-
-    @property
-    def tracesE_bleach_rel(self):
-        return self._tracesE_property(attr="bleach_rel")
-
-    @property
-    def tracesE_bleach_rel_norm(self):
-        return self._tracesE_property(attr="bleach_rel_norm")
-
-    @property
-    def tracesE_normalized(self):
-        return self._tracesE_property(attr="normalized")
-
-    @property
-    def tracesE_rawData(self):
-        return self._tracesE_property(attr="rawData")
-
-    @property
-    def tracesE_basesubed(self):
-        return self._tracesE_property(attr="basesubed")
+        x_data = getattr(self, x_property)
+        if x_property in ('pixel', 'wavenumber', 'wavelength'):
+            x_data = x_data[roi_pixel]
+        elif x_property is "pp_delays":
+            x_data = x_data[roi_delay]
+        elif x_property is "frames":
+            x_data = x_data[roi_frames]
+        y_data = getattr(self, y_property)[
+            roi_delay,
+            roi_frames,
+            roi_spectra,
+            roi_pixel,
+        ]
+        if frame_med:
+            y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
+        if delay_mean:
+            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
+        if spectra_mean:
+            y_data = np.mean(y_data, SPEC_INDEX, keepdims=True)
+        if medfilt_pixel > 1:
+            y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
+        if resample_freqs:
+            y_data = double_resample(y_data, resample_freqs, X_PIXEL_INDEX)
+        if pixel_mean:
+            y_data = np.median(y_data, X_PIXEL_INDEX, keepdims=True)
+        return x_data, y_data
 
     def _time_track(self, property="basesubed", roi_x_pixel=slice(None, None)):
         """Return a time track.
@@ -1712,6 +1353,7 @@ class SfgRecord():
         ret.zero_time_selec = self.zero_time_selec
         ret.zero_time_subtraction = self.zero_time_subtraction
         ret.baseline_offset = self.baseline_offset
+        ret.roi_x_pixel_spec = self.roi_x_pixel_spec
         ret.rois_x_pixel_trace = self.rois_x_pixel_trace
         ret.roi_spectra = self.roi_spectra
         ret.roi_frames = self.roi_frames
@@ -1812,323 +1454,6 @@ class SfgRecord():
         ret._rawData += delta
         # Reset internal properties so we leave with a clean SfgRecord
         return ret
-
-    def subselect_property(
-            self,
-            prop,
-            roi=None,
-    ):
-        """Subselect given property. Use roi if given. If No roi given,
-        use build in roi."""
-        ret = getattr(self, prop)
-        if not isinstance(roi, type(None)):
-            ret = ret[roi]
-        else:
-            if prop in ('pixel', 'wavenumber', 'wavelength'):
-                ret = ret[self.roi_x_pixel_spec]
-            elif prop is "pp_delays":
-                ret = ret[self.roi_delay]
-            elif prop is "frames":
-                ret = ret[self.roi_frames]
-
-        return ret
-
-    def subselect_data(
-            self,
-            prop="basesubed",
-            roi_delay=None,
-            roi_frames=None,
-            roi_spectra=None,
-            roi_x_pixel_spec=None,
-            frame_med=False,
-            delay_mean=False,
-            spectra_mean=False,
-            pixel_mean=False,
-            medfilt_pixel=1,
-            resample_freqs=0
-    ):
-        """Subselect the 4d data structure. kwords work same as SfgRecord.subselect.
-        but return is only the y component.
-        """
-        if isinstance(roi_delay, type(None)):
-            roi_delay = self.roi_delay
-        if isinstance(roi_frames, type(None)):
-            roi_frames = self.roi_frames
-        if isinstance(roi_spectra, type(None)):
-            only_one_spec = ('bleach', 'pumped', 'unpumped')
-            if any([teststr in prop for teststr in only_one_spec]):
-                roi_spectra = [0]
-            else:
-                roi_spectra = self.roi_spectra
-        if isinstance(roi_x_pixel_spec, type(None)):
-            roi_x_pixel_spec = self.roi_x_pixel_spec
-
-        y_data = getattr(self, prop)[
-            roi_delay,
-            roi_frames,
-            roi_spectra,
-            roi_x_pixel_spec,
-        ]
-        if frame_med:
-            y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
-        if delay_mean:
-            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
-        if spectra_mean:
-            y_data = np.mean(y_data, SPEC_INDEX, keepdims=True)
-        if medfilt_pixel > 1:
-            y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
-        if resample_freqs:
-            y_data = double_resample(y_data, resample_freqs, X_PIXEL_INDEX)
-        if pixel_mean:
-            y_data = np.median(y_data, X_PIXEL_INDEX, keepdims=True)
-        return y_data
-
-    def subselect(
-            self,
-            y_property="basesubed",
-            x_property='pixel',
-            roi_delay=None,
-            roi_frames=None,
-            roi_spectra=None,
-            roi_x_pixel_spec=None,
-            frame_med=False,
-            delay_mean=False,
-            spectra_mean=False,
-            pixel_mean=False,
-            medfilt_pixel=1,
-            resample_freqs=0
-    ):
-        """Select subset of data and apply common operations.
-
-        Subselection of data is done by using rois.
-        x_rois_elms subselectrs the SfgRecord.rois_x_pixel property for
-        this plot.
-
-        Parameters
-        ----------
-        y_property: y attribute to subselect.
-        roi_delay: roi of delays to take into account
-        roi_frames: roi of frames to take into account
-        roi_spectra: roi of spectra to take into account
-        roi_x_pixel_spec: roi of x_pixel to take into account
-        frame_med: Calculate median over roi_frames
-        delay_mean: Calculate median over delay_roi
-        spectra_mean: Calculate mean over spectra
-        medfilt_pixel: Number of pixel moving median filter applies to.
-            Must be an uneven number.
-        resample_freqs: Use FFT Transformation to resample with given
-            number of frequency components. 0 turs method off. Smaller
-            numbers mean more filtering.
-
-        Returns tuple of arrays
-        1d array with selected x_data,
-        4d numpy array. [pp_delay, frames, spectra, pixel]
-        with y_data
-
-        """
-
-        if isinstance(roi_delay, type(None)):
-            roi_delay = self.roi_delay
-        if isinstance(roi_frames, type(None)):
-            roi_frames = self.roi_frames
-        if isinstance(roi_spectra, type(None)):
-            only_one_spec = ('bleach', 'pumped', 'unpumped')
-            if any([teststr in y_property for teststr in only_one_spec]):
-                roi_spectra = [0]
-            else:
-                roi_spectra = self.roi_spectra
-        if isinstance(roi_x_pixel_spec, type(None)):
-            roi_x_pixel_spec = self.roi_x_pixel_spec
-
-        x_data = getattr(self, x_property)
-        if x_property in ('pixel', 'wavenumber', 'wavelength'):
-            x_data = x_data[roi_x_pixel_spec]
-        elif x_property is "pp_delays":
-            x_data = x_data[roi_delay]
-        elif x_property is "frames":
-            x_data = x_data[roi_frames]
-        y_data = getattr(self, y_property)[
-            roi_delay,
-            roi_frames,
-            roi_spectra,
-            roi_x_pixel_spec,
-        ]
-        if frame_med:
-            y_data = np.median(y_data, FRAME_AXIS_INDEX, keepdims=True)
-        if delay_mean:
-            y_data = np.mean(y_data, PP_INDEX, keepdims=True)
-        if spectra_mean:
-            y_data = np.mean(y_data, SPEC_INDEX, keepdims=True)
-        if medfilt_pixel > 1:
-            y_data = medfilt(y_data, (1, 1, 1, medfilt_pixel))
-        if resample_freqs:
-            y_data = double_resample(y_data, resample_freqs, X_PIXEL_INDEX)
-        if pixel_mean:
-            y_data = np.median(y_data, X_PIXEL_INDEX, keepdims=True)
-        return x_data, y_data
-
-    def contour(
-            self,
-            y_property='wavenumber',
-            z_property='bleach_rel',
-            **subselect_kws
-    ):
-        """Returns data formatted for a contour plot.
-
-
-        subselect_kws get passed to SfgRecord.subselect_data.
-        defaults are adjusted with:
-        *y_property*: bleach_rel
-        *medfilt_kernel*: 5
-        *resample_reqs*: 30
-
-        """
-        subselect_kws.setdefault('prop', z_property)
-        subselect_kws.setdefault('medfilt_pixel', 11)
-        subselect_kws.setdefault('frame_med', True)
-
-        x = self.subselect_property('pp_delays', subselect_kws.get('roi_delay'))
-        y = self.subselect_property(y_property, subselect_kws.get('roi_x_pixel_spec'))
-        z = self.subselect_data(**subselect_kws)
-        z = z.squeeze().T
-        if len(z.shape) !=2:
-            raise IOError(
-                "Shape of subselected data can't be processed. Subselection was {}".format(subselect_kws)
-            )
-        return x, y, z
-
-    def plot_spec(
-            self,
-            y_property="basesubed",
-            x_property='pixel',
-            roi_delay=None,
-            roi_frames=None,
-            roi_spectra=None,
-            roi_x_pixel_spec=None,
-            frame_med=True,
-            delay_mean=False,
-            spectra_mean=False,
-            pixel_mean=False,
-            medfilt_pixel=1,
-            ax=None,
-            **kwargs
-    ):
-        """Plot a spectra property.
-
-        Subselection of data is done by using rois.
-        x_rois_elms subselectrs the SfgRecord.rois_x_pixel property for
-        this plot.
-
-        Parameters
-        ----------
-        y_property: y attribute to plot
-        x_property: x attribute to plot
-        roi_delay: roi of delays to take into account
-        roi_frames: roi of frames to take into account
-        roi_spectra: roi of spectra to take into account
-        roi_x_pixel_spec: roi of x_pixel to take into account
-        frame_med: Calculate median over roi_frames
-        delay_mean: Calculate median over delay_roi
-        medfilt_kernel: Kernel of moving median filter moving over pixels.
-            Must be an uneven number.
-        **kwargs are passed to matplotlib plot.
-        """
-        if not ax:
-            ax = plt.gca()
-
-        x_data, y_data = self.subselect(
-            y_property,
-            x_property,
-            roi_delay,
-            roi_frames,
-            roi_spectra,
-            roi_x_pixel_spec,
-            frame_med,
-            delay_mean,
-            spectra_mean,
-            pixel_mean,
-            medfilt_pixel,
-            )
-        for delay in y_data:
-            for frame in delay:
-                for spectrum in frame:
-                    ax.plot(x_data, spectrum, **kwargs)
-
-    def plot_bleach(
-            self,
-            y_property="bleach_abs",
-            rois_delays=None,
-            **kwargs
-    ):
-        """Plot Bleach of Record.
-
-        Parameters
-        ----------
-        y_property: attribute to get data from
-        rois_delays: List of slices or None.
-            If None `SfgRecord.rois_delays_pump_probe`
-            is used.
-        **kwargs are passed to `SfgRecord.plot_spec`
-        but roi_delay is overwritten with elements from
-        `SfgRecord.rois_delays_pump_probe` and roi_spectra is
-        forced to 1, because there is always only one spec
-        """
-
-        if not rois_delays:
-            rois_delays = self.rois_delays_pump_probe
-        for roi_delay in rois_delays:
-            # There is always only one bleach spectrum.
-            self.plot_spec(
-                y_property=y_property,
-                roi_delay=roi_delay,
-                roi_spectra=[0],
-                **kwargs,
-               )
-
-    def plot_trace(
-            self,
-            y_property="traces_rawData",
-            frame_med=True,
-            ax=None,
-            **kwargs
-    ):
-        """Plot a trace"""
-
-        if not ax:
-            ax = plt.gca()
-
-        x_data = self.pp_delays[self.roi_delay]
-        # data is of shape [roi, pp_delay, spectra]
-        y_data = getattr(self, y_property)
-
-        for roi_index in range(len(y_data)):
-            roi_slice = self.rois_x_pixel_trace[roi_index]
-            start, stop = [self.wavenumber[roi_slice][elm] for elm in (0, -1)]
-            label = '{:.0f}-{:.0f} 1/cm'.format(start, stop)
-            ax.plot(
-                x_data,
-                y_data[roi_index], "-o",
-                label=label,
-                **kwargs
-            )
-
-    def plot_time_track(
-            self,
-            y_property='basesubed',
-            x_property='index',
-            roi_x_pixel=slice(None, None),
-            roi_spectra=slice(None, None),
-            ax=None,
-            **kwargs
-    ):
-        """Make a plot of the time track data."""
-        if not ax:
-            ax = plt.gca()
-
-        data = self._time_track(
-            property=y_property, roi_x_pixel=roi_x_pixel
-        )[:, roi_spectra]
-        ax.plot(data, **kwargs)
 
 
 def concatenate_list_of_SfgRecords(list_of_records):

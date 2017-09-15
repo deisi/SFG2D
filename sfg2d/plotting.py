@@ -6,6 +6,7 @@ from scipy.signal import medfilt
 import numpy as np
 
 from .utils.filter import double_resample
+from .utils.consts import x_property2_label
 
 
 def ioff(func):
@@ -85,7 +86,7 @@ def save_figs_to_multipage_pdf(figs, fpath):
     print("Saved figure to: {}".format(path.abspath(fpath)))
 
 
-def plot_spec(xdata, ydata, ax=None, **kwargs):
+def plot_spec(xdata, ydata, ax=None, xlabel='Wavenumber in 1/cm', ylabel='SFG Intensity in a.u.', **kwargs):
     """
     Plot data with pixel axis of ydata as x-axis
 
@@ -105,49 +106,63 @@ def plot_spec(xdata, ydata, ax=None, **kwargs):
             for spec in frame:
                 ax.plot(xdata, spec.T, **kwargs)
 
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
 
-def plot_trace(xdata, ydata, ax=None, **kwargs):
+
+def plot_trace(xdata, ydata, ax=None, yerr=None, xlabel='Time in fs', ylabel='Bleach in a.u.', **kwargs):
     """
     data is the result of a subselection.
 
-    This plot has delays on its x-axis
+    This plot has delays on its x-axis.
+
+    yerr Error bar for the trace. Must have no frame dimension.
+    if yerr is given frame dimension must be 1.
     """
     if not ax:
         ax = plt.gca()
 
     # Transpose because we want the delay axis to be the last axis
     # of the array.
+    kwargs.setdefault('marker', 'o')
+
     y = ydata.T
-    for pixel in y:
-        for spec in pixel:
-            for frame in spec:
-                ax.plot(xdata, frame.T, **kwargs)
+    for i in range(len(y)):
+        pixel = y[i]
+        for j in range(len(pixel)):
+            spec = pixel[j]
+            if isinstance(yerr, type(None)):
+                for frame in spec:
+                    ax.plot(xdata, frame.T, **kwargs)
+            else:
+                plt.errorbar(xdata, spec[0], yerr[:, j, i], axes=ax, **kwargs)
 
 
 def plot_contour(
-        record,
-        contour_kws={},
-        plot_kws={},
+        x, y, z,
         colorbar=True,
         xlabel='Time in fs',
         ylabel='Wavenumber in 1/cm',
+        levels=np.linspace(0.8, 1.1, 15),
+        **kwgs
 ):
     """Make Contour plot.
 
-    Uses the SfgRecord.contour method to get data. contour_kws get passed
-    to SfgReco.contour, plot_kws get passed to plt.contourf.
+    If no levels kwgs is given, a 5 t0 80 percentile with 15 levels is used.
+    colorbar: boolean for colorbar
+    xlabel: string for xlabel
+    ylabel: string for ylabel
 
-    If no levels for plot_kws are given, a 20 to 80 percentile with 15 levels is used.
+    kwgs are passed to *plt.contourf*
     """
-    plot_kws.setdefault('extend', 'both')
-    x, y, z = record.contour(**contour_kws)
+    kwgs.setdefault('extend', 'both')
 
-    if isinstance(plot_kws.get('levels'), type(None)):
-        start, stop = [np.percentile(z.flatten(), perc) for perc in (1, 80)]
-        levels = np.linspace(start, stop, 15)
-        plot_kws['levels'] = levels
+    if isinstance(kwgs.get('levels'), type(None)):
+        kwgs['levels'] = levels
 
-    plt.contourf(x, y, z, **plot_kws)
+    plt.contourf(x, y, z, **kwgs)
     if colorbar:
         plt.colorbar()
     if xlabel:

@@ -19,3 +19,11 @@ STEPSIZE = 0.1 # Smallest stepsize used for decay function
 XE = None # Equidistant sampling distance for decay function
 XG = None # Equidistant sampling for gaussian instrumense response function
 
+#Key is propertie names of SfgRecord properties and Value is default axis labels.
+x_property2_label = {
+    'wavenumber': 'Wavenumber in 1/cm',
+    'wavelength': 'Wavelength in nm',
+    'pixel': 'Pixel Number',
+    'pp_delays': 'Time in fs',
+    'pp_delays_ps': 'Time in ps',
+}
