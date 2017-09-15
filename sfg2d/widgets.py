@@ -509,6 +509,7 @@ class WidgetBase():
             'showBasesubed': self.wCheckShowBasesubed,
             'showNormalized': self.wCheckShowNormalized,
             'zeroTimeSelec': self.wRangeZeroTime,
+            'saveRecord': self.wTextSaveRecord,
         }
 
     def _conf_widget_with_data(self):
@@ -641,6 +642,7 @@ class WidgetBase():
         )
         self.wTextBaselineOffset.observe(
             self._on_baseline_offset_changed, "value"
+
         )
         self.wRangeZeroTime.observe(self._set_zero_time_selec, "value")
         self.wSnapXRoi.on_click(self._snap_x_roi)
@@ -770,7 +772,8 @@ class WidgetBase():
 
     def _on_save_record(self, new=None):
         fname = self.folder + '/' + self.wTextSaveRecord.value
-        self.data.save(fname)
+        data = self.data.keep_frames()
+        data.save(fname)
 
     def _snap_x_roi(self, new=None):
         self.data.rois_x_pixel_trace.append(self.wRangeSliderTracePixelX.slice)
@@ -1159,7 +1162,7 @@ class WidgetFigures():
         else:
             return "Delay {} - {} fs".format(
                 self.data.pp_delays[self.data.roi_delay][0],
-                self.data.pp_delays[self.dataroi_delay][-1]
+                self.data.pp_delays[self.data.roi_delay][-1]
             )
 
     def _append_identifier(self, label_base):

@@ -256,19 +256,19 @@ class SfgRecord():
         saveable['norm'] = '_norm'
         saveable['base'] = '_base'
         saveable['pp_delays'] = 'pp_delays'
-        saveable['wavelength'] = '_wavelength'
-        saveable['wavenumber'] = '_wavenumber'
-        saveable['dates'] = '_dates'
+        #saveable['wavelength'] = '_wavelength'
+        #saveable['wavenumber'] = '_wavenumber'
+        #saveable['dates'] = '_dates'
         saveable['pumped_index'] = '_pumped_index'
         saveable['unpumped_index'] = '_unpumped_index'
-        saveable['rawDataE'] = '_rawDataE'
-        saveable['normE'] = '_normE'
-        saveable['baseE'] = '_baseE'
-        saveable['basesubedE'] = '_basesubedE'
-        saveable['normalizedE'] = 'normalizedE'
+        #saveable['rawDataE'] = '_rawDataE'
+        #saveable['normE'] = '_normE'
+        #saveable['baseE'] = '_baseE'
+        #saveable['basesubedE'] = '_basesubedE'
+        #saveable['normalizedE'] = 'normalizedE'
         saveable['baseline_offset'] = '_baseline_offset'
         saveable['zero_time_subtraction'] = '_zero_time_subtraction'
-        saveable['zero_time_selec'] = '_zero_time_selec'
+        saveable['zero_time_selec'] = 'zero_time_selec'
         saveable['rois_x_pixel_trace'] = 'rois_x_pixel_trace'
         saveable['roi_x_pixel_spec'] = 'roi_x_pixel_spec'
         saveable['roi_spectra'] = 'roi_spectra'
@@ -276,7 +276,6 @@ class SfgRecord():
         saveable['roi_delay'] = 'roi_delay'
         saveable['rois_delays_pump_probe'] = 'rois_delays_pump_probe'
         return saveable
-
 
 
     @property
@@ -471,16 +470,15 @@ class SfgRecord():
         """List of datetimes the spectra were recorded at.
 
         A list of datetime objects when each spectrum was created."""
-        if isinstance(self._dates, type(None)):
-            self._dates = np.arange(
-                    (self.number_of_pp_delays * self.number_of_frames)
-                )
-            date = self.metadata.get("date")
-            exposure_time = self.metadata.get("exposure_time")
-            if date  and exposure_time:
-                self._dates = date + self._dates * exposure_time
-            elif exposure_time:
-                self._dates = self._dates * exposure_time
+        self._dates = np.arange(
+                (self.number_of_pp_delays * self.number_of_frames)
+            )
+        date = self.metadata.get("date")
+        exposure_time = self.metadata.get("exposure_time")
+        if date and exposure_time:
+            self._dates = date + self._dates * exposure_time
+        elif exposure_time:
+            self._dates = self._dates * exposure_time
         return self._dates
 
     @dates.setter
@@ -1707,12 +1705,18 @@ class SfgRecord():
         ret.pp_delays = self.pp_delays.copy()
         ret.metadata = self.metadata.copy()
         ret._fname = self._fname
-        ret._data = self._data.copy()
         ret._type = self._type
-        ret._dates = self._dates
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
         ret.baseline_offset = self.baseline_offset
+        ret.zero_time_selec = self.zero_time_selec
+        ret.zero_time_subtraction = self.zero_time_subtraction
+        ret.baseline_offset = self.baseline_offset
+        ret.rois_x_pixel_trace = self.rois_x_pixel_trace
+        ret.roi_spectra = self.roi_spectra
+        ret.roi_frames = self.roi_frames
+        ret.roi_delay = self.roi_delay
+        ret.rois_delays_pump_probe = self.rois_delays_pump_probe
         return ret
 
     def save(self, file, *args, **kwargs):
@@ -1721,22 +1725,32 @@ class SfgRecord():
         Saves the `SfgRecord` obj into a compressed numpy array,
         that can later be reloaded and that can be used for further
         analysis. It is in particluar usefull to save data together
-        with mist of its properties like normalization and background
+        with most of its properties like normalization and background
         spectra and also to save averaged results.
 
         If you want to know what is saved, then you can open the saved
         result with e.g. 7.zip and inspect its content."""
+        kwgs = {key: getattr(self, value) for key, value in self.saveable.items()}
+        print(kwgs['zero_time_selec'])
         np.savez_compressed(
             file,
-            **{key: getattr(self, value) for key, value in self.saveable.items()}
+            **kwgs
         )
 
-    def keep_frames(self, frame_slice=slice(None)):
-        """Resize data such, that only frame slice is leftover."""
+    def keep_frames(self, frame_slice=None):
+        """Resize data such, that only frame slice is leftover.
+
+        frame_slice: Slice of frames to keep.
+            if not given self.roi_frames is used.
+
+        """
+        if not frame_slice:
+            frame_slice = self.roi_frames
         ret = self.copy()
         ret.rawData = self.rawData[:, frame_slice]
         ret.base = self.base[:, frame_slice]
         ret.norm = self.norm[:, frame_slice]
+        ret.roi_frames = slice(None)
 
         return ret
 
