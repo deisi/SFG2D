@@ -275,20 +275,21 @@ def bleach_plotzt_pdf(
     """
 
     # Makte ion and ioff use a decorator.
-    subselect_kws = dict(**kwargs)
-    subselect_kws.setdefault('frame_med', True)
-    subselect_kws.setdefault('x_property', x_property)
-    subselect_kws.setdefault('y_property', y_property)
-    subselect_kws.setdefault('medfilt_pixel', medfilt_pixel)
+
+    select_y_kws = dict(**kwargs)
+    select_y_kws.setdefault('frame_med', True)
+    select_y_kws.setdefault('prop', y_property)
+    select_y_kws.setdefault('medfilt_pixel', medfilt_pixel)
     figs = []
     for index in range(record.number_of_pp_delays):
         fig, ax = plt.subplots(num=num_base.format(index))
         figs.append(fig)
 
-        x, y = record.subselect(
+        y = record.select(
             roi_delay=slice(index, index+1),
-            **subselect_kws,
+            **select_y_kws,
         )
+        x = record.select(prop=x_property, roi_pixel=kwargs.get('roi_pixel'))
         plot_spec(x, scale*y, ax=ax, **plot_kwgs)
 
         #record.plot_bleach(
