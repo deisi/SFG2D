@@ -171,6 +171,72 @@ def plot_contour(
         plt.ylabel(ylabel)
 
 
+def plot_trace_fit(
+        xdata,
+        ydata,
+        yerr=None,
+        fit_func=None,
+        box_str=None,
+        box_coords=None,
+        x_fit_range=None,
+        y_fit_range=None,
+        xsample=400,
+        ax=None,
+        xlabel='Time in fs',
+        ylabel='Relative Bleach',
+        data_kws={},
+        fit_kws={},
+        text_kws={},
+):
+    """
+    xdata: data of the x axis
+    ydata: data of the y axis
+    yerr: yerr of the data
+    fit_func: function of xdata that is the fit result
+    x_fit_range: xmin and xmax of the effective fit region
+    y_fit_range: ymin and ymax of the effective fit region
+    xsample: number of samples to plot the fit func with
+    ax: axes obj to draw on
+    xlabel: xlabel of the plot
+    ylabel: ylabel of the plot
+    box_str: string of fit parameters to plot
+    box_coords: tuple coordinates of the parameter box
+    data_kws: keywords passed to the data plot.
+    fit_kws: keywords passed to the plot of the fit.
+    text_kws: keywords passed to the text box
+    """
+    if not ax:
+        ax = plt.gca()
+    else:
+        plt.sca(ax)
+
+    data_kws.setdefault('label', 'Data')
+    if not isinstance(yerr, type(None)):
+        data_kws.setdefault('fmt', 'o')
+        plt.errorbar(xdata, ydata, yerr, **data_kws)
+    else:
+        ax.plot(xdata, ydata, **data_kws)
+
+    if fit_func:
+        xsample = np.linspace(xdata[0], xdata[-1], xsample)
+        fit_kws.setdefault('label', 'Fit')
+        ax.plot(xsample, fit_func(xsample), **fit_kws)
+
+    if not isinstance(x_fit_range, type(None)) and not isinstance(y_fit_range, type(None)):
+        ax.scatter(x_fit_range, y_fit_range, color='r', zorder=3)
+
+    if box_str:
+        text_kws.setdefault('fontdict', {})
+        text_kws['fontdict'].setdefault('family', 'monospace')
+        if isinstance(box_coords, type(None)):
+            box_coords = xdata.mean(), ydata.mean()
+        ax.text(*box_coords, box_str, **text_kws)
+
+    ax.legend()
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+
 def bleach_plot_slider(
         record,
         y_property='bleach_abs',
@@ -331,108 +397,102 @@ def bleach_plotzt_pdf(
         plt.close(fig.number)
 
 
-def time_track(
-        record,
-        ax=None,
-        xlim=None,
-        ylim=None,
-        title='Time Track of Scan',
-        **kwargs
-):
-    """Plot a time track.
+# Plots on Records.
+def plot_record_static(record, save=True, scale=1000, select_kw={}):
+    """Figure of Static data from a record.
 
-    For kwargs see *SfgRecod.plot_time_track*
+    High level function.
+
+    record: Record to get data from
+    save: Boolean, Save figure
+    scale: Scale y axis.
+    select_kw: dict passed to select method
+
+    Returns
+      fig and ax.
     """
-    if not ax:
-        ax = plt.gca()
+    fig, ax = plt.subplots(num='{}_static'.format(record.name))
+    fig.clf()
+    select_kw.setdefault('delay_mean', True)
+    select_kw.setdefault('frame_med', True)
+    select_kw.setdefault('prop', 'unpumped')
+    data = record.select(**select_kw)
+    plot_spec(record.select('wavenumber'), scale*data)
+    plt.title("{}".format(record.lname))
+    fname = 'figures/{}_static.pdf'.format(record.name)
+    print(fname)
+    if save:
+        plt.savefig(fname)
+        print("saved")
+    return fig, ax
 
-    record.plot_time_track(ax=ax, **kwargs)
-    plt.vlines(
-        record.number_of_pp_delays*np.arange(record.number_of_frames),
-        ax.get_ylim()[0],
-        ax.get_ylim()[1],
-    )
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    ax.set_title(title)
 
-
-def frame_track(
+def plot_record_contour(
         record,
-        ax=None,
-        y_property='basesubed',
-        frame_track_kwg={},
-        **kwargs
+        levels=(90, 105, 15),
+        save=True,
+        xlim=(-1000, 5000),
+        fname_form='./figures/{}_contour_bleach_rel_pump{}.pdf',
 ):
-    """Sane default for plotting a frame track.
+    fig, ax = plt.subplots(
+        figsize=1*np.array([10, 6]), num='{}_contour'.format(record.name)
+    )
+    fig.clf()
+    x, y, z = record.contour(
+        z_property='bleach',
+        prop_kwgs={'opt': 'rel', 'prop': 'basesubed'},
+        resample_freqs=30,
+        medfilt_pixel=7
+    )
+    plot_contour(x, y, 100*z, levels=np.linspace(*levels))
+    plt.title("{} Pump @ {} 1/cm".format(record.lname, record.pump_freq))
+    plt.tight_layout()
+    plt.xlim(*xlim)
+    if save:
+        fname = fname_form.format(
+            record.name, record.pump_freq
+        )
+        print('Saving to {}'.format(fname))
+        plt.savefig(fname)
+    return fig, ax
 
-    frame_track_kwg are passed to `SfgRecord.frame_track`"""
-    if y_property:
-        frame_track_kwg["y_property"] = y_property
-    if not ax:
-        ax = plt.gca()
-    data = record.frame_track(**frame_track_kwg)
-    ax.plot(data, "-o", **kwargs)
-    ax.set_title("Mean Signal vs Frame Number")
-    ax.set_xlabel("Frame Number")
-    ax.set_ylabel("Mean Counts")
 
-
-
-
+def plot_model_trace(
+        name,
+        model,
+        record,
+        xlim=(-1200, 5100),
+        ylim=(0.90, 1.02),
+        save=True,
+        fname_format='figures/{}_trace_bleach_rel_pump{}_{}_fit.pdf',
+):
+    fig, ax = plt.subplots(
+        num='{}'.format(name)
+    )
+    fig.clf()
+    plt.title("{} {} 1/cm".format(record.lname, name))
+    plot_trace_fit(
+        model._xdata,
+        model._ydata,
+        model._sigma,
+        model.fit_res,
+        model.box_str,
+        model.box_coords,
+        model.x_edges,
+        model.y_edges,
+    )
+    plt.xlim(*xlim)
+    plt.ylim(*ylim)
+    fname = fname_format.format(
+        record.name, record.pump_freq, name)
+    print('Filename: ', fname)
+    if save:
+        print("Saved")
+        plt.savefig(fname)
+    return fig, ax
 
 
 # DEPRECATED
-def spec_plot(
-    record,
-    ax=None,
-    xlabel="Wavenumber 1/cm",
-    ylabel="Counts",
-    title="",
-    x_property="wavenumber",
-    y_property="basesubed",
-    **kwargs
-):
-    """Plot Wrapper."""
-    if not ax:
-        ax = plt.gca()
-
-    record.plot_spec(
-        ax=ax,
-        x_property=x_property,
-        y_property=y_property,
-        **kwargs,
-    )
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-
-
-def trace_plot(
-        record,
-        ax=None,
-        xlabel="Time in fs",
-        ylabel="Mean Counts",
-        title=None,
-        y_property="traces_basesubed",
-        plt_kwgs={},
-):
-    if not ax:
-        ax = plt.gca()
-
-    if isinstance(title, type(None)):
-        title = "Trace {} Pumped @ {} 1/cm".format(
-            record.metadata.get('material'),
-            record.metadata.get("pump_freq")
-        )
-
-    record.plot_trace(ax=ax, y_property=y_property, **plt_kwgs)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    ax.legend()
-
-
 def plot_time(time, data, **kwargs):
     """ Wrapper function to plot formatted time on the x-axis
     and data on the y axis. If time is datetime obj, the time is
@@ -469,207 +529,50 @@ def plot_time(time, data, **kwargs):
     x_range *= 0.05
     plt.xlim(min(time) - x_range, max(time) + x_range)
 
-def errorshadow(x, y, dy, ax=None, **kwargs):
-    """
-    Plot error-bar as shadow around the data
 
-    Parameters
-    ----------
-    x : array
-        x-data
-    y : array
-        y-data
-    dy : array
-        uncertainty of the y data
-    ax : Optional [matplotlib.axes obj]
-        the aces to plot on to.
-    **kwargs :
-        kwargs are passed to `matplotlib.plot`
+def frame_track(
+        record,
+        ax=None,
+        y_property='basesubed',
+        frame_track_kwg={},
+        **kwargs
+):
+    """Sane default for plotting a frame track.
+
+    frame_track_kwg are passed to `SfgRecord.frame_track`"""
+    if y_property:
+        frame_track_kwg["y_property"] = y_property
+    if not ax:
+        ax = plt.gca()
+    data = record.frame_track(**frame_track_kwg)
+    ax.plot(data, "-o", **kwargs)
+    ax.set_title("Mean Signal vs Frame Number")
+    ax.set_xlabel("Frame Number")
+    ax.set_ylabel("Mean Counts")
+
+
+def time_track(
+        record,
+        ax=None,
+        xlim=None,
+        ylim=None,
+        title='Time Track of Scan',
+        **kwargs
+):
+    """Plot a time track.
+
+    For kwargs see *SfgRecod.plot_time_track*
     """
     if not ax:
         ax = plt.gca()
-    lines = ax.plot(x, y, **kwargs)
-    ax.fill_between(x, y-dy, y+dy, color=lines[0].get_color(), alpha=0.5)
 
-
-def contour(
-        record,
-        pixel_med=3,
-        N=30,
-        fig=None,
-        figsize=(9, 6),
-        show_y_lines=True,
-        show_x_lines=True,
-        show_colorbar=True,
-        show_xticklabesl=False,
-        show_axl=True,
-        show_axb=True,
-        show_axr=True,
-        rois_x_pixel_trace=None,
-        **kwargs
-):
-    """
-    Contour plot for a given `TimeResolved` obj. This also plots the
-    summations of the projections in x and y direction.
-
-    The y and x projections show the mean Value throughout the given region.
-
-    Parameters
-    ----------
-    record: SfgRecord obj to get data from
-    pixel_med: Optional
-        Amount of pixels to run a median filter over. Must be an odd number.
-    N : Optional [int]
-        Number of Contour lines
-    fig: figure to draw on.
-    x_slice / y_slice: slice or iterable.
-        If slice, the slice is directly applied to the summation.
-        If slice is a iterable it will be used as edges of a slice in
-        plot coordinates
-    show_y_lines / show_x_lines: Boolean default True
-        if True and x_slice or y_slice is given, lines that show the slices are
-        plotted.
-    show_colorbar: boolean
-        if true show a colorbar
-    show_axl: show the y-projection (bleach) of the data
-    levels: Optional
-    **kwargs
-        passed to contour plot see documentation of
-        `matplotlib.pyplot.contourf`
-
-    Returns
-    -------
-    matplotlib.fig
-        The figure of the plot
-    ax: The main axis of the contour plot
-    axl: The left axis. The plot of the bleach
-    axb: The bottom axis. The traces
-    axr: The right axis: The normalized static spectrum.
-    """
-
-    # Prepare the data.
-    x = record.pp_delays
-    y = record.wavenumber  # only use a pixel subset.
-    z = np.median(
-            record.bleach_rel[
-                :,
-                record.roi_frames,
-                0,
-                record.roi_x_pixel_spec
-            ],
-            1
-        )
-    if pixel_med:
-        z = medfilt(z, (1, pixel_med))
-    if N:
-        z = double_resample(z, N, 1)
-    xx = x[record.roi_delay]
-    yy = y[record.roi_x_pixel_spec]
-    zz = z[record.roi_delay]
-
-    # prepare figure and axes
-    ax, axr, axb, axl = None, None, None, None
-    if not fig:
-        fig = plt.figure(figsize=figsize)
-
-    # I need a array structured ax return for that to work
-    if show_axl and show_axb and show_axr:
-        gs = gridspec.GridSpec(2, 3, width_ratios=[1, 3, 1], height_ratios=[3, 1])
-        ax = plt.subplot(gs[0, 1])
-        axl = plt.subplot(gs[0, 0], sharey=ax)
-        axb = plt.subplot(gs[1, 1], sharex=ax)
-        axr = plt.subplot(gs[0, 2], sharey=ax)
-    elif show_axb:
-        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
-        ax = plt.subplot(gs[0, 0])
-        axb = plt.subplot(gs[1, 0], sharex=ax)
-        axr = None
-        axl = None  # So we can always return the same shape
-    elif show_axl:
-        gs = gridspec.GridSpec(1, 2, width_ratios=[1, 3])
-        ax = plt.subplot(gs[0, 1])
-        axb = None
-        axl = plt.subplot(gs[0, 0], sharey=ax)
-    else:
-        ax = plt.gca()
-        axl = None
-        axb = None
-
-    # the actual plot
-    CS = ax.contourf(
-        xx,
-        yy,
-        zz.T,
-        N,
-        extend="both",
-        **kwargs
+    record.plot_time_track(ax=ax, **kwargs)
+    plt.vlines(
+        record.number_of_pp_delays*np.arange(record.number_of_frames),
+        ax.get_ylim()[0],
+        ax.get_ylim()[1],
     )
-    if show_colorbar:
-        plt.colorbar(CS, ax=ax)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_title(title)
 
-    if show_axl:
-        for index in range(len(record.rois_delays_pump_probe)):
-            roi_delay = record.rois_delays_pump_probe[index]
-            y_axl = yy
-            x_axl = record.subselect(
-                y_property='bleach_rel',
-                roi_delay=roi_delay,
-                frame_med=True,
-                delay_mean=True,
-            )[1].squeeze()
-            axl.plot(x_axl, y_axl)
-            color = axl.get_lines()[-1].get_color()
-            x_axl = x[roi_delay]
-            if roi_delay != slice(None) and show_x_lines:
-                ax.vlines(
-                    [x_axl.min(), x_axl.max()],
-                    yy.min(),
-                    yy.max(),
-                    linestyles="dashed",
-                    color=color
-                   )
-        #if axl.get_xlim()[0] < 0:
-        #     axl.set_xlim(left=0)
-        #if axl.get_xlim()[1] < 1.2:
-        #     axl.set_xlim(right=1.2)
-
-    if show_axr:
-        y_axr = yy
-        x_axr = record.subselect(
-            y_property="unpumped_norm",
-            frame_med=True,
-            delay_mean=True
-        )[1].squeeze()
-        axr.plot(x_axr, y_axr)
-        color = axr.get_lines()[-1].get_color()
-
-    if show_axb:
-        trace_plot(record, ax=axb, y_property="traces_bleach_rel")
-        for index in range(len(record.rois_x_pixel_trace)):
-            roi_x_pixel_trace = record.rois_x_pixel_trace[index]
-            color = axb.get_lines()[index].get_color()
-            y_axb = y[roi_x_pixel_trace]
-            if record.rois_x_pixel_trace != slice(None) and show_y_lines:
-                for ax_elm in (ax, axl, axr):
-                    if not ax_elm:
-                        continue
-                    # Why is this needed. Doesn't make sense.
-                    if ax_elm == ax:
-                        xmin, xmax = xx[0], xx[-1]
-                    else:
-                        xmin, xmax = ax_elm.get_xlim()
-                    ax_elm.hlines(
-                        [y_axb.min(), y_axb.max()],
-                        xmin, xmax,
-                        linestyles="dashed", color=color
-                       )
-                    ax_elm.set_xlim(xmin, xmax)
-
-    if not show_xticklabesl:
-        if show_axl:
-            plt.setp(ax.get_yticklabels(), visible=False)
-        if show_axb:
-            plt.setp(ax.get_xticklabels(), visible=False)
-
-    plt.tight_layout()
-    return fig, ax, axl, axb, axr

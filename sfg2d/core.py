@@ -189,6 +189,18 @@ class SfgRecord():
         # Subreions of interest for pump probe
         self.rois_delays_pump_probe = [slice(0, None)]
 
+        # Buffer for traces. kwg is binning and then [X, Y, Yerr]
+        self.traces = {}
+
+        # Buffer for fot models.
+        self.models = {}
+
+        # A short name for the record
+        self.name = ''
+
+        # A Nice Latex Version of the name of the recrod
+        self.lname = ''
+
         if isinstance(fname, type(None)):
             return
 
@@ -899,6 +911,59 @@ class SfgRecord():
             )
         return x, y, z
 
+    def trace(
+            self,
+            prop='bleach',
+            prop_kwgs={'opt': 'rel', 'prop': 'basesubed'},
+            roi_wavenumber=None,
+            roi_delay=None,
+            roi_spectra=None,
+            frame_med=True,
+            shift_neg_time=False,
+            roi_pixel=None,
+
+    ):
+        """Shortcut to get traces.
+
+        prop: property to calculate the trace from
+        prop_
+        roi_wavenumber: roi to calculate trace over in wavenumbers.
+        roi_delay: pp_delay roi to use as x axis.
+        frame_med: calculate frame median.
+        shift_neg_time: The Zero_time_subtraction can lead to an not 1 negative time.
+            This corrects the while data set in such a way, that the given number of
+            shift neg time points is used to move the complete data set such that it
+            is around 1 there.
+        roi_pixel: roi in pixel coordinates. Defaults to SfgRecord.roi_x_pixel_spec if
+            neither roi_pixel nor roi_wavenumber is given.
+        """
+        if roi_wavenumber:
+            roi_pixel = self.wavenumber2pixelSlice(roi_wavenumber)
+        else:
+            if not roi_pixel:
+                roi_pixel = self.roi_x_pixel_spec
+        x = self.select(prop='pp_delays', roi_delay=roi_delay)
+        print(prop, prop_kwgs, roi_pixel)
+        y = self.select(
+            prop=prop,
+            prop_kwgs=prop_kwgs,
+            roi_pixel=roi_pixel,
+            roi_delay=roi_delay,
+            pixel_mean=True,
+            frame_med=frame_med,
+            roi_spectra=roi_spectra,
+        )
+        print(y.max())
+        if shift_neg_time:
+            y += 1 - y[:shift_neg_time].mean()
+        yerr = self.sem(
+            prop=prop,
+            prop_kwgs=prop_kwgs,
+            roi_pixel=roi_pixel,
+            roi_delay=roi_delay,
+            pixel_mean=True, roi_spectra=roi_spectra)
+        return x, y, yerr
+
     def get_linear_baseline(self, start_slice=None,
                             stop_slice=None, data_attr="rawData"):
         """Calculate a linear baseline from data.
@@ -1068,9 +1133,10 @@ class SfgRecord():
         from .utils.metadata import get_metadata_from_filename
 
         # Update datadependent rois
-        if not self.roi_spectra.stop:
-            self.roi_spectra = slice(self.roi_spectra.start,
-                                     self.number_of_spectra)
+        if isinstance(self.roi_spectra, type(slice(None))):
+           if not self.roi_spectra.stop:
+               self.roi_spectra = slice(self.roi_spectra.start,
+                                        self.number_of_spectra)
         if not self.roi_frames.stop:
             self.roi_frames = slice(self.roi_frames.start,
                                     self.number_of_frames)
