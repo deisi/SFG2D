@@ -917,11 +917,8 @@ class SfgRecord():
             prop_kwgs={'opt': 'rel', 'prop': 'basesubed'},
             roi_wavenumber=None,
             roi_delay=None,
-            roi_spectra=None,
-            frame_med=True,
             shift_neg_time=False,
-            roi_pixel=None,
-
+            **kwargs
     ):
         """Shortcut to get traces.
 
@@ -943,25 +940,26 @@ class SfgRecord():
             if not roi_pixel:
                 roi_pixel = self.roi_x_pixel_spec
         x = self.select(prop='pp_delays', roi_delay=roi_delay)
-        print(prop, prop_kwgs, roi_pixel)
+
+        kwargs['pixel_mean'] = True
+        kwargs['roi_delay'] = roi_delay
+        kwargs.setdefault('roi_pixel', roi_pixel)
+
         y = self.select(
             prop=prop,
             prop_kwgs=prop_kwgs,
-            roi_pixel=roi_pixel,
-            roi_delay=roi_delay,
-            pixel_mean=True,
-            frame_med=frame_med,
-            roi_spectra=roi_spectra,
+            **kwargs
         )
-        print(y.max())
+
         if shift_neg_time:
             y += 1 - y[:shift_neg_time].mean()
+
+        kwargs['frame_mean'] = False
         yerr = self.sem(
             prop=prop,
             prop_kwgs=prop_kwgs,
-            roi_pixel=roi_pixel,
-            roi_delay=roi_delay,
-            pixel_mean=True, roi_spectra=roi_spectra)
+            **kwargs
+        )
         return x, y, yerr
 
     def get_linear_baseline(self, start_slice=None,

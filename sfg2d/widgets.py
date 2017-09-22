@@ -526,7 +526,7 @@ class WidgetBase():
             """
 
             slider.max = self.data.rawData.shape[record_data_index]
-            if self.data.data.shape[record_data_index] == 1:
+            if self.data.rawData.shape[record_data_index] == 1:
                 slider.disabled = True
             else:
                 slider.disabled = False
@@ -577,7 +577,7 @@ class WidgetBase():
         if self.wSliderFrame.value > self.wSliderFrame.max:
             self.wSliderFrame.value = self.wSliderFrame.max
 
-        self.wIntTextPumped.max = self.data.data.shape[Y_PIXEL_INDEX] - 1
+        self.wIntTextPumped.max = self.data.rawData.shape[Y_PIXEL_INDEX] - 1
         self.wIntTextUnpumped.max = self.wIntTextPumped.max
         self.wIntTextUnpumped.value = self.data.unpumped_index
         self.wIntTextPumped.value = self.data.pumped_index
@@ -827,44 +827,42 @@ class WidgetBase():
     def x_spec(self):
         """X data of the *Signal* plot. """
         if self.wDropdownCalib.value == 'pixel':
-            x = self.data.pixel
+            x = self.data.pixel[self.x_pixel_slice]
         elif self.wDropdownCalib.value == 'wavelength':
-            x = self.data.wavelength
+            x = self.data.wavelength[self.x_pixel_slice]
         elif self.wDropdownCalib.value == 'wavenumber':
-            x = self.data.wavenumber
+            x = self.data.wavenumber[self.x_pixel_slice]
         return x
 
-    def select_spectra(self, y_property):
-        """Use settings of the gui to subselect spectra data from SfgRecord."""
+    def spectra(self, prop):
+        """Use settings of the gui to select spectra data from SfgRecord."""
         kwgs = dict(
-            y_property=y_property,
-            x_property=self.wDropdownCalib.value,
+            prop=prop,
             roi_delay=self.pp_delay_selected,
             roi_frames=self.frame_selected,
             roi_spectra=self.spec_slice,
-            roi_x_pixel_spec=self.x_pixel_slice,
+            roi_pixel=self.x_pixel_slice,
             frame_med=self.wCheckFrameMedian.value,
             delay_mean=self.wCheckDelayMedian.value,
             spectra_mean=self.wCheckSpectraMean.value,
             medfilt_pixel=self.wIntSliderSmooth.value,
         )
-        return self.data.subselect(**kwgs)
+        return self.data.select(**kwgs)
 
-    def select_trace(self, y_property, roi_x_pixel=None):
+    def trace(self, prop, prop_kws):
         """Use settings of gui to susbelect data for trace."""
         kwgs = dict(
-            y_property=y_property,
-            x_property='pp_delays',
+            prop=prop,
+            prop_kwgs=prop_kws,
             roi_delay=self.wRangeSliderPPDelay.slice,
             roi_frames=self.frame_selected,
             roi_spectra=self.spec_slice,
-            roi_x_pixel_spec=self.x_trace_pixel_slice,
+            roi_pixel=self.x_trace_pixel_slice,
             frame_med=self.wCheckFrameMedian.value,
             spectra_mean=self.wCheckSpectraMean.value,
-            pixel_mean=True,
             medfilt_pixel=self.wIntSliderSmooth.value,
         )
-        return self.data.subselect(**kwgs)
+        return self.data.trace(**kwgs)
 
     def select_traces(self, y_property):
         """Use settings of gui to susbelect data for traces."""
@@ -884,7 +882,7 @@ class WidgetBase():
         ret = np.zeros(ret_shape)
         for i in range(len(self.data.rois_x_pixel_trace)):
             roi_x_pixel = self.data.rois_x_pixel_trace[i]
-            x, y = self.data.subselect(roi_x_pixel_spec=roi_x_pixel, **kwgs)
+            x, y = self.data.subselect(roi_pixel=roi_x_pixel, **kwgs)
             ret[:, :, :, i] = y[:, :, :, 0]
         return x, ret
 
@@ -1244,7 +1242,7 @@ class IRTab(WidgetBase, WidgetFigures):
         import ipywidgets as wi
         super()._init_widget()
         # This allows the data to be used for normalization from start on
-        self.data.data += 1
+        self.data.rawData += 1
         self.wRangeSliderTracePixelX.layout.visibility = 'hidden'
         self.wCheckAutoscaleTrace.layout.visibility = 'hidden'
         self.wRangeSliderPixelX.layout.visibility = 'hidden'
@@ -1454,7 +1452,7 @@ class ImgView(WidgetBase):
 
     def _update_figure(self):
         self._init_figure()
-        view_data = self.data.data[
+        view_data = self.data.rawData[
             self.pp_delay_index, self.frame_index
         ]
         ax = self.axes[0]
@@ -1471,7 +1469,7 @@ class ImgView(WidgetBase):
         axl = self.axes[1]
         axl.clear()
         y_slice = self.wRangeSliderPixelY.slice
-        view_data2 = self.data.data[
+        view_data2 = self.data.rawData[
             self.pp_delay_selected.start, self.wRangeSliderFrame.value[0], y_slice
         ].sum(Y_PIXEL_INDEX)
         axl.plot(view_data2)
