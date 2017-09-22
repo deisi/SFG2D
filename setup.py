@@ -9,6 +9,10 @@ from glob import glob
 try:
     from Cython.Build import cythonize
     USE_CYTHON = True
+    print('Cython is available')
+    if os.name == 'nt':
+        print('No Compilation under Windows')
+        USE_CYTHON = False
 except ImportError:
     print('Cython is not available; using pre-generated C files')
     USE_CYTHON = False
@@ -16,6 +20,8 @@ except ImportError:
 ext = '.pyx' if USE_CYTHON else '.c'
 extensions = []
 for source_file in glob('sfg2d/utils/*' + ext):
+    if not USE_CYTHON:
+        continue
     fname, _ = os.path.splitext(os.path.basename(source_file))
     extensions.append(
         Extension('sfg2d.utils.{0}'.format(fname),
