@@ -299,8 +299,20 @@ class SfgRecord():
 
         prop: Name of the propertie to select data from
         prop_kwgs: For Infered properties, spectial kwgs,
-        roi_delay: delay slice
-        ...
+        roi_delay: Region of Interest of delay slice
+        roi_frames: Select Frames
+        roi_spectra: Select Spectra
+        roi_pixel: Select Pixel
+        frame_med: Calculate frae wise median.
+        delay_mean: calculate delaywise median.
+        spectr_mean: Spctra wise mean
+        pixel_mean: Calculates median. Called mean due to historic reasons.
+        madfilt_pixel: Moving median filter over pixel axis.
+        resample_freqs: FFT Frequency filter. Give number of frequencoes.
+            0 is off. Higher number -> Less smoothing.
+        Return
+        ------
+        4-D Array with [Delay, Frames, Spectra, Pixel] axes.
         """
         if isinstance(roi_delay, type(None)):
             roi_delay = self.roi_delay
@@ -923,20 +935,20 @@ class SfgRecord():
         """Shortcut to get traces.
 
         prop: property to calculate the trace from
-        prop_
+        prop_kwgs: additional kwgs of the property
         roi_wavenumber: roi to calculate trace over in wavenumbers.
         roi_delay: pp_delay roi to use as x axis.
-        frame_med: calculate frame median.
         shift_neg_time: The Zero_time_subtraction can lead to an not 1 negative time.
             This corrects the while data set in such a way, that the given number of
             shift neg time points is used to move the complete data set such that it
             is around 1 there.
-        roi_pixel: roi in pixel coordinates. Defaults to SfgRecord.roi_x_pixel_spec if
-            neither roi_pixel nor roi_wavenumber is given.
+        **kwargs get passed to `SfRecord.select()`:
+
         """
         if roi_wavenumber:
             roi_pixel = self.wavenumber2pixelSlice(roi_wavenumber)
         else:
+            roi_pixel = kwargs.get('roi_pixel')
             if not roi_pixel:
                 roi_pixel = self.roi_x_pixel_spec
         x = self.select(prop='pp_delays', roi_delay=roi_delay)
@@ -954,7 +966,7 @@ class SfgRecord():
         if shift_neg_time:
             y += 1 - y[:shift_neg_time].mean()
 
-        kwargs['frame_mean'] = False
+        kwargs['frame_med'] = False
         yerr = self.sem(
             prop=prop,
             prop_kwgs=prop_kwgs,

@@ -108,46 +108,28 @@ class WidgetBase():
         )
 
         # Checkbox to toggle visibility of bleach
-        self.wCheckShowBleachAbs = wi.Checkbox(
-            description='Abs',
+        self.wCheckShowBleach = wi.Checkbox(
+            description='Bleach',
             value=False,
         )
 
-        # Checkbox to toggle visibility of bleach
-        self.wCheckShowBleachAbsNorm = wi.Checkbox(
-            description='Abs Norm',
-            value=False,
+        # Dropdown to Choose Type of Bleach
+        self.wDropdownBleachOpt = wi.Dropdown(
+            description='Opt:',
+            options=['rel', 'abs'],
+            value='rel',
         )
 
-        # Checkbox to toggle visibility of bleach
-        self.wCheckShowBleachRel = wi.Checkbox(
-            description='Rel',
-            value=False,
+        # Dropdown to Choose property of bleach
+        self.wDropdownBleachProp = wi.Dropdown(
+            description='Prop:',
+            options=['rawData', 'basesubed', 'normalized'],
+            value='basesubed',
         )
 
-        # Checkbox to toggle visibility of bleach
-        self.wCheckShowBleachRelNorm = wi.Checkbox(
-            description='Rel Norm',
-            value=False,
-        )
-
-        self.wCheckShowTracesBleachAbs = wi.Checkbox(
-            description='Bleach Abs',
-            value=False,
-        )
-
-        self.wCheckShowTracesBleachAbsNorm = wi.Checkbox(
-            description='Bleach Abs Norm',
-            value=False,
-        )
-
-        self.wCheckShowTracesBleachRel = wi.Checkbox(
-            description='Bleach Rel',
-            value=False,
-        )
-
-        self.wCheckShowTracesBleachRelNorm = wi.Checkbox(
-            description='Bleach Rel Norm',
+        # Toggle to show Trace of Bleach
+        self.wCheckShowTracesBleach = wi.Checkbox(
+            description='Bleach',
             value=False,
         )
 
@@ -436,17 +418,13 @@ class WidgetBase():
             self.wCheckShowNorm,
             self.wIntSliderSmooth,
             self.wCheckShowBase,
-            self.wCheckShowBleachAbs,
-            self.wCheckShowBleachAbsNorm,
-            self.wCheckShowBleachRel,
-            self.wCheckShowBleachRelNorm,
+            self.wCheckShowBleach,
+            self.wDropdownBleachOpt,
+            self.wDropdownBleachProp,
             self.wCheckShowRawData,
             self.wCheckShowBasesubed,
             self.wCheckShowNormalized,
-            self.wCheckShowTracesBleachAbs,
-            self.wCheckShowTracesBleachAbsNorm,
-            self.wCheckShowTracesBleachRel,
-            self.wCheckShowTracesBleachRelNorm,
+            self.wCheckShowTracesBleach,
             self.wCheckShowTracesRawData,
             self.wCheckShowTracesBasesubed,
             self.wCheckShowTracesNormalized,
@@ -468,14 +446,10 @@ class WidgetBase():
             'file': self.wSelectFile,
             'showBaseline': self.wCheckShowBase,
             'checkDelayMedian': self.wCheckDelayMedian,
-            'showBleachAbs': self.wCheckShowBleachAbs,
-            'showBleachAbsNorm': self.wCheckShowBleachAbsNorm,
-            'showBleachRel': self.wCheckShowBleachRel,
-            'showBleachRelNorm': self.wCheckShowBleachRelNorm,
-            'showTracesBleachAbs': self.wCheckShowTracesBleachAbs,
-            'showTraceBleachAbsNorm': self.wCheckShowTracesBleachAbsNorm,
-            'showTracesBleachRel': self.wCheckShowTracesBleachRel,
-            'showTracesBleachRelNorm': self.wCheckShowTracesBleachRelNorm,
+            'showBleach': self.wCheckShowBleach,
+            'bleachOpt': self.wDropdownBleachOpt,
+            'bleachProp': self.wDropdownBleachProp,
+            'showTracesBleach': self.wCheckShowTracesBleach,
             'showTracesRawData': self.wCheckShowTracesRawData,
             'showTracesBasesubed': self.wCheckShowTracesBasesubed,
             'showTracesNormalized': self.wCheckShowTracesNormalized,
@@ -827,17 +801,18 @@ class WidgetBase():
     def x_spec(self):
         """X data of the *Signal* plot. """
         if self.wDropdownCalib.value == 'pixel':
-            x = self.data.pixel[self.x_pixel_slice]
+            x = self.data.pixel
         elif self.wDropdownCalib.value == 'wavelength':
-            x = self.data.wavelength[self.x_pixel_slice]
+            x = self.data.wavelength
         elif self.wDropdownCalib.value == 'wavenumber':
-            x = self.data.wavenumber[self.x_pixel_slice]
+            x = self.data.wavenumber
         return x
 
-    def spectra(self, prop):
+    def spectra(self, prop, prop_kwgs={}):
         """Use settings of the gui to select spectra data from SfgRecord."""
         kwgs = dict(
             prop=prop,
+            prop_kwgs=prop_kwgs,
             roi_delay=self.pp_delay_selected,
             roi_frames=self.frame_selected,
             roi_spectra=self.spec_slice,
@@ -849,12 +824,12 @@ class WidgetBase():
         )
         return self.data.select(**kwgs)
 
-    def trace(self, prop, prop_kws):
+    def trace(self, prop, prop_kwgs={}):
         """Use settings of gui to susbelect data for trace."""
         kwgs = dict(
             prop=prop,
-            prop_kwgs=prop_kws,
-            roi_delay=self.wRangeSliderPPDelay.slice,
+            prop_kwgs=prop_kwgs,
+            roi_delay=self.pp_delay_slice,
             roi_frames=self.frame_selected,
             roi_spectra=self.spec_slice,
             roi_pixel=self.x_trace_pixel_slice,
@@ -1025,85 +1000,75 @@ class WidgetFigures():
     def _plot_rawData(self, ax):
         if not self.wCheckShowRawData.value:
             return
-        self._plot_spec(*self.select_spectra('rawData'), ax, 'RawData\n')
+        self._plot_spec(self.x_spec[self.x_pixel_slice],
+                        self.spectra('rawData'), ax, 'RawData\n')
 
     def _plot_basesubed(self, ax):
         if not self.wCheckShowBasesubed.value:
             return
-        self._plot_spec(*self.select_spectra('basesubed'), ax, 'Basesubed\n')
+        self._plot_spec(self.x_spec[self.x_pixel_slice], self.spectra('basesubed'),
+                        ax, 'Basesubed\n')
 
     def _plot_normalized(self, ax):
         if not self.wCheckShowNormalized.value:
             return
-        self._plot_spec(*self.select_spectra('normalized'), ax, 'Normalized\n')
+        self._plot_spec(self.x_spec[self.x_pixel_slice], self.spectra('normalized'), ax, 'RawData\n')
 
     def _plot_base(self, ax):
         if not self.wCheckShowBase.value:
             return
-        self._plot_spec(*self.select_spectra('base'), ax, 'Base\n')
+        self._plot_spec(self.x_spec[self.x_pixel_slice], self.spectra('base'), ax, 'RawData\n')
 
     def _plot_norm(self, ax):
         if not self.wCheckShowNorm.value:
             return
-        self._plot_spec(*self.select_spectra('norm'), ax, 'Norm\n')
+        self._plot_spec(self.x_spec[self.x_pixel_slice], self.spectra('norm'), ax, 'RawData\n')
 
-    def _plot_bleach_abs(self, ax):
-        if not self.wCheckShowBleachAbs.value:
+    def _plot_bleach(self, ax):
+        if not self.wCheckShowBleach.value:
             return
-        self._plot_spec(*self.select_spectra('bleach_abs'), ax, "BleachAbs\n")
-
-    def _plot_bleach_abs_norm(self, ax):
-        if not self.wCheckShowBleachAbsNorm.value:
-            return
-        self._plot_spec(*self.select_spectra('bleach_abs_norm'), ax, "BleachAbsNorm\n")
-
-    def _plot_bleach_rel(self, ax):
-        if not self.wCheckShowBleachRel.value:
-            return
-        self._plot_spec(*self.select_spectra("bleach_rel"), ax, "BleachRel\n")
-
-    def _plot_bleach_rel_abs(self, ax):
-        if not self.wCheckShowBleachRelNorm.value:
-            return
-        self._plot_spec(*self.select_spectra('bleach_rel_norm'), ax, "BleachRelNorm\n")
-
-    def _plot_traces_bleach_abs(self, ax):
-        if not self.wCheckShowTracesBleachAbs.value:
-            return
-        self._plot_traces(*self.select_trace('bleach_abs'), ax, 'Bleach Abs\n')
-
-    def _plot_traces_bleach_abs_norm(self, ax):
-        if not self.wCheckShowTracesBleachAbsNorm.value:
-            return
-        self._plot_traces(*self.select_trace('bleach_abs_norm'), ax,
-                          'Bleach Abs Norm\n')
-
-    def _plot_traces_bleach_rel(self, ax):
-        if not self.wCheckShowTracesBleachRel.value:
-            return
-        self._plot_traces(*self.select_trace('bleach_rel'), ax, 'Bleach Rel\n')
-
-    def _plot_traces_bleach_rel_norm(self, ax):
-        if not self.wCheckShowTracesBleachRelNorm.value:
-            return
-        self._plot_traces(*self.select_trace('bleach_rel_norm'), ax,
-                          'Bleach Rel Norm\n')
+        self._plot_spec(
+            self.x_spec[self.x_pixel_slice],
+            self.spectra(
+                'bleach',
+                prop_kwgs=dict(
+                    opt=self.wDropdownBleachOpt.value,
+                    prop=self.wDropdownBleachProp.value
+                )
+            ),
+            ax,
+            'Bleach\n',
+        )
 
     def _plot_traces_rawData(self, ax):
         if not self.wCheckShowTracesRawData.value:
             return
-        self._plot_traces(*self.select_trace('rawData'), ax, 'Bleach Raw\n')
+        xdata, ydata, yerr = self.trace('rawData')
+        self._plot_traces(xdata, ydata, ax, 'Raw\n')
 
     def _plot_traces_basesubed(self, ax):
         if not self.wCheckShowTracesBasesubed.value:
             return
-        self._plot_traces(*self.select_trace('basesubed'), ax,
-                          'Bleach Basesubed\n')
+        xdata, ydata, yerr = self.trace('basesubed')
+        self._plot_traces(xdata, ydata, ax, 'Basesubed\n')
 
     def _plot_traces_normalized(self, ax):
         if not self.wCheckShowTracesNormalized.value:
             return
-        self._plot_traces(*self.select_trace('normalized'), ax, 'Bleach Norm\n')
+        xdata, ydata, yerr = self.trace('normalized')
+        self._plot_traces(xdata, ydata, ax, 'Normalized\n')
+
+    def _plot_traces_bleach(self, ax):
+        if not self.wCheckShowTracesBleach.value:
+            return
+        xdata, ydata, yerr = self.trace(
+            'bleach',
+            prop_kwgs=dict(
+                opt=self.wDropdownBleachOpt.value,
+                prop=self.wDropdownBleachProp.value
+            ),
+        )
+        self._plot_traces(xdata, ydata, ax, 'Bleach\n')
 
     def plot_spec(self, ax):
         self._plot_rawData(ax)
@@ -1111,18 +1076,12 @@ class WidgetFigures():
         self._plot_normalized(ax)
         self._plot_base(ax)
         self._plot_norm(ax)
-        self._plot_bleach_abs(ax)
-        self._plot_bleach_abs_norm(ax)
-        self._plot_bleach_rel(ax)
-        self._plot_bleach_rel_abs(ax)
+        self._plot_bleach(ax)
         ax.set_title(self._x_spec_title)
         ax.set_xlabel(self.x_spec_label)
 
     def plot_traces(self, ax):
-        self._plot_traces_bleach_abs(ax)
-        self._plot_traces_bleach_abs_norm(ax)
-        self._plot_traces_bleach_rel(ax)
-        self._plot_traces_bleach_rel_norm(ax)
+        self._plot_traces_bleach(ax)
         self._plot_traces_rawData(ax)
         self._plot_traces_basesubed(ax)
         self._plot_traces_normalized(ax)
@@ -1226,7 +1185,7 @@ class BaselineTab(WidgetBase, WidgetFigures):
     @property
     def to_base(self):
         """Y data to be send on Set Baseline button press."""
-        return self.select_spectra('rawData')[1]
+        return self.spectra('rawData')
 
 
 class IRTab(WidgetBase, WidgetFigures):
@@ -1292,7 +1251,7 @@ class IRTab(WidgetBase, WidgetFigures):
     def to_norm(self):
         """The property that gets exported to the Record tab if one clickes.
         Send IR."""
-        return self.select_spectra('basesubed')[1]
+        return self.spectra('basesubed')
 
 
 class RecordTab(WidgetBase, WidgetFigures):
@@ -1353,10 +1312,9 @@ class RecordTab(WidgetBase, WidgetFigures):
             wi.VBox([
                 wi.Label("Bleach:"),
                 wi.HBox([
-                   self.wCheckShowBleachAbs,
-                   self.wCheckShowBleachAbsNorm,
-                   self.wCheckShowBleachRel,
-                   self.wCheckShowBleachRelNorm,
+                    self.wCheckShowBleach,
+                    self.wDropdownBleachOpt,
+                    self.wDropdownBleachProp,
                 ]),
             ]),
             wi.VBox([
@@ -1365,10 +1323,7 @@ class RecordTab(WidgetBase, WidgetFigures):
                     self.wCheckShowTracesRawData,
                     self.wCheckShowTracesBasesubed,
                     self.wCheckShowTracesNormalized,
-                    self.wCheckShowTracesBleachAbs,
-                    self.wCheckShowTracesBleachAbsNorm,
-                    self.wCheckShowTracesBleachRel,
-                    self.wCheckShowTracesBleachRelNorm,
+                    self.wCheckShowTracesBleach,
                 ]),
             ]),
         ])
