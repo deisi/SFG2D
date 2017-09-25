@@ -1,6 +1,4 @@
-watchdog
-
-numpy
+numpy>=1.13.1
 
 pandas
 
@@ -14,8 +12,6 @@ Pillow
 
 ipython
 
-watchdog
-
 jupyter
 
 jupyter_dashboards
@@ -27,7 +23,5 @@ PyYAML
 notebook
 
 widgetsnbextension
-
-bqplot
 
 ipywidgets
