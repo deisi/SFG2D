@@ -15,6 +15,7 @@ class Fitter():
             sigma=None,
             box_coords=None,
             roi=None,
+            name='',
     ):
         self._xdata = xdata
         self._ydata = ydata
@@ -28,6 +29,8 @@ class Fitter():
             roi = slice(None)
         self.roi = roi
         self._pnames = None
+        self._xsample_num = 400
+        self.name = name
 
     @property
     def xdata(self):
@@ -59,6 +62,18 @@ class Fitter():
         """Edges of the y data of the fit."""
         return self.ydata[0], self.ydata[-1]
 
+    @property
+    def xsample(self):
+        return np.linspace(self.xdata[0], self.xdata[-1], self._xsample_num)
+
+    @property
+    def y_fit(self):
+        return self.fit_res(self.xsample)
+
+    @property
+    def yfit_sample(self):
+        return self.fit_res(self.xsample)
+
 
 class CurveFitter(Fitter):
     """Base Class to add curve fit capabilities to model classes."""
@@ -68,7 +83,6 @@ class CurveFitter(Fitter):
         self.jac = None  # The jacobean Matrix of the DGL
         self.bounds = bounds  # Boundary conditions for the fit
         self.metadata = metadata  # Some additional metadata
-        self._xsample_num = 400
         # Effective slice of the fit to take into account.
         self.fit_slice = slice(*fit_slice)
         if fname:
@@ -134,10 +148,6 @@ class CurveFitter(Fitter):
     def X2_start(self):
         """The unreduced Chi2 of the starting parameters."""
         return np.square(self.yfit_start - self.ydata).sum()
-
-    @property
-    def xsample(self):
-        return np.linspace(self.xdata[0], self.xdata[-1], self._xsample_num)
 
     @property
     def box_str(self):
@@ -415,7 +425,7 @@ class FourLevelMolkinBase():
             y0=self.N0,  # Starting conditions of the DGL
             t=t,
             args=(ext_func, s, t1, t2),
-            Dfun=self.jac,  # The Jacobean of the DGL. Its optional.
+            #Dfun=self.jac,  # The Jacobean of the DGL. Its optional.
             # The precisioin parameter for the nummerical DGL solver.
             rtol=self.rtol,
             atol=self.atol,
@@ -458,7 +468,7 @@ class FourLevelMolkinBase():
         t1: Livetime of first state
         t2: livetime of second(intermediate) state
         c: Coefficient of third(Heat) state
-        scale: Scaling factor at the very end
+
 
         Returns:
         The bleach of the water model
@@ -473,7 +483,15 @@ class FourLevelMolkinBase():
         return ((N[0] + N[2] + c * N[3] - N[1])**2) / (self.N0[0]**2)
 
     def chi2(self, s, t1, t2, c, mu):
-        """Chi2 to be minimized by minuit."""
+        """Chi2 to be minimized by minuit.
+
+        **Arguments:**
+          - **s**: Gaussian Amplitude of the excitation
+          - **t1**: Livetime of the first state
+          - **t2**: Livetime of the second state
+          - **c**: Coefficent of the heat
+
+        """
         return np.sum(
             (
                 (self.ydata - self.fit_func(self.xdata, s, t1, t2, c, mu)) /
@@ -540,6 +558,108 @@ class FourLevelMolKinM(Minuitter, FourLevelMolkinBase):
 
         FourLevelMolkinBase.__init__(self, gSigma, N0, rtol, atol, full_output)
         Minuitter.__init__(self, xdata, ydata, p0, sigma, fitarg, **kwargs)
+
+class SimpleDecay(Minuitter):
+    def __init__(
+            self,
+            *args,
+            gSigma=150,
+            xsample=None,
+            xsample_ext=0.1,
+            **kwargs
+    ):
+        """Minuitter Based Fitting Model.
+
+        xsample: Optional
+            Stepping size of the convolution. Default minimal
+            difference of xdata and in the range of xdata.
+        xsample_ext: Boundary effects of the convolution make int necesarry to,
+            add additional Datapoints to the xsample data. By default 10% are
+            added.
+        """
+        Minuitter.__init__(self, *args, **kwargs)
+        self._xsample = np.array([])
+        self.gSigma = gSigma
+
+        self.xsample = xsample
+        self.xdata_step_size = np.diff(self.xdata).min()
+        if not xsample:
+            self.xsample = np.arange(
+                self.xdata[0],
+                self.xdata[-1],
+                self.xdata_step_size
+            )
+
+    @property
+    def xsample(self):
+        return self._xsample
+
+    @xsample.setter
+    def xsample(self, value):
+        self._xsample = value
+
+    @property
+    def x_ext(self):
+        return np.arange(-3*self.gSigma, 3*self.gSigma, self.xdata_step_size)
+
+    def y_ext(self):
+        """Gausian excitation function.
+
+        Due to historic reasons its not a strict gausian, but something
+        very cloe to it. The Igor Code is:
+        1/sqrt(pi)/coeff1*exp(-(coeff0-x)^2/coeff1^2) """
+
+        #ret = 1 / np.sqrt(np.pi) / self.gSigma * np.exp(-((self.x_ext)/self.gSigma)**2)
+        return norm.pdf(self.x_ext, 0, self.gSigma)
+
+    @property
+    def x_rec(self):
+        """Gausian excitation function."""
+        extend = self.x_ext.shape[0]//2*self.xdata_step_size
+        return np.arange(
+            self.xsample[0]-extend,
+            self.xsample[-1]+extend,
+            self.xdata_step_size
+        )
+
+    @property
+    def x_conv(self):
+        """X data of the convolution."""
+        g = self.y_ext().shape[0]
+        # Fit parameters
+        p = [self.minuit.fitarg[elm] for elm in ('A', 't1', 'c', 'mu')]
+        e = self.y_rec(*p).shape[0]
+        # Number of points in case of **mode=valid** convolution
+        lim = np.max([g, e]) - np.min([g, e]) + 1
+        return self.xsample[:lim]
+
+    def y_rec(self, A, t1, c, mu):
+        """Exponential recovery of the signal."""
+        ret = np.zeros_like(self.x_rec, dtype='float64')
+        mask = np.where(self.x_rec > mu)
+        ret[mask] = -A * (
+            np.exp(-(self.x_rec[mask]-mu)/t1)) + c
+        return ret
+
+    def conv(self, A, t1, c, mu, ofs):
+        """Convolution of excitation function and single exponential."""
+        g = self.y_ext()
+        e = self.y_rec(A, t1, c, mu)
+        return np.convolve(g, e, mode='valid') + ofs
+
+    def fit_func(self, t, A, t1, c, mu, ofs):
+        conv = self.conv(A, t1, c, mu, ofs)
+        intpf = np.interp(t, self.x_conv, conv)
+        return intpf
+
+    def chi2(self, A, t1, c, mu, ofs):
+        """Chi2 to be minimized by minuit."""
+        return np.sum(
+            (
+                (self.ydata - self.fit_func(self.xdata, A, t1, c, mu, ofs)) /
+                self.sigma
+            )**2
+        )
 
 class ThreeLevelMolkin(Minuitter):
     def __init__(
@@ -663,6 +783,40 @@ class ThreeLevelMolkin(Minuitter):
         return np.sum(
             (
                 (self.ydata - self.fit_func(self.xdata, s, t1, c, mu)) /
+                self.sigma
+            )**2
+        )
+
+class GaussianModelM(Minuitter):
+    def __init__(self, *args, **kwargs):
+        ''' Fit Gausian model using Minuit.
+        **Arguments:**
+          - **xdata**: Array of x data
+          - **ydata**: Array of y data
+          - **p0**: Array of starging values
+            [A, mu, sigma, c]
+            Use **fitargs currently**
+          - **sigma**: Array of errors
+          - **fitargs**: Fitargs for minuit.
+        '''
+        Minuitter.__init__(self, *args, **kwargs)
+        self._box_str_format = '{:5}: {:7.3g} $\\pm$ {:6.1g}\n'
+
+    def fit_func(self, x, A, mu, sigma, c):
+        """Guassian function
+
+        A: amplitude
+        mu: position
+        sigma: std deviation
+        c : offset
+        """
+        return A * norm.pdf(x, mu, sigma) + c
+
+    def chi2(self, A, mu, sigma, c):
+        """Chi2 to be minimized by minuit."""
+        return np.sum(
+            (
+                (self.ydata - self.fit_func(self.xdata, A, mu, sigma, c)) /
                 self.sigma
             )**2
         )

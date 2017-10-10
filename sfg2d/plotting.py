@@ -86,7 +86,7 @@ def save_figs_to_multipage_pdf(figs, fpath):
     print("Saved figure to: {}".format(path.abspath(fpath)))
 
 
-def plot_spec(xdata, ydata, ax=None, xlabel='Wavenumber in 1/cm', ylabel='SFG Intensity in a.u.', **kwargs):
+def plot_spec(xdata, ydata, *args, ax=None, xlabel='Wavenumber in 1/cm', ylabel='SFG Intensity in a.u.', **kwargs):
     """
     Plot data with pixel axis of ydata as x-axis
 
@@ -104,12 +104,36 @@ def plot_spec(xdata, ydata, ax=None, xlabel='Wavenumber in 1/cm', ylabel='SFG In
     for delay in ydata:
         for frame in delay:
             for spec in frame:
-                ax.plot(xdata, spec.T, **kwargs)
+                ax.plot(xdata, spec.T, *args, **kwargs)
 
     if xlabel:
         ax.set_xlabel(xlabel)
     if ylabel:
         ax.set_ylabel(ylabel)
+
+def plot_track(ydata, *args, xdata=None, ax=None, xlabel="RunNumber", ylabel='SFG Intensity', **kwargs):
+    """A Track is a Time wise plot of the data.
+
+    **Arguments:**
+      - **ydata**: 4d Numpy array to create plot from
+
+    **Keywords:**
+
+    """
+    if not ax:
+        ax = plt.gca()
+    delays, frames, spectra, pixel = ydata.shape
+    if pixel != 1:
+        raise IOError
+
+    if delays != 1:
+        raise IOError
+
+    data = ydata[0, :, :, 0]
+    if isinstance(xdata, type(None)):
+        plt.plot(data, *args, **kwargs)
+    else:
+        plt.plot(xdata, data, *args, **kwargs)
 
 
 def plot_trace(xdata, ydata, ax=None, yerr=None, xlabel='Time in fs', ylabel='Bleach in a.u.', **kwargs):
@@ -221,6 +245,9 @@ def plot_trace_fit(
         xsample = np.linspace(xdata[0], xdata[-1], xsample)
         fit_kws.setdefault('label', 'Fit')
         ax.plot(xsample, fit_func(xsample), **fit_kws)
+        color = ax.lines[-1].get_color()
+        fit_kws['label'] = None
+        ax.plot(xdata, fit_func(xdata), 'o', color=color, **fit_kws)
 
     if not isinstance(x_fit_range, type(None)) and not isinstance(y_fit_range, type(None)):
         ax.scatter(x_fit_range, y_fit_range, color='r', zorder=3)
@@ -398,7 +425,14 @@ def bleach_plotzt_pdf(
 
 
 # Plots on Records.
-def plot_record_static(record, save=True, scale=1000, select_kw={}):
+def plot_record_static(
+        record,
+        save=True,
+        scale=1000,
+        select_kw={},
+        x_prop='wavenumber',
+        **kwargs
+):
     """Figure of Static data from a record.
 
     High level function.
@@ -417,7 +451,7 @@ def plot_record_static(record, save=True, scale=1000, select_kw={}):
     select_kw.setdefault('frame_med', True)
     select_kw.setdefault('prop', 'unpumped')
     data = record.select(**select_kw)
-    plot_spec(record.select('wavenumber'), scale*data)
+    plot_spec(record.select(x_prop), scale*data, **kwargs)
     plt.title("{}".format(record.lname))
     fname = 'figures/{}_static.pdf'.format(record.name)
     print(fname)
@@ -465,24 +499,30 @@ def plot_model_trace(
         ylim=(0.90, 1.02),
         save=True,
         fname_format='figures/{}_trace_bleach_rel_pump{}_{}_fit.pdf',
+        title=None,
 ):
     fig, ax = plt.subplots(
         num='{}'.format(name)
     )
     fig.clf()
-    plt.title("{} {} 1/cm".format(record.lname, name))
+    if not title:
+        plt.title(name)
+    else:
+        plt.title(title)
     plot_trace_fit(
-        model._xdata,
-        model._ydata,
-        model._sigma,
+        model.xdata,
+        model.ydata,
+        model.sigma,
         model.fit_res,
         model.box_str,
         model.box_coords,
         model.x_edges,
         model.y_edges,
     )
-    plt.xlim(*xlim)
-    plt.ylim(*ylim)
+    if not isinstance(xlim, type(None)):
+        plt.xlim(*xlim)
+    if not isinstance(ylim, type(None)):
+        plt.ylim(*ylim)
     fname = fname_format.format(
         record.name, record.pump_freq, name)
     print('Filename: ', fname)
@@ -490,7 +530,6 @@ def plot_model_trace(
         print("Saved")
         plt.savefig(fname)
     return fig, ax
-
 
 # DEPRECATED
 def plot_time(time, data, **kwargs):

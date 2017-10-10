@@ -955,6 +955,7 @@ class SfgRecord():
 
         kwargs['pixel_mean'] = True
         kwargs['roi_delay'] = roi_delay
+        kwargs.setdefault('frame_med', True)
         kwargs.setdefault('roi_pixel', roi_pixel)
 
         y = self.select(
@@ -1354,3 +1355,25 @@ def SfgRecords_from_file_list(list):
     list: list of filepaths to import SfgRecords from.
     """
     return concatenate_list_of_SfgRecords([SfgRecord(elm) for elm in list])
+
+def get_fit_results(record):
+    """Extract fit results from a record with a minuit based model fit.
+
+    **Arguments:**
+      - **record**: The Record to extract the results from
+
+    **Returns:**
+    List of fit results. Each fit restuls is a dictionary with information
+    about the fit.
+    """
+    ret = []
+    for binning, model in record.models.items():
+        ret.append(
+            {
+                'fitarg': model.minuit.fitarg,
+                'name': record.name,
+                'pump_freq': record.pump_freq,
+                'binning': binning,
+            }
+        )
+    return ret

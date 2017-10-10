@@ -26,6 +26,7 @@ def replace_pixel(record, pixel, region=5):
     Usefull to cope with broken pixels.
     """
 
-    record.rawData[:, :, :, pixel] = median(
-        record.rawData[:, :, :, pixel-region: pixel+region], -1
+    record._rawData[:, :, :, pixel] = median(
+        record._rawData[:, :, :, pixel-region: pixel+region], -1
     )
+    return record
