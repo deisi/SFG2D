@@ -199,7 +199,7 @@ class SfgRecord():
         self.name = ''
 
         # A Nice Latex Version of the name of the recrod
-        self.lname = ''
+        self._lname = None
 
         if isinstance(fname, type(None)):
             return
@@ -735,6 +735,24 @@ class SfgRecord():
     @zero_time_selec.setter
     def zero_time_selec(self, value):
         self._zero_time_selec = value
+
+    @property
+    def lname(self):
+        lname_dict = {
+            'd2o': 'D$_2$O',
+            'na2so4': 'Na$_2$SO$_4$',
+            'na2co3': 'Na$_2$CO$_3$',
+        }
+        if not self._lname:
+            for test_str in lname_dict.keys():
+                if test_str in self.name:
+                    return lname_dict[test_str]
+            return ''
+        return self._lname
+
+    @lname.setter
+    def lname(self, value):
+        self._lname = value
 
     def wavenumbers2index(self, wavenumbers, sort=False):
         """Calculate index positions of wavenumbers.
@@ -1377,3 +1395,145 @@ def get_fit_results(record):
             }
         )
     return ret
+
+class MultiModel():
+    """Datastructure to save multiple traces."""
+    def __init__(
+            self,
+            fitmodels,
+            labels,
+            pump_freqs,
+            colors=None,
+            names=None,
+            normalized=False,
+    ):
+        self.fitmodels = fitmodels
+        self._xdatas = [fitmodel.xdata for fitmodel in fitmodels]
+        self._ydatas = [fitmodel.ydata for fitmodel in fitmodels]
+        self._yerrors = [fitmodel.sigma for fitmodel in fitmodels]
+        self._xfits = [fitmodel.xsample for fitmodel in fitmodels]
+        self._yfits = [fitmodel.yfit_sample for fitmodel in fitmodels]
+        self.labels = labels
+        self.pump_freqs = pump_freqs
+        self._colors = colors
+        self.names = names
+        self.normalized = normalized
+
+    def parameters(self, name):
+        """Returns array of parameter values of fitmodel"""
+        return np.array([self.fitmodels[i].minuit.fitarg[name] for i in range(self.number_of_traces)])
+
+    @property
+    def colors(self):
+        if isinstance(self._colors, type(None)):
+            return ['C{}'.format(i) for i in range(self.number_of_traces)]
+        return self._colors
+
+    @property
+    def mus(self):
+        """Temporal offset"""
+        return self.parameters('mu')
+
+    @property
+    def offsets(self):
+        """y offset at late times"""
+        return np.array([1 - self._yfits[i][-1] for i in range(self.number_of_traces)])
+
+    @property
+    def diffs(self):
+        """Height of the fit."""
+        diffs = np.zeros(self.number_of_traces)
+        for i in range(self.number_of_traces):
+            diffs[i] = np.abs(self._yfits[i][-1] - self._yfits[i].min())
+        return diffs
+
+    @property
+    def xdatas(self):
+        """xdata"""
+        if self.normalized:
+            ret = []
+            for i in range(self.number_of_traces):
+                ret.append(self._xdatas[i] - self.mus[i])
+            return ret
+        return self._xdatas
+
+    @xdatas.setter
+    def xdatas(self, value):
+        self._xdatas = value
+
+    @property
+    def ydatas(self):
+        """ydatas"""
+        if self.normalized:
+            ret = []
+            for i in range(self.number_of_traces):
+                ret.append((self._ydatas[i] + self.offsets[i] - 1)/self.diffs[i] + 1)
+            return ret
+        return self._ydatas
+
+    @ydatas.setter
+    def ydatas(self, value):
+        self._ydatas = value
+
+    @property
+    def yerrors(self):
+        """error of the y data."""
+        if self.normalized:
+            ret = []
+            for i in range(self.number_of_traces):
+                ret.append((self._yerrors[i])/self.diffs[i])
+            return ret
+        return self._yerrors
+
+    @yerrors.setter
+    def yerrors(self, value):
+        self._yerrors = value
+
+    @property
+    def xfits(self):
+        """x data of the fit"""
+        if self.normalized:
+            ret = []
+            for i in range(self.number_of_traces):
+                ret.append(self._xfits[i] - self.mus[i])
+            return ret
+        return self._xfits
+
+    @xfits.setter
+    def xfits(self, value):
+        self._xfits = value
+
+    @property
+    def yfits(self):
+        """y data of the fit."""
+        if self.normalized:
+            ret = []
+            for i in range(self.number_of_traces):
+                ret.append((self._yfits[i] + self.offsets[i] - 1)/self.diffs[i] + 1)
+            return ret
+        return self._yfits
+
+    @yfits.setter
+    def yfits(self, value):
+        self._yfits = value
+
+    @property
+    def number_of_traces(self):
+        return len(self.fitmodels)
+
+    def savetxt(self, fname):
+        """Save data and firesults in text files."""
+        #for i in range(self.number_of_traces):
+        data_header = ''.join(['{0}_xdata {0}_ydata {0}_error '.format(self.names[i]) for i in range(self.number_of_traces)])
+        data = np.array([[self.xdatas[i], self.ydatas[i], self.yerrors[i]] for i in range(self.number_of_traces)])
+        data = data.reshape(3*self.number_of_traces, data.shape[-1]).T
+        sname = fname + '_data.dat'
+        print('Saving to: ', sname)
+        np.savetxt(sname, data, fmt='%.4g', header=data_header)
+
+        fit_header = ''.join(['{0}_xdata {0}_ydata '.format(self.names[i]) for i in range(self.number_of_traces)])
+        fit_data = np.array([[self.xfits[i], self.yfits[i]] for i in range(self.number_of_traces)])
+        fit_data = fit_data.reshape(2*self.number_of_traces, fit_data.shape[-1]).T
+        sname = fname + '_fit.dat'
+        print('Saving to: ', sname)
+        np.savetxt(sname, fit_data, fmt='%.4g', header=fit_header)

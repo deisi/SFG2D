@@ -1,26 +1,49 @@
-"""Physical Model that can be applied to the data."""
+"""Fitting Models to Fit data with."""
 
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.integrate import odeint
-from scipy.optimize import curve_fit
 from scipy.stats import norm
+from iminuit import Minuit
+
+
+def fit_model(model, minos=False):
+    """Function to run migrad minimizations.
+
+    **Arguments:**
+      - **model**: Model instance to run migrad of.
+    **Keywords:**
+      - **minos**: Boolean, If Errors should be calculated with minos.
+         Slow but more precise error estimation of the fit parameters.
+    """
+    model.minuit.migrad()  # Run the minimization
+    if minos:
+        model.minuit.minos()
+        model.minuit.migrad()
+    model.minuit.print_matrix()
+
 
 class Fitter():
     def __init__(
             self,
             xdata=None,
             ydata=None,
-            p0=None,
             sigma=None,
+            fitarg={},
             box_coords=None,
             roi=None,
             name='',
+            **kwargs
     ):
+        """Base Class to fit with Minuit.
+
+         **fitarg**: Dictionary gets passed to minuit.
+          and sets the starting parameters.
+        **kwargs:**
+          Get passed to minuit. Most important is
+        """
         self._xdata = xdata
         self._ydata = ydata
         self._sigma = sigma  # 1/y-errors.
-        self.p0 = p0  # Initial fit values
         self.cov = None  # The covariance of the fit
         # Coordinates of the fit result box in fig coordinates
         self.box_coords = box_coords
@@ -31,6 +54,23 @@ class Fitter():
         self._pnames = None
         self._xsample_num = 400
         self.name = name
+        kwargs.setdefault('pedantic', False)
+        self.minuit = Minuit(self.chi2, **fitarg, **kwargs)
+
+    @property
+    def p(self):
+        """Parameters of the Fit."""
+        return self.minuit.args
+
+    @property
+    def box_str(self):
+        """String to place on the plot. Showing Fit Statistics."""
+        text = ''
+        for name, value in zip(self.minuit.parameters, self.minuit.args):
+            text += self._box_str_format.format(
+                name, value, self.minuit.errors[name]
+            )
+        return text
 
     @property
     def xdata(self):
@@ -75,263 +115,82 @@ class Fitter():
         return self.fit_res(self.xsample)
 
 
-class CurveFitter(Fitter):
-    """Base Class to add curve fit capabilities to model classes."""
-    def __init__(self, *args, bounds=(-np.inf, np.inf), metadata={},
-                 fit_slice=(None, None, None), fname=None, **kwargs):
+class GaussianModelM(Fitter):
+    def __init__(self, *args, **kwargs):
+        ''' Fit Gausian model using Minuit.
+        **args**/**kwargs:**
+          Get passed to `sfg2d.models.Fitter`. Options are:
+            - **xdata**: array of x data points
+            - **ydata**: array of y data points
+            - **sigma**: Array of y data errors
+            - **fitarg**: Dictionary with fit conditions.
+                Each parameter has an entry with its name `'parameter'`
+                `'error_parameter'` `'fix_parameter'` and `'limit_parameter'`
+            - **box_coords**: Coordinates of the fit result box in data coordinates.
+            - **roi**: Slice. Region of interest of the data.
+              This subregion will be used for fitting.
+            - **name**: Str, Name to describe the Model.
+        '''
         Fitter.__init__(self, *args, **kwargs)
-        self.jac = None  # The jacobean Matrix of the DGL
-        self.bounds = bounds  # Boundary conditions for the fit
-        self.metadata = metadata  # Some additional metadata
-        # Effective slice of the fit to take into account.
-        self.fit_slice = slice(*fit_slice)
-        if fname:
-            self.load(fname)
+        self._box_str_format = '{:5}: {:7.3g} $\\pm$ {:6.1g}\n'
 
-    def curve_fit(self, **kwargs):
-        """Make a least square fit"""
-        if not kwargs.get("bounds"):
-            kwargs["bounds"] = self.bounds
-        if not kwargs.get('sigam'):
-            kwargs['sigma'] = self.sigma
-        self.p, self.cov = curve_fit(
-            self.fit_func,
-            self.xdata[self.fit_slice],
-            self.ydata[self.fit_slice],
-            self.p0,
-            **kwargs
-        )
-        return self.p, self.cov
+    def fit_func(self, x, A, mu, sigma, c):
+        """Guassian function
 
-    @property
-    def perror(self):
-        '''Error estimation of the fit parameters.'''
-        return np.sqrt(self.cov.diagonal())
-
-    @property
-    def yfit(self):
-        """y-data of the fit result."""
-        return self.fit_res(self.xdata)
-
-    @property
-    def yfit_start(self):
-        """y-data of the starting values."""
-        return self.fit_func(self.xdata, *self.p0)
-
-    @property
-    def pnames(self):
-        """Returns names of the fit parameters."""
-        if isinstance(self._pnames, type(None)):
-            from iminuit import describe
-            return describe(self.fit_func)[1:]
-        else:
-            return self._pnames
-
-    @property
-    def pdict(self):
-        """dict with the fit result"""
-        ret = dict(zip(self.pnames, self.p))
-        for i in range(len(self.pnames)):
-            pname = self.pnames[i]
-            perror = pname + '_error'
-            ret[perror] = np.sqrt(self.cov[i, i])
-        return ret
-
-    @property
-    def X2(self):
-        """The unreduced Chi2 of the Fit.
-
-        This is the squaresum of data and fit points."""
-        return np.square(self.yfit - self.ydata).sum()
-
-    @property
-    def X2_start(self):
-        """The unreduced Chi2 of the starting parameters."""
-        return np.square(self.yfit_start - self.ydata).sum()
-
-    @property
-    def box_str(self):
-        """String to place on the plot. Showing Fit Statistics."""
-        text = ''
-        for name, value, error in zip(self.pnames, self.p, self.perror):
-            text += self._box_str_format.format(
-                name, value, error
-            )
-        return text
-
-    def plot(self,
-             fig=None, ax=None,
-             show_data=True,
-             show_start_curve=False,
-             show_fit_points=False,
-             show_fit_line=False,
-             number_of_samples=100,
-             show_box=False,
-             box_coords=None,
-             show_fit_range=False,
-             data_plot_kw={'linestyle': '-',
-                           'label': 'data',
-                           'marker': 'o'},
-             start_plot_kw={},
-             fitl_plot_kw={},
-             fitp_plot_kw={},
-             vlines_param_dict={},
-             **kwgs
-
-    ):
-        """Convenience function to show the results.
-
-        fig: figure object to draw on.
-        ax: axis object to draw on.
-        show_start_curve: boolean
-            shows the starting curve.
-        show_fit_points: boolean
-            shows the result of the fit at the xdata points.
-        show_fit_line: boolean
-            makea smooth line from the fit result.
-        number_of_points: number of data points for the smooth lines.
-        show_box: boolean
-            Show nummeric fit result as a text box on the plot.
-        show_fit_range: boolean
-            show what data was used for the fit.
-        box_coords: Optinal update the box_coords.
-            box_coords are a tuple of (x,y) coords in
-            axis coordinates, thus from 0 to 1
-        kwgs get passed to all plots.
+        A: amplitude
+        mu: position
+        sigma: std deviation
+        c : offset
         """
-        if not fig:
-            fig = plt.gcf()
-        if not ax:
-            ax = plt.gca()
+        return A * norm.pdf(x, mu, sigma) + c
 
-        x_sample = np.linspace(
-            self.xdata.min(),
-            self.xdata.max(),
-            number_of_samples
+    def chi2(self, A, mu, sigma, c):
+        """Chi2 to be minimized by minuit."""
+        return np.sum(
+            (
+                (self.ydata - self.fit_func(self.xdata, A, mu, sigma, c)) /
+                self.sigma
+            )**2
         )
 
-        if show_box:
-            if not isinstance(box_coords, type(None)):
-                self.box_coords = box_coords
 
-            text = ''
-            for i in range(len(self.pnames)):
-                pname = self.pnames[i]
-                pvalue = self.pdict[pname]
-                perror = self.pdict[pname + '_error']
-                text += '{:3}: {:.2G} $\pm$ {:.1G}\n'.format(
-                    pname, pvalue, perror
-                )
-            ax.text(*self.box_coords, text,
-                    transform=ax.transAxes)
-
-        if show_data:
-            if isinstance(self.sigma, type(None)):
-                ax.plot(self.xdata, self.ydata, **data_plot_kw, **kwgs)
-            else:
-                plt.errorbar(self.xdata, self.ydata, yerr=self.sigma, axes=ax, **data_plot_kw)
-        if show_start_curve:
-            ax.plot(x_sample, self.fit_func(x_sample, *self.p0),
-                    label="start", **start_plot_kw, **kwgs)
-        if show_fit_points:
-            ax.plot(self.xdata, self.yfit,
-                        "-o", label='fit', **fitp_plot_kw, **kwgs)
-        if show_fit_line:
-            ax.plot(x_sample, self.fit_res(x_sample),
-                    label="fit", **fitl_plot_kw, **kwgs)
-        if show_fit_range:
-            ax.vlines(
-                [self.xdata[self.fit_slice.start],
-                 self.xdata[self.fit_slice.stop]],
-                self.ydata.min(), self.ydata.max(),
-                vlines_param_dict
-            )
-
-    def save(self, fname, parameter_dict={}):
-        """Save CurveFitter results.
-
-        fname: File path.
-        parameter_dict: Additional parameters to save."""
-        np.savez_compressed(
-            fname,
-            xdata=self.xdata,
-            ydata=self.ydata,
-            p0=self.p0,
-            p=self.p,
-            cov=self.cov,
-            bounds=self.bounds,
-            metadata=self.metadata,
-            box_coords=self.box_coords,
-            fit_slice=self.fit_slice,
-            **parameter_dict,
-        )
-
-    def load(self, fname):
-        """Load a saved CurvedFitter obj."""
-        inp = np.load(fname)
-        for key, value in inp.items():
-            if key == 'metadata':
-                setattr(self, key, value[()])
-                continue
-            setattr(self, key, value)
-
-
-class Minuitter(Fitter):
-    """Base Class to use Minuit as Fitting backend."""
+class FourLevelMolKinM(Fitter):
     def __init__(
             self,
-            xdata=None,
-            ydata=None,
-            p0=None,
-            sigma=None,
-            fitarg={},
-            **kwargs
-    ):
-        from iminuit import Minuit
-        #from probfit import Chi2Regression
-        super().__init__(xdata, ydata, p0, sigma, **kwargs)
-        # TODO why doenst this work?
-        #self.chi2 = Chi2Regression(
-        #    self.fit_func,
-        #    self.xdata,
-        #    self.ydata,
-        #    error=sigma,
-        #   )
-        self.minuit = Minuit(self.chi2, **fitarg, pedantic=False)
-
-    @property
-    def p0(self):
-        return self.minuit.args
-
-    @p0.setter
-    def p0(self, value):
-        self._p0 = value
-
-    @property
-    def p(self):
-        return self.minuit.args
-
-    @property
-    def box_str(self):
-        """String to place on the plot. Showing Fit Statistics."""
-        text = ''
-        for name, value in zip(self.minuit.parameters, self.minuit.args):
-            text += self._box_str_format.format(
-                name, value, self.minuit.errors[name]
-            )
-        return text
-
-
-class FourLevelMolkinBase():
-    def __init__(
-            self,
+            *args,
             gSigma=150,
             N0=[1, 0, 0, 0],
             rtol=1.09012e-9,
             atol=1.49012e-9,
             full_output=True,
+            **kwargs
     ):
-        """Baseclass of the 4 Level Molekular Dynamics Model."""
+        """4 Level Model Fitter.
+
+        To use set following `kwargs`
+        `xdata`, `ydata` and `fitarg`. Optinal pass `sigma` for y errors.
+
+        **Arguments:**
+          - **N0**: Boundary condition of the DGL
+          - **rtol**: Precision parameter of the DGL
+          - **atol**: Precision parameter of the DGL
+          - **full_output**: Weather to get full_output of the DGL Solver.
+              Usefull for debugging. atol and rtol
+
+        **args**/**kwargs:**
+          Get passed to `sfg2d.models.Fitter`. Options are:
+            - **xdata**: array of x data points
+            - **ydata**: array of y data points
+            - **sigma**: Array of y data errors
+            - **fitarg**: Dictionary with fit conditions.
+                Each parameter has an entry with its name `'parameter'`
+                `'error_parameter'` `'fix_parameter'` and `'limit_parameter'`
+            - **box_coords**: Coordinates of the fit result box in data coordinates.
+            - **roi**: Slice. Region of interest of the data.
+              This subregion will be used for fitting.
+            - **name**: Str, Name to describe the Model.
+        """
+
         self.gSigma = gSigma  # width of the excitation
         self.rtol = rtol  # Precition of the numerical integrator.
         self.atol = atol
@@ -339,6 +198,7 @@ class FourLevelMolkinBase():
         self.N0 = N0
         self.full_output = full_output
         self.infodict = None  # Infodict return of the Odeint.
+        Fitter.__init__(self, *args, **kwargs)
 
     def ext_gaus(self, t, mu, sigma):
         """Gausian excitation function.
@@ -353,22 +213,20 @@ class FourLevelMolkinBase():
     def dgl(self, N, t, ext_func, s, t1, t2):
         """Dgl of the 4 Level DGL system.
 
-        Parameters:
-        -----------
-        N : deg 4 array
-            Population of the 4 levels respectively
-        t : float
-            time
-        ext_func : exictation function in time.
-            Time profile of the pump laser.
-            Function of t. Usaully a gaussian function.
-        s : scaling factor of the pump laser.
-        t1 : Time constant of first level
-        t2 : Time constant of second level.
+        **Arguments:**
+          - **N**: deg 4 array
+              Population of the 4 levels respectively
+          - **t**: float
+              time
+          - **ext_func**: exictation function in time.
+              Time profile of the pump laser.
+              Function of t. Usaully a gaussian function.
+          - **s**: scaling factor of the pump laser.
+          - **t1**: Time constant of first level
+          - **t2**: Time constant of second level.
 
-        Returns
-        -------
-        Derivatives of the system. As 4 dim array.
+        **Returns:**
+          Derivatives of the system. As 4 dim array.
         """
 
         # This is the DGL written as a Matrix multiplication.
@@ -406,18 +264,16 @@ class FourLevelMolkinBase():
     def population(self, t, ext_func, s, t1, t2, **kwargs):
         """Numerical solution to the 4 Level DGL-Water system.
 
-        Parameters
-        ----------
-        t: array of time values
-        ext_func: Function of excitation.
-        s: scalar factor for the pump
-        t1: Live time of the first exited state
-        t2: livetime of the intermediate state.
+        **Arguments:**
+          - **t**: array of time values
+          - **ext_func**: Function of excitation.
+          - **s**: scalar factor for the pump
+          - **t1**: Live time of the first exited state
+          - **t2**: livetime of the intermediate state.
 
-        Returns
-        -------
-        (len(t), 4) shaped array with the 4 entires beeing the population
-        of the N0 t0  N3 levels of the system
+        **Returns**
+          (len(t), 4) shaped array with the 4 entires beeing the population
+          of the N0 t0  N3 levels of the system
         """
 
         ret = odeint(
@@ -461,18 +317,17 @@ class FourLevelMolkinBase():
         """
         Function we use to fit.
 
-        parameters
-        ----------
-        t: time
-        s: Gaussian Amplitude
-        t1: Livetime of first state
-        t2: livetime of second(intermediate) state
-        c: Coefficient of third(Heat) state
+        **Arguments:**
+          - **t**: time
+          - **s**: Gaussian Amplitude
+          - **t1**: Livetime of first state
+          - **t2**: livetime of second(intermediate) state
+          - **c**: Coefficient of third(Heat) state
 
 
-        Returns:
-        The bleach of the water model
-        and the Matrix with the populations"""
+        **Returns**
+          The bleach of the water model
+          and the Matrix with the populations"""
         N = self.population(
             t,
             lambda t: self.ext_gaus(t, mu, self.gSigma),
@@ -489,7 +344,7 @@ class FourLevelMolkinBase():
           - **s**: Gaussian Amplitude of the excitation
           - **t1**: Livetime of the first state
           - **t2**: Livetime of the second state
-          - **c**: Coefficent of the heat
+          - **c**: Coefficient of the heat
 
         """
         return np.sum(
@@ -510,56 +365,7 @@ class FourLevelMolkinBase():
         super().__save__(fname, parameter_dict)
 
 
-class FourLevelMolKin(CurveFitter, FourLevelMolkinBase):
-    def __init__(self, *args, gSigma=150, N0=[1, 0, 0, 0],
-                 rtol=1.09012e-9, atol=1.49012e-9, full_output=True, **kwargs):
-        """Class for the four level Molecular Dynamics Model.
-
-        *args and **kwargs are passed to CurveFitter
-
-        Parameters
-        ----------
-        xdata: array
-            The xdata of the model
-        ydata: array
-            The ydata of the model
-        p0: Starting values for the model
-        gSigma: width of the excitation pulse  in  the same
-            units as xdata.
-        N0: starting conditions for the Population Model.
-        rtol, atol: precisioin of the numerical integrator.
-            default if scipy is not enough. The lower
-            this number the more exact is the solution
-            but the slower the function.
-        full_output: If true create infodict for odeint
-            result is saved under self.infodict
-        metadata:
-            dictionary for metadata.
-        """
-        FourLevelMolkinBase.__init__(self, gSigma, N0, rtol, atol, full_output)
-        CurveFitter.__init__(self, *args, **kwargs)
-
-
-class FourLevelMolKinM(Minuitter, FourLevelMolkinBase):
-    def __init__(
-            self,
-            xdata=None,
-            ydata=None,
-            p0=None,
-            sigma=None,
-            gSigma=150,
-            N0=[1, 0, 0, 0],
-            rtol=1.09012e-9,
-            atol=1.49012e-9,
-            full_output=True,
-            fitarg={},
-            **kwargs
-    ):
-
-        FourLevelMolkinBase.__init__(self, gSigma, N0, rtol, atol, full_output)
-        Minuitter.__init__(self, xdata, ydata, p0, sigma, fitarg, **kwargs)
-
-class SimpleDecay(Minuitter):
+class SimpleDecay(Fitter):
     def __init__(
             self,
             *args,
@@ -568,16 +374,30 @@ class SimpleDecay(Minuitter):
             xsample_ext=0.1,
             **kwargs
     ):
-        """Minuitter Based Fitting Model.
+        """Fitting Model with convolution of single exponential and gaussian.
 
-        xsample: Optional
-            Stepping size of the convolution. Default minimal
-            difference of xdata and in the range of xdata.
-        xsample_ext: Boundary effects of the convolution make int necesarry to,
-            add additional Datapoints to the xsample data. By default 10% are
-            added.
+        **Arguments**:
+          - **xsample**: Optional
+              Stepping size of the convolution. Default minimal
+              difference of xdata and in the range of xdata.
+          - **xsample_ext**: Boundary effects of the convolution make int necesarry to,
+              add additional Datapoints to the xsample data. By default 10% are
+              added.
+
+        **args**/**kwargs:**
+          Get passed to `sfg2d.models.Fitter`. Options are:
+            - **xdata**: array of x data points
+            - **ydata**: array of y data points
+            - **sigma**: Array of y data errors
+            - **fitarg**: Dictionary with fit conditions.
+                Each parameter has an entry with its name `'parameter'`
+                `'error_parameter'` `'fix_parameter'` and `'limit_parameter'`
+            - **box_coords**: Coordinates of the fit result box in data coordinates.
+            - **roi**: Slice. Region of interest of the data.
+              This subregion will be used for fitting.
+            - **name**: Str, Name to describe the Model.
         """
-        Minuitter.__init__(self, *args, **kwargs)
+        Fitter.__init__(self, *args, **kwargs)
         self._xsample = np.array([])
         self.gSigma = gSigma
 
@@ -661,7 +481,8 @@ class SimpleDecay(Minuitter):
             )**2
         )
 
-class ThreeLevelMolkin(Minuitter):
+
+class ThreeLevelMolkin(Fitter):
     def __init__(
             self,
             *args,
@@ -672,7 +493,22 @@ class ThreeLevelMolkin(Minuitter):
             full_output=True,
             **kwargs
     ):
-        Minuitter.__init__(self, *args, **kwargs)
+        """
+
+        **args**/**kwargs:**
+          Get passed to `sfg2d.models.Fitter`. Options are:
+            - **xdata**: array of x data points
+            - **ydata**: array of y data points
+            - **sigma**: Array of y data errors
+            - **fitarg**: Dictionary with fit conditions.
+                Each parameter has an entry with its name `'parameter'`
+                `'error_parameter'` `'fix_parameter'` and `'limit_parameter'`
+            - **box_coords**: Coordinates of the fit result box in data coordinates.
+            - **roi**: Slice. Region of interest of the data.
+              This subregion will be used for fitting.
+            - **name**: Str, Name to describe the Model.
+        """
+        Fitter.__init__(self, *args, **kwargs)
         self.gSigma = gSigma  # width of the excitation
         self.rtol = rtol  # Precition of the numerical integrator.
         self.atol = atol
@@ -787,63 +623,3 @@ class ThreeLevelMolkin(Minuitter):
             )**2
         )
 
-class GaussianModelM(Minuitter):
-    def __init__(self, *args, **kwargs):
-        ''' Fit Gausian model using Minuit.
-        **Arguments:**
-          - **xdata**: Array of x data
-          - **ydata**: Array of y data
-          - **p0**: Array of starging values
-            [A, mu, sigma, c]
-            Use **fitargs currently**
-          - **sigma**: Array of errors
-          - **fitargs**: Fitargs for minuit.
-        '''
-        Minuitter.__init__(self, *args, **kwargs)
-        self._box_str_format = '{:5}: {:7.3g} $\\pm$ {:6.1g}\n'
-
-    def fit_func(self, x, A, mu, sigma, c):
-        """Guassian function
-
-        A: amplitude
-        mu: position
-        sigma: std deviation
-        c : offset
-        """
-        return A * norm.pdf(x, mu, sigma) + c
-
-    def chi2(self, A, mu, sigma, c):
-        """Chi2 to be minimized by minuit."""
-        return np.sum(
-            (
-                (self.ydata - self.fit_func(self.xdata, A, mu, sigma, c)) /
-                self.sigma
-            )**2
-        )
-
-class GaussianModel(CurveFitter):
-    def __init__(self, *args, **kwargs):
-        """Data class to describe gaussian shaped data.
-
-        *args and **kwargs get passed to the CurveFitter class
-        Parameters
-        ----------
-        xdata: array
-        ydata: array
-        p0: array of starting values, with
-            [A, mu, sigma, c]
-        metdata: dictionary with metdata.
-        """
-        super().__init__(*args, **kwargs)
-        self._pnames = ("A", "mu", "sigma", "c")
-        self._box_str_format = '{:5}: {:8.3g} $\\pm$ {:6.1g}\n'
-
-    def fit_func(self, x, A, mu, sigma, c):
-        """Guassian function
-
-        A: amplitude
-        mu: position
-        sigma: std deviation
-        c : offset
-        """
-        return A * norm.pdf(x, mu, sigma) + c

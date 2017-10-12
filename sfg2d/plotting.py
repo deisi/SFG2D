@@ -266,25 +266,30 @@ def plot_trace_fit(
 
 def bleach_plot_slider(
         record,
-        y_property='bleach_abs',
-        x_property="wavenumber",
+        select_kws={},
+        x_prop='wavenumber',
+        plot_kwgs={},
+        scale=1,
         fig=None,
         ax=None,
-        l_kwgs={"loc": "lower left"},
         ylim=None,
         xlim=None,
-        **kwargs
+        l_kwgs={"loc": "lower left"},
 ):
     """Bleachplot, with slidable pp_delay index and autoscale.
 
-    record: SfgRecord to plot.
-    y_property: bleach property to select data from.
-    x_property: x data property
-    fig: figure
-    ax: axes
-    l_kwgs: Keywordsfor the plot legend
-    ylim: Optional tubple. Set fix ymin and ymax.
-    **kwargs are passed to *SfgRecord.plot_bleach*
+    **Keywrords:**
+      - **record**: The record to plot
+      - **select_kw**: Select keywords to select data with.
+         The default corresponds to:
+         `{'prop': 'bleach', 'prop_kwgs':'{'prop':'basesubed'},
+          'frame_med': True, 'medfilt_pixel':5}`
+      - **scale**: Scaling factor for the data.
+      - **fig**: figure
+      - **ax**: axes
+      - **ylim**: Optional tuple. Set fix ymin and ymax.
+      - **xlim**: tuple to set xaxis.
+      - **l_kwgs**: Keywordsfor the plot legend
     """
     from ipywidgets import interact, widgets
 
@@ -298,6 +303,12 @@ def bleach_plot_slider(
 
     axes_lim_buffer = None
 
+    select_y_kws = dict(**select_kws)
+    select_y_kws.setdefault('prop', 'bleach')
+    select_y_kws.setdefault('prop_kwgs', {'prop': 'basesubed'})
+    select_y_kws.setdefault('frame_med', True)
+    select_y_kws.setdefault('medfilt_pixel', 5)
+
     @interact(
         Autoscale=True,
         index=widgets.IntSlider(
@@ -309,14 +320,11 @@ def bleach_plot_slider(
         global axes_lim_buffer
 
         ax.clear()
-        record.plot_bleach(
-            ax=ax,
-            y_property=y_property,
-            rois_delays=[slice(index, index+1)],
-            x_property=x_property,
-            label="{} fs".format(record.pp_delays[index]),
-            **kwargs
+        y = record.select(
+            roi_delay=slice(index, index+1),
+            **select_y_kws,
         )
+        plot_spec(record.select(x_prop), scale*y, **plot_kwgs)
 
         if Autoscale:
             axes_lim_buffer = ax.get_xlim(), ax.get_ylim()
@@ -338,41 +346,53 @@ def bleach_plot_slider(
 
 
 @ioff
-def bleach_plotzt_pdf(
+def bleach_plot_pdf(
         record,
         sfile,
         sfolder="./figures/",
-        y_property='bleach_abs',
-        x_property="wavenumber",
+        select_kws={},
+        plot_kwgs={},
+        scale=1,
         xlim=None,
         ylim=None,
+        x_prop='wavenumber',
         num_base='bl{}',
         xlabel='Wavenumber in 1/cm',
         ylabel=None,
         l_kwgs={"loc": "lower left"},
         title_prefix=None,
-        medfilt_pixel=5,
-        plot_kwgs={},
-        scale=1,
         delay_offset=0,
-        **kwargs
 ):
     """Multipage pdf for the bleach plot.
 
+    **Arguments**:
+      - **record**: Record to plot data of
+      - **sfile**: String with filename to save.
+    **Keywords**:
+      - **sfolder**: String with foldername to save file in.
+      - **select_kws**: Dict with keywords for selection of data.
+        default corresponds to:
+          {'prop': 'bleach', 'prop_kwgs':'{'prop':'basesubed'},
+          'frame_med': True, 'medfilt_pixel':5}`
+      - **plot_kwgs**: Keywords passed to the `plot_spce` function.
+      - **scale**: Scaling factor for the data.
+      - **ylim**: Optional tuple. Set fix ymin and ymax.
+      - **xlim**: tuple to set xaxis.
+      - **x_prop**: Propertie of the x axis
+      - **num_base**: String to index the multiple plots with.
+      - **xlabel**: String for the xlabel
+      - **ylabel**: string for the y label
+      - **l_kwgs**: Keywordsfor the plot legend
+      - **title_prefix**: Optinal String to prefix the title with.
+      - **delay_offset**: Offset to add to the delay.
     axes limits are always the same for all subplots.
-
-    record: SfgRecord
-    sfile: path to save the file to
-    num_base: str that can be filled with format.
-        used to name the figures.
     """
 
-    # Makte ion and ioff use a decorator.
-
-    select_y_kws = dict(**kwargs)
+    select_y_kws = dict(**select_kws)
+    select_y_kws.setdefault('prop', 'bleach')
+    select_y_kws.setdefault('prop_kwgs', {'prop': 'basesubed'})
     select_y_kws.setdefault('frame_med', True)
-    select_y_kws.setdefault('prop', y_property)
-    select_y_kws.setdefault('medfilt_pixel', medfilt_pixel)
+    select_y_kws.setdefault('medfilt_pixel', 5)
     figs = []
     for index in range(record.number_of_pp_delays):
         fig, ax = plt.subplots(num=num_base.format(index))
@@ -382,26 +402,19 @@ def bleach_plotzt_pdf(
             roi_delay=slice(index, index+1),
             **select_y_kws,
         )
-        x = record.select(prop=x_property, roi_pixel=kwargs.get('roi_pixel'))
+        x = record.select(prop=x_prop)
         plot_spec(x, scale*y, ax=ax, **plot_kwgs)
 
-        #record.plot_bleach(
-        #    ax=ax,
-        #    y_property=y_property,
-        #    rois_delays=[slice(index, index+1)],
-        #    x_property=x_property,
-        #    label="{} fs".format(record.pp_delays[index]),
-        #    **kwargs
-        #)
-
         if not title_prefix:
-            title_prefix = record.metadata('material')
+            title_prefix = record.metadata.get('material', '')
         ax.set_title("{} @ {} fs".format(
             title_prefix, record.pp_delays[index]+delay_offset)
         )
         ax.set_xlim(xlim)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
+        if xlabel:
+            ax.set_xlabel(xlabel)
+        if ylabel:
+            ax.set_ylabel(ylabel)
 
     # Prepare axes limits
     if isinstance(ylim, type(None)):

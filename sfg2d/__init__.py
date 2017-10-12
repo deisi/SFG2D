@@ -1,6 +1,6 @@
 __version__ = '0.6.0'
 
-from . import io, utils, plotting, widgets, fit
+from . import io, utils, plotting, widgets, models
 
 from .core import (SfgRecord, concatenate_list_of_SfgRecords,
                    SfgRecords_from_file_list)
@@ -22,4 +22,4 @@ from .plotting import (multipage_pdf, plot_model_trace, plot_record_contour,
                        plot_record_static, plot_trace_fit, plot_contour,
                        plot_trace, plot_spec)
 
-from .models import FourLevelMolKin
+from .models import FourLevelMolKinM as FourLevelMolKin, fit_model

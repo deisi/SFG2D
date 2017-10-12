@@ -25,3 +25,5 @@ notebook
 widgetsnbextension
 
 ipywidgets
+
+iminuit
