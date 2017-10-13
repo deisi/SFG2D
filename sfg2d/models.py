@@ -6,7 +6,7 @@ from scipy.stats import norm
 from iminuit import Minuit
 
 
-def fit_model(model, minos=False):
+def fit_model(model, minos=False, print_matrix=True):
     """Function to run migrad minimizations.
 
     **Arguments:**
@@ -19,7 +19,8 @@ def fit_model(model, minos=False):
     if minos:
         model.minuit.minos()
         model.minuit.migrad()
-    model.minuit.print_matrix()
+    if print_matrix:
+        model.minuit.print_matrix()
 
 
 class Fitter():
