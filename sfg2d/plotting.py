@@ -18,6 +18,33 @@ def ioff(func):
 
     return make_ioff
 
+def figures2pdf(fname, fignums=None, figures=None, close=False):
+    """Save list of figures into a multipage pdf.
+
+    **Arguments:**
+      - **fname**: Name of the file to save to.
+
+    **Keywords:**
+      - **fignums**: list of figure numbers to save
+        if None given, all currently open figures get saved into a pdf.
+    """
+    from matplotlib.backends.backend_pdf import PdfPages
+    if fname[-4:] != '.pdf':
+        fname += '.pdf'
+    print('Saving to:', path.abspath(fname))
+
+    if isinstance(fignums, type(None)) and isinstance(figures, type(None)):
+        fignums = plt.get_fignums()
+    elif isinstance(fignums, type(None)):
+        fignums = [fig.number for fig in figures]
+
+    with PdfPages(fname) as pdf:
+        for num in fignums:
+            fig = plt.figure(num)
+            pdf.savefig()
+            if close:
+                plt.close(fig)
+    print('DONE')
 
 def multipage_pdf(plot_func):
     """
@@ -170,6 +197,8 @@ def plot_contour(
         xlabel='Time in fs',
         ylabel='Wavenumber in 1/cm',
         levels=np.linspace(0.8, 1.1, 15),
+        xlim=None,
+        ylim=None,
         **kwgs
 ):
     """Make Contour plot.
@@ -179,12 +208,15 @@ def plot_contour(
     xlabel: string for xlabel
     ylabel: string for ylabel
 
+    **Keywords:**
+      - **levels**: Contour levels  array or number of levels.
+
     kwgs are passed to *plt.contourf*
     """
+    if isinstance(levels, int):
+        levels = np.linspace(z.min(), z.max(), levels)
     kwgs.setdefault('extend', 'both')
-
-    if isinstance(kwgs.get('levels'), type(None)):
-        kwgs['levels'] = levels
+    kwgs.setdefault('levels', levels)
 
     plt.contourf(x, y, z, **kwgs)
     if colorbar:
@@ -193,6 +225,10 @@ def plot_contour(
         plt.xlabel(xlabel)
     if ylabel:
         plt.ylabel(ylabel)
+    if xlim:
+        plt.xlim(*xlim)
+    if ylim:
+        plt.ylim(*ylim)
 
 
 def plot_trace_fit(
@@ -264,6 +300,7 @@ def plot_trace_fit(
     ax.set_ylabel(ylabel)
 
 
+# Plots on Records.
 def bleach_plot_slider(
         record,
         select_kws={},
@@ -437,7 +474,6 @@ def bleach_plot_pdf(
         plt.close(fig.number)
 
 
-# Plots on Records.
 def plot_record_static(
         record,
         save=True,
@@ -480,9 +516,12 @@ def plot_record_contour(
         save=True,
         xlim=(-1000, 5000),
         fname_form='./figures/{}_contour_bleach_rel_pump{}.pdf',
+        fig_num=None,
 ):
+    if not fig_num:
+        fig_num = '{}_contour'.format(record.name)
     fig, ax = plt.subplots(
-        figsize=1*np.array([10, 6]), num='{}_contour'.format(record.name)
+        figsize=1*np.array([10, 6]), num=fig_num,
     )
     fig.clf()
     x, y, z = record.contour(

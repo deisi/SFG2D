@@ -124,6 +124,9 @@ class SfgRecord():
         # Error ob  baselinesubtracted data
         self._basesubedE = None
 
+        # Crosscorrelation of the data
+        self.cc = None
+
         # boolean for normalization
         self.isNormalized = False
 
@@ -194,6 +197,9 @@ class SfgRecord():
 
         # Buffer for fot models.
         self.models = {}
+
+        # Buffer for figures
+        self.figures = {}
 
         # A short name for the record
         self.name = ''
@@ -547,6 +553,25 @@ class SfgRecord():
     def pixel(self):
         """Iterable list of pixels."""
         return np.arange(self.rawData.shape[X_PIXEL_INDEX])
+
+    def pixels2wavenumbers(self, pixels):
+        """Convert a given list of pixels to wavenumbers.
+
+        **Arguments:**
+          - **pixels**: List of pixels.
+
+        **Returns:**
+          List of wavenumber values.
+        """
+
+        cw = self.central_wl
+        wavelength = pixel_to_nm(pixels, cw)
+        vis_wl = self.metadata.get("vis_wl")
+        if isinstance(vis_wl, type(None)) or vis_wl < 1:
+            wavenumber = nm_to_wavenumbers(wavelength)
+        else:
+            wavenumber = nm_to_ir_wavenumbers(wavelength, vis_wl)
+        return wavenumber
 
     @property
     def number_of_y_pixel(self):
@@ -1401,8 +1426,8 @@ class MultiModel():
     def __init__(
             self,
             fitmodels,
-            labels,
-            pump_freqs,
+            labels=None,
+            pump_freqs=None,
             colors=None,
             names=None,
             normalized=False,

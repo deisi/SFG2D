@@ -2,7 +2,8 @@
 
 import numpy as np
 from scipy.integrate import odeint
-from scipy.stats import norm
+from scipy.special import erf, erfc
+from scipy.stats import norm, skewnorm
 from iminuit import Minuit
 
 
@@ -23,6 +24,36 @@ def fit_model(model, minos=False, print_matrix=True):
         model.minuit.print_matrix()
 
 
+def normalize_trace(model, shift_mu=False, scale_amp=False, shift_heat=False):
+    """Normalize trace.
+
+    model: model to work on
+    shift_mu: Schift by mu value of fit
+    scale_amp: Scale by realtive height between heat and minimum.
+    shift_heat: Make heat value equal
+
+    returns shiftet data arrays with:
+    """
+    mu = 0
+    if shift_mu:
+        mu = model.minuit.fitarg['mu']
+
+    offset = 0
+    if shift_heat:
+        offset=1-model.yfit_sample[-1]
+
+    scale = 1
+    if scale_amp:
+        x_mask = where((model.xsample-mu>0) & (model.xsample-mu<1000))
+        scale = 1-offset-model.yfit_sample[x_mask].min()
+
+    xdata = model.xdata - mu
+    ydata = (model.ydata+offset-1)/scale+1
+    yerr = model.yerr/scale
+    xsample = model.xsample - mu
+    yfit_sample = (model.yfit_sample+offset-1)/scale+1
+    return xdata, ydata, yerr, xsample, yfit_sample
+
 class Fitter():
     def __init__(
             self,
@@ -33,21 +64,24 @@ class Fitter():
             box_coords=None,
             roi=None,
             name='',
+            ignore_errors=False,
             **kwargs
     ):
         """Base Class to fit with Minuit.
 
+         - **ignore_errors**:
+            Optional if given, sigmas will get ignored during the fit.
          **fitarg**: Dictionary gets passed to minuit.
           and sets the starting parameters.
         **kwargs:**
           Get passed to minuit. Most important is
         """
-        self._xdata = xdata
-        self._ydata = ydata
-        self._sigma = sigma  # 1/y-errors.
+        self.xdata = xdata
+        self.ydata = ydata
+        self.sigma = sigma  # 1/y-errors.
         self.cov = None  # The covariance of the fit
         # Coordinates of the fit result box in fig coordinates
-        self.box_coords = box_coords
+        self._box_coords = box_coords
         self._box_str_format = '{:2}: {:8.3g} $\pm$ {:6.1g}\n'
         if not roi:
             roi = slice(None)
@@ -55,8 +89,25 @@ class Fitter():
         self._pnames = None
         self._xsample_num = 400
         self.name = name
+        self.ignore_errors=ignore_errors
+        # Buffer for figures
+        self.figures = {}
         kwargs.setdefault('pedantic', False)
         self.minuit = Minuit(self.chi2, **fitarg, **kwargs)
+
+    @property
+    def box_coords(self):
+        if not self._box_coords:
+            return self.xdata.mean(), self.ydata.mean()
+        return self._box_coords
+
+    def draw_text_box(self, box_coords=None, **kwargs):
+        """Draw a textbox on current axes."""
+        from matplotlib.pyplot import text
+        if not box_coords:
+            box_coords = self.box_coords
+        text(*box_coords, self.box_str, **kwargs)
+
 
     @property
     def p(self):
@@ -75,18 +126,51 @@ class Fitter():
 
     @property
     def xdata(self):
+        """X data for the fit."""
         return self._xdata[self.roi]
+
+    @xdata.setter
+    def xdata(self, value):
+        if len(np.shape(value)) != 1:
+            raise IndexError('Shappe if xdata is not of dim 1')
+        self._xdata = value
 
     @property
     def ydata(self):
+        """Y data for the fit."""
         return self._ydata[self.roi]
+
+    @ydata.setter
+    def ydata(self, value):
+        if len(np.shape(value)) != 1:
+            raise IndexError('Shappe if xdata is not of dim 1')
+        self._ydata = value
 
     @property
     def sigma(self):
+        """Error of the ydata for the fit."""
+        if isinstance(self._sigma, type(None)):
+            return np.ones_like(self.ydata)
+        if self.ignore_errors:
+            return np.ones_like(self.ydata)
         return self._sigma[self.roi]
+
+    @sigma.setter
+    def sigma(self, value):
+        if isinstance(value, type(None)):
+            self._sigma = np.ones_like(self._ydata)
+        elif len(np.shape(value)) != 1:
+            raise IndexError('Shappe if xdata is not of dim 1')
+        if np.any(value==0):
+            from warnings import warn
+            warn('Passed uncertainty has a 0 value\nIgnoring errorbars.\n{}'.format(value))
+            self._sigma = value
+            self.ignore_errors = True
+        self._sigma = value
 
     @property
     def yerr(self):
+        """Error of the ydata for the fit."""
         return self.sigma
 
     def fit_res(self, x):
@@ -153,6 +237,14 @@ class GaussianModelM(Fitter):
                 self.sigma
             )**2
         )
+
+class SkewedNormal(Fitter):
+    def __init__(self, *args, **kwargs):
+        Fitter.__init__(self, *args, **kwargs)
+        self._box_str_format = '{:5}: {:7.3g} $\\pm$ {:6.1g}\n'
+
+    def fit_funct(self, x, A, mu, sigma, kurt, c):
+        return A * skewnorm.pdf(x, kurt, mu, sigma) + c
 
 
 class FourLevelMolKinM(Fitter):
@@ -370,9 +462,9 @@ class SimpleDecay(Fitter):
     def __init__(
             self,
             *args,
-            gSigma=150,
             xsample=None,
             xsample_ext=0.1,
+            fit_func_dtype=np.float64,
             **kwargs
     ):
         """Fitting Model with convolution of single exponential and gaussian.
@@ -384,6 +476,8 @@ class SimpleDecay(Fitter):
           - **xsample_ext**: Boundary effects of the convolution make int necesarry to,
               add additional Datapoints to the xsample data. By default 10% are
               added.
+          - **fit_func_dtype**: The exponential function in the fitfunc can become
+              very huge. To cope with that one can set the dtype of the fit func.
 
         **args**/**kwargs:**
           Get passed to `sfg2d.models.Fitter`. Options are:
@@ -400,9 +494,9 @@ class SimpleDecay(Fitter):
         """
         Fitter.__init__(self, *args, **kwargs)
         self._xsample = np.array([])
-        self.gSigma = gSigma
 
         self.xsample = xsample
+        self.fit_func_dtype = fit_func_dtype
         self.xdata_step_size = np.diff(self.xdata).min()
         if not xsample:
             self.xsample = np.arange(
@@ -419,66 +513,38 @@ class SimpleDecay(Fitter):
     def xsample(self, value):
         self._xsample = value
 
-    @property
-    def x_ext(self):
-        return np.arange(-3*self.gSigma, 3*self.gSigma, self.xdata_step_size)
+    def fit_func(self, t, A, t1, c, mu, ofs, sigma):
+        """Result of a convolution of Gausian an exponential recovery.
 
-    def y_ext(self):
-        """Gausian excitation function.
+        This function is the Analytically solution to the convolution of:
+        f = (- A*exp(-t/tau) + c)*UnitStep(t)
+        g = Gausian(t, mu, sigma)
+        result = Convolve(f, g)
 
-        Due to historic reasons its not a strict gausian, but something
-        very cloe to it. The Igor Code is:
-        1/sqrt(pi)/coeff1*exp(-(coeff0-x)^2/coeff1^2) """
+        **Arguments:**
+          - **t**: array of times
+          - **A**: Amplitude of the recovery
+          - **t1**: Livetime of the recovery
+          - **c**: Convergence of the recovery
+          - **mu**: Tempoaral Position of the Pulse
+          - **ofs**: Global offset factor
+          - **sigma**: Width if the gaussian
+        """
+        ## This dtype hack is needed because the exp cant get very large.
+        return 1/2 * (
+            c + c * erf((t - mu)/(np.sqrt(2) * sigma)) -
+            A * np.exp(((sigma**2 - 2 * t * t1 + 2 * mu * t1)/(2 * t1**2)),
+                       dtype=self.fit_func_dtype) *
+            erfc((sigma**2 - t * t1 + mu * t1)/(np.sqrt(2) * sigma * t1))
+        ) + ofs
 
-        #ret = 1 / np.sqrt(np.pi) / self.gSigma * np.exp(-((self.x_ext)/self.gSigma)**2)
-        return norm.pdf(self.x_ext, 0, self.gSigma)
-
-    @property
-    def x_rec(self):
-        """Gausian excitation function."""
-        extend = self.x_ext.shape[0]//2*self.xdata_step_size
-        return np.arange(
-            self.xsample[0]-extend,
-            self.xsample[-1]+extend,
-            self.xdata_step_size
-        )
-
-    @property
-    def x_conv(self):
-        """X data of the convolution."""
-        g = self.y_ext().shape[0]
-        # Fit parameters
-        p = [self.minuit.fitarg[elm] for elm in ('A', 't1', 'c', 'mu')]
-        e = self.y_rec(*p).shape[0]
-        # Number of points in case of **mode=valid** convolution
-        lim = np.max([g, e]) - np.min([g, e]) + 1
-        return self.xsample[:lim]
-
-    def y_rec(self, A, t1, c, mu):
-        """Exponential recovery of the signal."""
-        ret = np.zeros_like(self.x_rec, dtype='float64')
-        mask = np.where(self.x_rec > mu)
-        ret[mask] = -A * (
-            np.exp(-(self.x_rec[mask]-mu)/t1)) + c
-        return ret
-
-    def conv(self, A, t1, c, mu, ofs):
-        """Convolution of excitation function and single exponential."""
-        g = self.y_ext()
-        e = self.y_rec(A, t1, c, mu)
-        return np.convolve(g, e, mode='valid') + ofs
-
-    def fit_func(self, t, A, t1, c, mu, ofs):
-        conv = self.conv(A, t1, c, mu, ofs)
-        intpf = np.interp(t, self.x_conv, conv)
-        return intpf
-
-    def chi2(self, A, t1, c, mu, ofs):
+    def chi2(self, A, t1, c, mu, ofs, sigma):
         """Chi2 to be minimized by minuit."""
         return np.sum(
             (
-                (self.ydata - self.fit_func(self.xdata, A, t1, c, mu, ofs)) /
-                self.sigma
+                (self.ydata - self.fit_func(
+                    self.xdata, A, t1, c, mu, ofs, sigma
+                )) / self.sigma
             )**2
         )
 
