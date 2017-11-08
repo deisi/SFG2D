@@ -1,5 +1,7 @@
 __version__ = '0.6.0'
 
+from .utils.consts import *
+
 from . import io, utils, plotting, widgets, models
 
 from .core import (SfgRecord, concatenate_list_of_SfgRecords,

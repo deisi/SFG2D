@@ -5,7 +5,7 @@ import copy
 import warnings
 import numpy as np
 
-from sfg2d.utils.consts import PIXEL, SPECS
+from sfg2d.utils.consts import PIXEL, SPECS, CALIB_PARAMS, CALIB_CW
 
 names = (
     'pixel',
@@ -18,21 +18,21 @@ names = (
 debug=0
 
 
-def pixel_to_nm(x, central_wl):
+def pixel_to_nm(
+        x,
+        central_wl,
+):
     """ transform pixel to nanometer
 
     Parameters
     ----------
     central_wl : int
-        central wavelength of the camera in nm"""
+        central wavelength of the camera in nm
+    params_file_path: Optinal file path to calibration parameter file
+        If None given, a default is loaded.
+    """
 
-    params_file_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "../data/calib/params_Ne_670.npy"
-    )
-    params = np.load(params_file_path)
-    calib_cw = int(params_file_path[-7:-4])
-    pixel_to_nm = np.poly1d(params) + central_wl - calib_cw
+    pixel_to_nm = np.poly1d(CALIB_PARAMS) + central_wl - CALIB_CW
     return pixel_to_nm(x)
 
 

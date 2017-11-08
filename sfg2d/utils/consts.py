@@ -1,3 +1,5 @@
+import os, yaml
+
 
 X_PIXEL_INDEX = -1 #  Axis of x-pixel data
 Y_PIXEL_INDEX = -2 # Axis of y-pixel data
@@ -27,3 +29,46 @@ x_property2_label = {
     'pp_delays': 'Time in fs',
     'pp_delays_ps': 'Time in ps',
 }
+
+
+### Read and apply user config
+try:
+    with open(os.path.expanduser("~/.sfg2d.yaml"), 'r') as conf:
+        USER_CONFIG = yaml.load(conf)
+except FileNotFoundError:
+    USER_CONFIG = None
+
+if not USER_CONFIG:
+    USER_CONFIG = {}
+    USER_CONFIG['calibration'] = {}
+    USER_CONFIG['calibration'].setdefault('file', None)
+    USER_CONFIG['calibration'].setdefault('calib_cw', 670)
+
+if not USER_CONFIG.get('calibration'):
+    USER_CONFIG['calibration'] = {}
+    USER_CONFIG['calibration'].setdefault('file', None)
+    USER_CONFIG['calibration'].setdefault('calib_cw', 670)
+
+if not USER_CONFIG['calibration'].get('file'):
+    USER_CONFIG['calibration'].setdefault('file', None)
+
+if not USER_CONFIG['calibration'].get('calib_cw'):
+    USER_CONFIG['calibration'].setdefault('calib_cw', 670)
+
+print(USER_CONFIG)
+
+CALIB_PARAMS_FILEPATH = USER_CONFIG['calibration']['file']
+if not CALIB_PARAMS_FILEPATH:
+    CALIB_PARAMS_FILEPATH = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "../data/calib/params_Ne_670.npy"
+       )
+
+if os.path.splitext(CALIB_PARAMS_FILEPATH)[-1] == '.npy':
+    from numpy import load
+    CALIB_PARAMS = load(CALIB_PARAMS_FILEPATH)
+else:
+    from numpy import loadtxt
+    CALIB_PARAMS = loadtxt(CALIB_PARAMS_FILEPATH)
+
+CALIB_CW = int(USER_CONFIG['calibration']['calib_cw'])
