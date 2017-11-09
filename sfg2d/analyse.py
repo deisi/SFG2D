@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 import sfg2d
 
 # Contour Plot
-def contour_plot(record, contour_plot_kwgs):
+def fig_pump_probe(record, fig_pump_probe_kwgs):
     """Configurable contour plot."""
-    if contour_plot_kwgs.get('skip'):
+    if fig_pump_probe_kwgs.get('skip'):
         print("Skipping...")
         return
 
-    fig_kwgs = contour_plot_kwgs.get('fig_kwgs', None)
+    fig_kwgs = fig_pump_probe_kwgs.get('fig_kwgs', None)
     if isinstance(fig_kwgs, type(None)):
         fig = plt.gcf()
     else:
@@ -22,39 +22,39 @@ def contour_plot(record, contour_plot_kwgs):
             record.name, record.pump_freq))
         fig = plt.figure(**fig_kwgs)
         fig.clf()
-    if contour_plot_kwgs.get('ax'):
-        ax = plt.axes(**contour_plot_kwgs['ax'])
+    if fig_pump_probe_kwgs.get('ax'):
+        ax = plt.axes(**fig_pump_probe_kwgs['ax'])
     else:
         ax = plt.gca()
     record.figures[fig.number] = fig
 
-    data_kwgs = contour_plot_kwgs.get('data_kwgs', {})
+    data_kwgs = fig_pump_probe_kwgs.get('data_kwgs', {})
     data_kwgs.setdefault('resample_freqs', 30)
     data_kwgs.setdefault('medfilt_pixel', 7)
     x, y, z = record.contour(
         **data_kwgs
     )
 
-    plot_kwgs = contour_plot_kwgs.get('plot_kwgs', {})
+    plot_kwgs = fig_pump_probe_kwgs.get('plot_kwgs', {})
     sfg2d.plotting.plot_contour(x, y, z, **plot_kwgs)
 
-    title_str = contour_plot_kwgs.get('title', "{} Pump @ {}".format(
+    title_str = fig_pump_probe_kwgs.get('title', "{} Pump @ {}".format(
         record.lname, record.pump_freq))
     plt.title(title_str)
 
-    plt.xlim(contour_plot_kwgs.get('xlim'))
-    plt.ylim(contour_plot_kwgs.get('ylim'))
-    plt.xlabel(contour_plot_kwgs.get('xlabel', 'Time in fs'))
-    plt.ylabel(contour_plot_kwgs.get('ylabel', 'Frequency in 1/cm'))
+    plt.xlim(fig_pump_probe_kwgs.get('xlim'))
+    plt.ylim(fig_pump_probe_kwgs.get('ylim'))
+    plt.xlabel(fig_pump_probe_kwgs.get('xlabel', 'Time in fs'))
+    plt.ylabel(fig_pump_probe_kwgs.get('ylabel', 'Frequency in 1/cm'))
 
-    fname = contour_plot_kwgs.get(
+    fname = fig_pump_probe_kwgs.get(
         'fname', 'figures/' + fig_kwgs['num'] + '.pdf'
     )
     print('Saving to:', fname)
-    if contour_plot_kwgs.get('savefig', False):
+    if fig_pump_probe_kwgs.get('savefig', False):
         plt.savefig(fname)
         print('DONE')
-    if contour_plot_kwgs.get('close'):
+    if fig_pump_probe_kwgs.get('close'):
         plt.close(fig)
     return x, y, z
 
@@ -231,74 +231,35 @@ def plot_model(model, config):
     plt.ylabel(config.get('ylabel', "Bleach"))
 
     fname = config.get('fname', 'figures/model.pdf')
-    print('Saving to: ', fname)
     if config.get('save', False):
+        print('Saving to: ', fname)
         plt.savefig(fname)
         print('DONE')
 
 
-# Combination of models
-def plot_models(config):
-    """Combine given models in one plot.
+def plot_models(models, models_plot_kwgs=[], num=None, title=None, fname=None):
+    """Plot list of given models.
 
-
-    config: Configuration dictionary.
-      Must have a models key with list of model configurations.
-      A minimal example looks like:
-        minimal_config = dict(
-            models=(
-                dict(
-                    model=a_model_object,
-                ),
-               # Mode model dicts go here.
-            ),
-        )
-    Optinal config keywords:
-      - **fig_kwgs**: dict of figre kwgs,
-      - **xlim**: xlim of figure
-      - **ylim**: ylim of the figure
-      - **xlabel**: xlabel of the figure
-      - **ylabel**: ylabel of the figure
-      - **legend**: Show legend default true
-      - **grid**: Show Grid default true
-      - **fname**: String to save figure at.
-      - **save**: Save figure to fname
-      - **fname**: String to save figure at.
+    models: List of Models to plot
+    models_plot_kwgs: List of configurations per plot
     """
-
-    fig_kwgs = config.get('fig_kwgs', {})
-    fig, ax = plt.subplots(**fig_kwgs)
+    fig, ax = plt.subplots(num=num)
     fig.clf()
-
-    title_str = config.get('title', "Combined Models")
-    plt.title(title_str)
-
-    models = config['models']
     for i in range(len(models)):
-        model_config = models[i]
-        model = model_config['model']
-        errorbar_kwgs = model_config.get('errorbar_kwgs', {})
-        errorbar_kwgs.setdefault('marker', 'o')
-        errorbar_kwgs.setdefault('linestyle', 'None')
-        plotline, capline, barline = plt.errorbar(
-            model.xdata, model.ydata, model.yerr,
-            **errorbar_kwgs
-        )
+        model = models[i]
+        plot_kwgs = {}
+        try:
+            plot_kwgs = models_plot_kwgs[i]
+        except:
+            pass
+        plot_model(model, plot_kwgs)
+    if title:
+        plt.title(title)
+    plt.legend()
 
-        plot_kwgs = model_config.get('plot_kwgs', {})
-        plot_kwgs.setdefault('color', plotline.get_color())
-        plt.plot(model.xsample, model.yfit_sample, **plot_kwgs)
-    plt.xlim(config.get('xlim'))
-    plt.ylim(config.get('ylim'))
-    plt.xlabel(config.get('xlabel', "Time in fs"))
-    plt.ylabel(config.get('ylabel', "Counts"))
-    if config.get('legend', True):
-        plt.legend()
-    if config.get('grid', True):
-        plt.grid()
-
-    fname = config.get('fname', 'figures/combined_models.pdf')
-    print('Saving to: ', fname)
-    if config.get('save'):
+    if fname:
+        print('Saving to: ', fname)
         plt.savefig(fname)
-        print("DONE")
+        print('DONE')
+
+    return fig, ax

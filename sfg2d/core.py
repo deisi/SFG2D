@@ -1361,6 +1361,183 @@ class SfgRecord():
         return ret
 
 
+def get_Record2d_from_sfgRecords(records):
+    """Function to create a Record2d object from a list of SfgRecords.
+
+    Each record must be recorded at a different pump frequencie.
+    """
+    number_of_records = len(records)
+    pump_freqs = np.zeros(number_of_records)
+    pumped = np.zeros((
+        records[0].number_of_pp_delays,
+        len(pump_freqs),
+        records[0].number_of_x_pixel
+    ))
+    unpumped = np.zeros_like(pumped)
+    pumpedE = np.zeros_like(pumped)
+    unpumpedE = np.zeros_like(pumped)
+    wavenumber = records[0].wavenumber
+    pp_delays = records[0].pp_delays
+    for i in range(number_of_records):
+        record = records[i]
+        pump_freqs[i] = record.pump_freq
+        pumped[:, i] = record.pumped(
+            frame_med=True
+        )[:, 0 , 0]
+        unpumped[:, i] = record.unpumped(
+            frame_med=True
+        )[:, 0 , 0]
+        pumpedE[:, i] = record.sem(
+            'pumped',
+            roi_pixel=slice(None)
+        )[:, 0]
+        unpumpedE[:, i] = record.sem(
+            'unpumped',
+            roi_pixel=slice(None)
+        )[:, 0]
+        if not np.all(wavenumber == record.wavenumber):
+            msg = 'Wavenumbers in 2d Spectra must all be the same\nIssue in {}'.format(i)
+            raise IOError()
+        if not np.all(pp_delays == record.pp_delays):
+            msg = 'Delays in 2d Spectra must all be the same.\nIssue in {}'.format(i)
+            raise IOError()
+
+    return Record2d(
+        pump_freqs,
+        pumped,
+        unpumped,
+        pp_delays,
+        wavenumber,
+        pumpedE,
+        unpumpedE,
+       )
+
+
+def load_Record2d(fname):
+    """Load Record2d from a .npz file"""
+
+    data = np.load(fname)
+    pump_freqs = data['pump_freqs']
+    pumped = data['pumped']
+    unpumped = data['unpumped']
+    ret = Record2d(pump_freqs, pumped, unpumped)
+    for key, value in data.items():
+        setattr(ret, key, value)
+    return ret
+
+
+class Record2d():
+    def __init__(
+            self,
+            pump_freqs,
+            pumped,
+            unpumped,
+            pp_delays=None,
+            wavenumbers=None,
+            pumpedE=None,
+            unpumpedE=None,
+            gold_bleach=None,
+    ):
+        """Record of 2D data.
+
+        Indexing is of the form of:
+        [pp_delays, pump_freqs, x-pixels]
+
+        **Arguments:**
+          - **pump_freqs**: Array of pumped frequencies
+          - **pumped**: 3d Array of pumped data
+          - **unpumped**: 3d Array of unpumped data
+
+        **Keywords:**
+          - **pp_delays**: Array of pump_probe delays
+          - **wavenumbers**: Array of wavenumbers
+          - **pumpedE**: 3d array of pumped data uncertaincy
+          - **unpumpedE**: 3d array of unpumped data uncertaincy
+          - **gold_bleach**: array of minimal bleach values on gold
+        """
+
+        self.pumped = pumped
+        self.unpumped = unpumped
+        self.pump_freqs = pump_freqs
+
+        #self.pp_delays = np.ones_like(self.pumped[0:1]) * np.arange(
+        #    self.pumped.shape[0])
+        if not isinstance(pp_delays, type(None)):
+            self.pp_delays = pp_delays
+        self.wavenumbers = np.ones_like(self.pumped) * np.arange(
+            self.pumped.shape[-1], 0, -1
+        )
+        if not isinstance(wavenumbers, type(None)):
+            self.wavenumbers = wavenumbers
+
+        self.pumpedE = np.zeros_like(self.pumped)
+        if not isinstance(pumpedE, type(None)):
+            self.pumpedE = pumpedE
+
+        self.unpumpedE = np.zeros_like(self.unpumped)
+        if not isinstance(unpumpedE, type(None)):
+            self.unpumpedE = unpumpedE
+
+        self.zero_time_subtraction = True
+        self.zero_time_selec = slice(0, 2)
+
+        self.gold_bleach = gold_bleach
+
+    @property
+    def number_of_delays(self):
+        return self.pp_delays.shape[0]
+
+    @property
+    def number_of_pump_freqs(self):
+        return self.pump_freqs.shape[0]
+
+    def bleach(self, opt='rel'):
+        if opt is 'rel':
+            relative = True
+            bleach = self.pumped / self.unpumped
+        elif opt is 'abs':
+            relative = False
+            bleach = self.pumped - self.unpumped
+        else:
+            raise IOError(
+                "Must enter valid opt {} is invalid".format(opt)
+            )
+        if self.zero_time_subtraction:
+            zero_time = bleach[self.zero_time_selec].mean(0)
+            bleach -= zero_time
+            # Recorretion for zero_time offset needed because
+            # data is expected to be at 1 for negative times.
+            if relative:
+                bleach += 1
+                self.zero_time_rel = zero_time
+            else:
+                # TODO add the mean of zero_time
+                self.zero_time_abs = zero_time
+
+        # Correct infs and nans.
+        np.nan_to_num(bleach, copy=False)
+        return bleach
+
+    def save(self, file):
+        """Save Record2d into a numpz array obj."""
+        kwgs = dict(
+            pump_freqs=self.pump_freqs,
+            pumped=self.pumped,
+            unpumped=self.unpumped,
+            pp_delays=self.pp_delays,
+            wavenumbers=self.wavenumbers,
+            pumpedE=self.pumpedE,
+            unpumpedE=self.unpumpedE,
+            gold_bleach=self.gold_bleach
+        )
+        print('Saving to {}'.format(path.abspath(file)))
+        np.savez_compressed(
+            file,
+            **kwgs
+        )
+
+
+
 def concatenate_list_of_SfgRecords(list_of_records):
     """Concatenate SfgRecords into one big SfgRecord."""
 
@@ -1421,144 +1598,3 @@ def get_fit_results(record):
         )
     return ret
 
-class MultiModel():
-    """Datastructure to save multiple traces."""
-    def __init__(
-            self,
-            fitmodels,
-            labels=None,
-            pump_freqs=None,
-            colors=None,
-            names=None,
-            normalized=False,
-    ):
-        self.fitmodels = fitmodels
-        self._xdatas = [fitmodel.xdata for fitmodel in fitmodels]
-        self._ydatas = [fitmodel.ydata for fitmodel in fitmodels]
-        self._yerrors = [fitmodel.sigma for fitmodel in fitmodels]
-        self._xfits = [fitmodel.xsample for fitmodel in fitmodels]
-        self._yfits = [fitmodel.yfit_sample for fitmodel in fitmodels]
-        self.labels = labels
-        self.pump_freqs = pump_freqs
-        self._colors = colors
-        self.names = names
-        self.normalized = normalized
-
-    def parameters(self, name):
-        """Returns array of parameter values of fitmodel"""
-        return np.array([self.fitmodels[i].minuit.fitarg[name] for i in range(self.number_of_traces)])
-
-    @property
-    def colors(self):
-        if isinstance(self._colors, type(None)):
-            return ['C{}'.format(i) for i in range(self.number_of_traces)]
-        return self._colors
-
-    @property
-    def mus(self):
-        """Temporal offset"""
-        return self.parameters('mu')
-
-    @property
-    def offsets(self):
-        """y offset at late times"""
-        return np.array([1 - self._yfits[i][-1] for i in range(self.number_of_traces)])
-
-    @property
-    def diffs(self):
-        """Height of the fit."""
-        diffs = np.zeros(self.number_of_traces)
-        for i in range(self.number_of_traces):
-            diffs[i] = np.abs(self._yfits[i][-1] - self._yfits[i].min())
-        return diffs
-
-    @property
-    def xdatas(self):
-        """xdata"""
-        if self.normalized:
-            ret = []
-            for i in range(self.number_of_traces):
-                ret.append(self._xdatas[i] - self.mus[i])
-            return ret
-        return self._xdatas
-
-    @xdatas.setter
-    def xdatas(self, value):
-        self._xdatas = value
-
-    @property
-    def ydatas(self):
-        """ydatas"""
-        if self.normalized:
-            ret = []
-            for i in range(self.number_of_traces):
-                ret.append((self._ydatas[i] + self.offsets[i] - 1)/self.diffs[i] + 1)
-            return ret
-        return self._ydatas
-
-    @ydatas.setter
-    def ydatas(self, value):
-        self._ydatas = value
-
-    @property
-    def yerrors(self):
-        """error of the y data."""
-        if self.normalized:
-            ret = []
-            for i in range(self.number_of_traces):
-                ret.append((self._yerrors[i])/self.diffs[i])
-            return ret
-        return self._yerrors
-
-    @yerrors.setter
-    def yerrors(self, value):
-        self._yerrors = value
-
-    @property
-    def xfits(self):
-        """x data of the fit"""
-        if self.normalized:
-            ret = []
-            for i in range(self.number_of_traces):
-                ret.append(self._xfits[i] - self.mus[i])
-            return ret
-        return self._xfits
-
-    @xfits.setter
-    def xfits(self, value):
-        self._xfits = value
-
-    @property
-    def yfits(self):
-        """y data of the fit."""
-        if self.normalized:
-            ret = []
-            for i in range(self.number_of_traces):
-                ret.append((self._yfits[i] + self.offsets[i] - 1)/self.diffs[i] + 1)
-            return ret
-        return self._yfits
-
-    @yfits.setter
-    def yfits(self, value):
-        self._yfits = value
-
-    @property
-    def number_of_traces(self):
-        return len(self.fitmodels)
-
-    def savetxt(self, fname):
-        """Save data and firesults in text files."""
-        #for i in range(self.number_of_traces):
-        data_header = ''.join(['{0}_xdata {0}_ydata {0}_error '.format(self.names[i]) for i in range(self.number_of_traces)])
-        data = np.array([[self.xdatas[i], self.ydatas[i], self.yerrors[i]] for i in range(self.number_of_traces)])
-        data = data.reshape(3*self.number_of_traces, data.shape[-1]).T
-        sname = fname + '_data.dat'
-        print('Saving to: ', sname)
-        np.savetxt(sname, data, fmt='%.4g', header=data_header)
-
-        fit_header = ''.join(['{0}_xdata {0}_ydata '.format(self.names[i]) for i in range(self.number_of_traces)])
-        fit_data = np.array([[self.xfits[i], self.yfits[i]] for i in range(self.number_of_traces)])
-        fit_data = fit_data.reshape(2*self.number_of_traces, fit_data.shape[-1]).T
-        sname = fname + '_fit.dat'
-        print('Saving to: ', sname)
-        np.savetxt(sname, fit_data, fmt='%.4g', header=fit_header)
