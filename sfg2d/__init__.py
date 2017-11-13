@@ -5,7 +5,7 @@ from .utils.consts import *
 from . import io, utils, plotting, widgets, models
 
 from .core import (SfgRecord, concatenate_list_of_SfgRecords,
-                   SfgRecords_from_file_list)
+                   SfgRecords_from_file_list, import_sfgrecord)
 
 from .io.veronica import read_auto, read_time_scan, read_scan_stack, read_save
 

@@ -16,6 +16,78 @@ from .utils.consts import (VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC,
 from .utils.filter import double_resample
 
 
+def import_sfgrecord(
+        record,
+        baseline=None,
+        norm=None,
+        baseline_select_kw={},
+        norm_select_kw={},
+        **kwargs
+):
+    """Function to import and configure SfgRecord.
+
+    **Arguments:**
+      - **record**:
+         If string given, the file gets loaded as record.
+         If list of strings given, these files get loaded
+         and concatenated as record.
+
+    **Keywords:**
+      - **baseline**: String or SfgRecord to use as baseline
+      - **norm**: String or SfgRecord to use for normalization
+      - **baseline_select_kw**: Keywords to subselect baseline record with.
+          Default is {'prop': 'rawData', 'frame_med': True}
+      - **norm_select_kw**: Keywords to subselect norm record with.
+          Default is {'prop': 'basesubed', 'frame_med': True}
+
+    **kwargs**:
+      Get passes as attributes to the record.
+
+    **Return:**
+      SfgRecord obj
+
+    """
+
+    if isinstance(record, str):
+        record = SfgRecord(record)
+    elif hasattr(record, '__iter__'):
+        records = []
+        for elm in record:
+            records.append(SfgRecord(elm))
+        record = concatenate_list_of_SfgRecords(records)
+    elif isinstance(record, type(SfgRecord)):
+        pass
+    else:
+        raise NotImplementedError(
+            'Type of record {} not implemented'.format(record))
+
+    if isinstance(baseline, str):
+        baseline = SfgRecord(baseline)
+
+    if baseline:
+        baseline_select_kw.setdefault('prop', 'rawData')
+        baseline_select_kw.setdefault('frame_med', True)
+        record.base = baseline.select(**baseline_select_kw)
+
+    if isinstance(norm, str):
+        norm = SfgRecord(norm)
+        try:
+            norm.base = baseline.select(**baseline_select_kw)
+            print('Warning: Using record baseline as normalization baseline.')
+        except AttributeError:
+            print('Warning: No baseline for normalization found.')
+
+    if norm:
+        norm_select_kw.setdefault('prop', 'basesubed')
+        norm_select_kw.setdefault('frame_med', True)
+        record.norm = norm.select(**norm_select_kw)
+
+    if kwargs:
+        for key, value in kwargs.items():
+            setattr(record, key, value)
+
+    return record
+
 class SfgRecord():
     """Class to load and manage SFG data in a 4D structure
 
@@ -940,7 +1012,7 @@ class SfgRecord():
         subselect_kws get passed to SfgRecord.select.
         defaults are adjusted with:
         *y_property*: bleach_rel
-        *medfilt_kernel*: 5
+        *medfilt_kernel*: 11
         *resample_freqs*: 30
         Further susbelect_kws are:
           *roi_delay*:  roi of delays
@@ -1518,8 +1590,54 @@ class Record2d():
         np.nan_to_num(bleach, copy=False)
         return bleach
 
+    def static(
+            self,
+            delay,
+            prop='unpumped',
+            roi_pixel=slice(None),
+            scale=1,
+            medfilt_kernel=None,
+            resample_freqs=0,
+    ):
+        """Data for a static spectrum."""
+        x = self.wavenumbers[roi_pixel]
+        y = getattr(self, prop)[delay, :, roi_pixel].T
+        if medfilt_kernel:
+            y = medfilt(y, medfilt_kernel)
+        if resample_freqs:
+            y = double_resample(y, resample_freqs)
+
+        return x, scale*y
+
+
+    def pump_vs_probe(
+            self,
+            delay,
+            prop='bleach',
+            prop_kwgs={},
+            roi_pixel=slice(None),
+            medfilt_kernel=None,
+            resample_freqs=0,
+            norm_by_gold_bleach=False,
+            norm_by_static_spectra=False,
+    ):
+        """Data for a contour plot with pump vs probe."""
+        x = self.pump_freqs
+        y = self.wavenumbers[roi_pixel]
+        z = getattr(self, prop)(**prop_kwgs)[delay].T[roi_pixel]
+        if medfilt_kernel:
+            z = medfilt(z, medfilt_kernel)
+        if resample_freqs:
+            z = double_resample(z, resample_freqs)
+        if norm_by_gold_bleach:
+            z = (z-1)*(1+self.gold_bleach) + 1
+        if norm_by_static_spectra:
+            raise NotImplementedError
+        return x, y, z
+
+
     def save(self, file):
-        """Save Record2d into a numpz array obj."""
+        """Save Record2d into a numpy array obj."""
         kwgs = dict(
             pump_freqs=self.pump_freqs,
             pumped=self.pumped,
