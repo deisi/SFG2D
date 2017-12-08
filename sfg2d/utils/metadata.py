@@ -123,3 +123,12 @@ def time_scan_time(pp_delays, exp_time, reps):
     ret = datetime.datetime.now()
     ret += datetime.timedelta(minutes=pp_delays*exp_time*reps)
     return ret
+
+
+def get_unit_from_string(string):
+    """Return [] encapsulated unit from string."""
+    match = re.search('\[(.*)\]', string)
+    ret = ''
+    if match:
+        ret = match.group(1)
+    return ret

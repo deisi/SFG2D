@@ -1,6 +1,6 @@
 
 """Import this for Poster Settings"""
-from matplotlib import rcParams
+from matplotlib import rcParams, RcParams
 def configure():
     """
     Configure matplotlib, so it works well for posters.
@@ -12,7 +12,10 @@ def configure():
     rcParams['lines.linewidth'] = 4
     rcParams['lines.markersize'] = 8
     rcParams['legend.framealpha'] = 0
+
     return
+
+
 
 if __name__ != "__main__":
     configure()

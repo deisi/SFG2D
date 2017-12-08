@@ -1,8 +1,10 @@
 """Module to import data from the victor controller."""
 import datetime
 import numpy as np
+import re
 
 from sfg2d.utils.consts import PIXEL, SPECS
+from sfg2d.utils.metadata import get_unit_from_string
 
 
 def get_from_victor_controller(fpath, **kwargs):
@@ -67,23 +69,45 @@ def translate_header_to_metadata(header_dict):
     ret = {}
     for key in header_dict:
         value = header_dict[key]
-        if 'ExposureTime' in key:
+        if 'Gain' == key:
+            ret['gain'] = value
+
+        elif "Output Amplifier" == key:
+            ret['output amplifier'] = value
+
+        elif "HS_speed" in key:
+            unit = get_unit_from_string(key)
+            ret['hs_speed'] = (value, unit)
+
+        elif 'ExposureTime' in key:
             _, unit = key.split(" ")
             if "[s]" in unit:
                 unit = "seconds"
             ret["exposure_time"] = datetime.timedelta(**{unit : float(value)})
 
-        if 'Syringe Pos' in key:
-            ret["syringe_pos"] = int(value)
+        elif 'HBin' == key:
+            ret['hbin'] = {'ON': True}.get(value, False)
 
-        if "Timefile" in key:
-            ret["timefile"] = value
-
-        # Wavelength => CentralWavelength
-        if "Central-Wavelength" == key:
+        # Wavelength => CentralWaveleng
+        elif "Central-Wavelength" == key:
             ret["central_wl"] = int(value)
 
-        if "vis-Wavelength" == key:
+        elif "vis-Wavelength" == key:
             ret["vis_wl"] = int(value)
+
+        elif 'Syringe Pos' in key:
+            ret["syringe_pos"] = int(value)
+
+        elif "Timefile" in key:
+            ret["timefile"] = value
+
+        elif "Cursor" == key:
+            ret['cursor'] = tuple([int(elm) for elm in value.split('\t')])
+
+        elif 'x-mirror' == key:
+            ret['x-mirror'] = {'ON': True}.get(value, False)
+
+        elif 'calib Coeff' == key:
+            ret['calib Coeff'] = tuple([float(elm) for elm in value.split('\t')])
 
     return ret

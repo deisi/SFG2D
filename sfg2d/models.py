@@ -5,7 +5,37 @@ from scipy.integrate import odeint
 from scipy.special import erf, erfc
 from scipy.stats import norm, skewnorm
 from iminuit import Minuit
+import sys
+thismodule = sys.modules[__name__]
 
+
+def make_model_fit(
+        model_name,
+        xdata,
+        ydata,
+        yerr=None,
+        fit=False,
+        print_matrix=True,
+        model_kwgs={}
+):
+    """Generig interface for model fits.
+    **Arguments:**
+      - **model_name**: String describing the name of the model
+      - **xdata**: x-data to the model
+      - **ydata**: y-data to model
+
+    **Keywords:**
+      - **yerr**: yerr to model
+      - **fit**: boolean weather to run the fit
+      - **model_kwgs**: Keywords passed to model during creation
+    """
+
+    model = getattr(thismodule, model_name)(xdata, ydata, yerr, **model_kwgs)
+    if fit:
+        fit_model(
+            model, print_matrix=print_matrix
+        )
+    return model
 
 def fit_model(model, minos=False, print_matrix=True):
     """Function to run migrad minimizations.
@@ -44,7 +74,7 @@ def normalize_trace(model, shift_mu=False, scale_amp=False, shift_heat=False):
 
     scale = 1
     if scale_amp:
-        x_mask = where((model.xsample-mu>0) & (model.xsample-mu<1000))
+        x_mask = np.where((model.xsample-mu>0) & (model.xsample-mu<1000))
         scale = 1-offset-model.yfit_sample[x_mask].min()
 
     xdata = model.xdata - mu
@@ -298,7 +328,12 @@ class FourLevelMolKinM(Fitter):
 
         Due to historic reasons its not a strict gausian, but something
         very cloe to it. The Igor Code is:
-        1/sqrt(pi)/coeff1*exp(-(coeff0-x)^2/coeff1^2) """
+        1/sqrt(pi)/coeff1*exp(-(coeff0-x)^2/coeff1^2)
+
+        The here wanted sigma is sqrt(2)*sigma of a normal gaussian
+        and then its also normalized. If you have FWHM, then sigma
+        is sigma = FWHM/(2*sqrt(log(2)))
+        """
 
         return 1 / np.sqrt(np.pi) / sigma * np.exp(-((mu-t)/sigma)**2)
 
@@ -324,12 +359,11 @@ class FourLevelMolKinM(Fitter):
 
         # This is the DGL written as a Matrix multiplication.
         # dNdt = A x N
-        # With A beeing the constructing matrix of the DGL
-        # and N beeing a 4-level vector with (N0, N1, N2, N3)
-        # beeing the population of the states at the time t.
+        # A is the constructing matrix of the DGL
+        # and N is a 4-level vector with (N0, N1, N2, N3)
+        # as the population of the states at time t.
         # dNdt is the state wise derivative of N
         # See https://en.wikipedia.org/wiki/Matrix_differential_equation
-        # for further insights.
 
         A = np.array([
             [-s * ext_func(t), s * ext_func(t), 0, 0],

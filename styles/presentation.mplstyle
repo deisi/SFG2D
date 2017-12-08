@@ -1,0 +1,10 @@
+savefig.dpi: 150
+figure.figsize: 8.0, 6.0
+font.size: 18
+savefig.transparent: True
+lines.linewidth: 4
+lines.markersize: 8
+legend.framealpha: 0
+figure.subplot.bottom: 0.11
+figure.subplot.left: 0.125
+figure.subplot.right: 0.99

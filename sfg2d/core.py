@@ -1509,6 +1509,7 @@ class Record2d():
             pumpedE=None,
             unpumpedE=None,
             gold_bleach=None,
+            static_chi=None,
     ):
         """Record of 2D data.
 
@@ -1526,6 +1527,7 @@ class Record2d():
           - **pumpedE**: 3d array of pumped data uncertaincy
           - **unpumpedE**: 3d array of unpumped data uncertaincy
           - **gold_bleach**: array of minimal bleach values on gold
+          - **static_chi**: array of correction factors for static Ampitude
         """
 
         self.pumped = pumped
@@ -1554,6 +1556,7 @@ class Record2d():
         self.zero_time_selec = slice(0, 2)
 
         self.gold_bleach = gold_bleach
+        self.static_chi = static_chi
 
     @property
     def number_of_delays(self):
@@ -1600,15 +1603,13 @@ class Record2d():
             resample_freqs=0,
     ):
         """Data for a static spectrum."""
-        x = self.wavenumbers[roi_pixel]
         y = getattr(self, prop)[delay, :, roi_pixel].T
         if medfilt_kernel:
             y = medfilt(y, medfilt_kernel)
         if resample_freqs:
             y = double_resample(y, resample_freqs)
 
-        return x, scale*y
-
+        return scale*y
 
     def pump_vs_probe(
             self,
@@ -1620,20 +1621,49 @@ class Record2d():
             resample_freqs=0,
             norm_by_gold_bleach=False,
             norm_by_static_spectra=False,
+            scale=1,
     ):
-        """Data for a contour plot with pump vs probe."""
-        x = self.pump_freqs
-        y = self.wavenumbers[roi_pixel]
+        """Data for a contour plot with pump vs probe.
+
+        **Arguments:**
+          - **delay**: Index of pump_probe delay to get data from.
+
+        **Keywords**:
+          - **prop**: Default 'bleach'. Property of data.
+          - **prop_kwgs**: Keywords to select property with.
+          - **roi_pixel**: Pixel Region of interest of data
+          - **medfilt_kernel**: Median filter kernel. Two element array with:
+              (probe, pump)
+          - **resample_freqs**: Frequencies for the resample filter
+          - **norm_by_gold_bleach**: Normalize with Record2d.gold_bleach
+          - **norm_by_static_spectra**: Normalizes with static amplitudes
+          - **scale**: Scale result z axis
+
+        **Returns:**
+        2d Numpy array with pump vs probe orientation.
+
+        """
         z = getattr(self, prop)(**prop_kwgs)[delay].T[roi_pixel]
+        opt = prop_kwgs.get('opt', 'rel')
         if medfilt_kernel:
             z = medfilt(z, medfilt_kernel)
         if resample_freqs:
             z = double_resample(z, resample_freqs)
         if norm_by_gold_bleach:
-            z = (z-1)*(1+self.gold_bleach) + 1
+            if opt == 'rel':
+                z = (z-1) * (1+self.gold_bleach) + 1
+            elif opt == 'abs':
+                z = z * (1 + self.gold_bleach)
+            else:
+                raise NotImplementedError
         if norm_by_static_spectra:
-            raise NotImplementedError
-        return x, y, z
+            if opt == 'rel':
+                z = (z - 1) * self.static_chi + 1
+            elif opt == 'abs':
+                z = z / self.static_chi
+            else:
+                raise NotImplementedError
+        return scale*z
 
 
     def save(self, file):
@@ -1646,7 +1676,8 @@ class Record2d():
             wavenumbers=self.wavenumbers,
             pumpedE=self.pumpedE,
             unpumpedE=self.unpumpedE,
-            gold_bleach=self.gold_bleach
+            gold_bleach=self.gold_bleach,
+            static_chi=self.static_chi,
         )
         print('Saving to {}'.format(path.abspath(file)))
         np.savez_compressed(
