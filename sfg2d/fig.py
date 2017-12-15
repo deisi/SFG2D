@@ -489,6 +489,29 @@ def models(
     return fig, ax
 
 
+def record_models(record, model_names, model_plot_kwgs=None):
+    """Figure of multiple models from the same record.
+
+    model_plot_kwgs: list of dicts. Each entry gets passed to
+        `sfg2d.plot.model` as kwargs.
+    """
+    models = [record.models.get(model_name) for model_name in model_names]
+    fig, ax = plt.subplots(
+        num='{}_pump{}_traces'.format(record.name, record.pump_freq))
+    fig.clf()
+    if not model_plot_kwgs:
+        model_plot_kwgs = [{} for model in models]
+    for model, model_plot_kwg in zip(models, model_plot_kwgs):
+        # Catch when model was not created
+        if model:
+            print(model_plot_kwg)
+            sfg2d.plot.model(model, **model_plot_kwg)
+    plt.legend()
+    plt.xlabel('Time in fs')
+    plt.ylabel('Relative Bleach')
+    record.figures[fig.number] = fig
+
+
 def bleach_slider(
         record,
         select_kws={},

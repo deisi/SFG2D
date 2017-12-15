@@ -47,14 +47,20 @@ def fit_model(
         model.draw_text_box(box_coords)
     return model
 
-def model(model, errorbar_kwgs={}, lineplot_kwgs={}):
+def model(model, errorbar_kwgs=None, lineplot_kwgs=None):
+    if not errorbar_kwgs:
+        errorbar_kwgs = {}
+    if not lineplot_kwgs:
+        lineplot_kwgs = {}
 
     errorbar_kwgs.setdefault('marker', 'o')
     errorbar_kwgs.setdefault('linestyle', 'None')
     plotline, capline, barline = plt.errorbar(
         model.xdata, model.ydata, model.yerr, **errorbar_kwgs
     )
+    print(plotline.get_color())
     lineplot_kwgs.setdefault('color', plotline.get_color())
+    print(lineplot_kwgs)
     plt.plot(model.xsample, model.yfit_sample, **lineplot_kwgs)
 
 def points_modeled(x, y, yerr=None, xline=None, yline=None, point_kwgs={}, line_kwgs={}):
