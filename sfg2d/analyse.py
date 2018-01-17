@@ -58,7 +58,6 @@ def fig_pump_probe(record, fig_pump_probe_kwgs):
         plt.close(fig)
     return x, y, z
 
-
 def fit_model(x, y, yerr, config):
     """Fit Data in a configurable way.
 

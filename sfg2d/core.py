@@ -1047,7 +1047,7 @@ class SfgRecord():
             shift_neg_time=False,
             **kwargs
     ):
-        """Shortcut to get traces.
+        """Shortcut to get trace.
 
         prop: property to calculate the trace from
         prop_kwgs: additional kwgs of the property
@@ -1089,6 +1089,19 @@ class SfgRecord():
             **kwargs
         )
         return x, y, yerr
+
+    def trace_multiple(
+            self,
+            prop='bleach',
+            prop_kwgs={'opt': 'rel', 'prop': 'basesubed'},
+            roi_wavenumbers=[None],
+            roi_delays=[None],
+            shift_neg_time=False,
+            **kwargs
+    ):
+        """Return multiple traces at the same time."""
+
+        return [self.trace(prop, prop_kwgs, roi_wavenumber, roi_delay, shift_neg_time, **kwargs) for roi_wavenumber, roi_delay in zip(roi_wavenumbers, roi_delays)]
 
     def get_linear_baseline(self, start_slice=None,
                             stop_slice=None, data_attr="rawData"):
@@ -1510,6 +1523,7 @@ class Record2d():
             unpumpedE=None,
             gold_bleach=None,
             static_chi=None,
+            zero_time_offset=None,
     ):
         """Record of 2D data.
 
@@ -1528,7 +1542,11 @@ class Record2d():
           - **unpumpedE**: 3d array of unpumped data uncertaincy
           - **gold_bleach**: array of minimal bleach values on gold
           - **static_chi**: array of correction factors for static Ampitude
+          - **zero_time_offset**: array of offset values for the relative zero
+              time correction. This correction applyes, because the 0 time is
+              necessary the same throughout multiple measurments.
         """
+
 
         self.pumped = pumped
         self.unpumped = unpumped
@@ -1565,6 +1583,28 @@ class Record2d():
     @property
     def number_of_pump_freqs(self):
         return self.pump_freqs.shape[0]
+
+    @property
+    def pp_delays_corrected(self):
+        """Corrected version of pp_delays.
+
+        Uses `Record2d.zero_time_offset` to calculate an effective delay times matrix.
+        This  matrix has shape of (number_of_pump_freqs, number_of_pp_delays)
+        """
+        times = np.ones((self.number_of_pump_freqs, self.number_of_delays)) * self.pp_delays
+        corrections = np.transpose(np.ones_like(times).T*self.zero_time_offset)
+        ctimes = times+corrections
+        return ctimes.astype(int)
+
+    def find_delay_index(self, value):
+        """Find closest pp_delay index for value
+
+        **Arguments:**
+          - **value**: number of delay time to search for in `Record2d.pp_delays_corrected`
+
+        **Returns:**
+          Array of index positions, that effectively match the value."""
+        return abs(self.pp_delays_corrected-value).argmin(1)
 
     def bleach(self, opt='rel'):
         if opt is 'rel':
@@ -1621,6 +1661,7 @@ class Record2d():
             resample_freqs=0,
             norm_by_gold_bleach=False,
             norm_by_static_spectra=False,
+            shift_zero_time_offset=False,
             scale=1,
     ):
         """Data for a contour plot with pump vs probe.
@@ -1637,13 +1678,22 @@ class Record2d():
           - **resample_freqs**: Frequencies for the resample filter
           - **norm_by_gold_bleach**: Normalize with Record2d.gold_bleach
           - **norm_by_static_spectra**: Normalizes with static amplitudes
+          - **shift_zero_time_offset**: Shift zero time offset. This matches
+              bleach by time.
           - **scale**: Scale result z axis
 
         **Returns:**
         2d Numpy array with pump vs probe orientation.
 
         """
-        z = getattr(self, prop)(**prop_kwgs)[delay].T[roi_pixel]
+        z_raw = getattr(self, prop)(**prop_kwgs)
+        if shift_zero_time_offset:
+            time = self.pp_delays[delay]
+            best_delay_indeces = self.find_delay_index(time)
+            print('Combining ', time, ' as: ' ,self.pp_delays[self.find_delay_index(time)])
+            z = z_raw[best_delay_indeces, range(self.number_of_pump_freqs), roi_pixel].T
+        else:
+            z = z_raw[delay, :, roi_pixel].T
         opt = prop_kwgs.get('opt', 'rel')
         if medfilt_kernel:
             z = medfilt(z, medfilt_kernel)
@@ -1678,13 +1728,13 @@ class Record2d():
             unpumpedE=self.unpumpedE,
             gold_bleach=self.gold_bleach,
             static_chi=self.static_chi,
+            zero_time_offset=self.zero_time_offset
         )
         print('Saving to {}'.format(path.abspath(file)))
         np.savez_compressed(
             file,
             **kwgs
         )
-
 
 
 def concatenate_list_of_SfgRecords(list_of_records):

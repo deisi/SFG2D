@@ -70,7 +70,7 @@ def normalize_trace(model, shift_mu=False, scale_amp=False, shift_heat=False):
 
     offset = 0
     if shift_heat:
-        offset=1-model.yfit_sample[-1]
+        offset = 1-model.yfit_sample[-1]
 
     scale = 1
     if scale_amp:
@@ -123,6 +123,10 @@ class Fitter():
         # Buffer for figures
         self.figures = {}
         kwargs.setdefault('pedantic', False)
+        # Minuit is used for fitting. This makes self.chi2 the fit function
+        print(self.chi2)
+        print(fitarg)
+        print(kwargs)
         self.minuit = Minuit(self.chi2, **fitarg, **kwargs)
 
     @property
@@ -173,7 +177,7 @@ class Fitter():
     @ydata.setter
     def ydata(self, value):
         if len(np.shape(value)) != 1:
-            raise IndexError('Shappe if xdata is not of dim 1')
+            raise IndexError('Shappe if ydata is not of dim 1')
         self._ydata = value
 
     @property
@@ -190,7 +194,7 @@ class Fitter():
         if isinstance(value, type(None)):
             self._sigma = np.ones_like(self._ydata)
         elif len(np.shape(value)) != 1:
-            raise IndexError('Shappe if xdata is not of dim 1')
+            raise IndexError('Shappe of yerr is not of dim 1')
         if np.any(value==0):
             from warnings import warn
             warn('Passed uncertainty has a 0 value\nIgnoring errorbars.\n{}'.format(value))
@@ -201,7 +205,7 @@ class Fitter():
     @property
     def yerr(self):
         """Error of the ydata for the fit."""
-        return self.sigma
+        return np.array(self.sigma)
 
     def fit_res(self, x):
         """Fit function wit fit result parameters"""
@@ -228,6 +232,10 @@ class Fitter():
     @property
     def yfit_sample(self):
         return self.fit_res(self.xsample)
+
+    @property
+    def fitarg(self):
+        return self.minuit.fitarg
 
 
 class GaussianModelM(Fitter):
@@ -388,16 +396,20 @@ class FourLevelMolKinM(Fitter):
         ], dtype=np.float64)
         return A
 
-    def population(self, t, ext_func, s, t1, t2, **kwargs):
+    def population(self, t, *args, **kwargs):
         """Numerical solution to the 4 Level DGL-Water system.
 
         **Arguments:**
           - **t**: array of time values
+        **Args**:
+          Arguments of the dgl function
           - **ext_func**: Function of excitation.
           - **s**: scalar factor for the pump
           - **t1**: Live time of the first exited state
           - **t2**: livetime of the intermediate state.
 
+        **kwargs**:
+          Get passe to differential equation solver odeing
         **Returns**
           (len(t), 4) shaped array with the 4 entires beeing the population
           of the N0 t0  N3 levels of the system
@@ -406,9 +418,9 @@ class FourLevelMolKinM(Fitter):
         ret = odeint(
             func=self.dgl,  # the DGL of the 3 level water system
             y0=self.N0,  # Starting conditions of the DGL
-            t=t,
-            args=(ext_func, s, t1, t2),
-            #Dfun=self.jac,  # The Jacobean of the DGL. Its optional.
+            t=t,  # Time as parameter
+            args=args,  # Aguments of the dgl
+            # Dfun=self.jac,  # The Jacobean of the DGL. Its optional.
             # The precisioin parameter for the nummerical DGL solver.
             rtol=self.rtol,
             atol=self.atol,
@@ -491,6 +503,107 @@ class FourLevelMolKinM(Fitter):
         }
         super().__save__(fname, parameter_dict)
 
+class Crosspeak(FourLevelMolKinM):
+    def __init__(
+            self,
+            *args,
+            N0=[1, 0, 0, 0, 0],
+            **kwargs
+    ):
+        """4 Level Model based crosspeak fitter.
+        """
+        FourLevelMolKinM.__init__(self, *args, N0=N0, **kwargs)
+
+    def matrix(self, t, t1, teq, tup, tdown, ext_func, s):
+        """Matrix to construct the DGL"""
+        return np.array([
+            [-s * ext_func(t), -s * ext_func(t), 0, 0, 0],
+            [s * ext_func(t), -s * ext_func(t)-1/tup-1/t1, 1/tdown, 0, 0],
+            [0, 1/tup, -1/tdown, 0, 0],
+            [0, 1/t1, 0, -1/teq, 0],
+            [0, 0, 0, 1/teq, 0]
+        ], dtype=np.float64)
+
+
+    def dgl(self, N, *args):
+        """Matrix form of the DGL"""
+        dNdt = self.matrix(*args).dot(N)
+        return dNdt
+
+    def fit_func(self, t, t1, teq, tup, tdown, mu, gSigma, s, c):
+        """Function that is used for fitting the data."""
+        N = self.population(
+            t,
+            t1,
+            teq,
+            tup,
+            tdown,
+            lambda t: self.ext_gaus(t, mu, gSigma),
+            s,
+        ).T
+        # On Pump vibration
+        y0 = (N[0] + c * N[3] - N[1])**2 / self.N0[0]**2
+        # Off Pump vibration
+        y1 = (N[0] + c * N[3] - N[2])**2 / self.N0[0]**2
+        # Fit function is two dimensional because input data consist of two
+        # traces.
+        return np.array([y0, y1])
+
+    def chi2(self, t1, teq, tup, tdown, mu, gSigma, s, c):
+        """Chi2 to minimize with minuit.
+
+        **Aguments**
+          - **s**: Gaussian Amplitude of the excitation
+          - **t1**: Livetime of the first state
+          - **teq**: Livetime of the second state/ The equbrilation step
+          - **tup**: Livetime of the upconversion
+          - **tdown**: Livetime of the downconversion
+          - **gSigma**: Witdh of the excitation pulse
+          - **mu**: Temporal position of the excitation pulse
+          - **c**: Coefficient of the heat
+
+        **Returns:**
+          Chi2 of the fit. This is the square distance of fit-function and
+          measured data
+        """
+        return np.sum(
+            (
+                (
+                    self.ydata - self.fit_func(
+                        self.xdata, t1, teq, tup, tdown, mu, gSigma, s, c
+                    )
+                ) / self.sigma
+            )**2
+        )
+
+
+    @property
+    def ydata(self):
+        return self._ydata
+
+    @ydata.setter
+    def ydata(self, value):
+        self._ydata = np.array(value)
+
+    @property
+    def sigma(self):
+        """Error of the ydata for the fit."""
+        if isinstance(self._sigma, type(None)):
+            return np.ones_like(self.ydata)
+        if self.ignore_errors:
+            return np.ones_like(self.ydata)
+        return self._sigma[self.roi]
+
+    @sigma.setter
+    def sigma(self, value):
+        if isinstance(value, type(None)):
+            self._sigma = np.ones_like(self._ydata)
+        if np.any(value == 0):
+            from warnings import warn
+            warn('Passed uncertainty has a 0 value\nIgnoring errorbars.\n{}'.format(value))
+            self._sigma = value
+            self.ignore_errors = True
+        self._sigma = value
 
 class SimpleDecay(Fitter):
     def __init__(

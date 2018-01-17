@@ -686,6 +686,43 @@ def bleach_pdf(
         plt.close(fig.number)
 
 
+def spectrum_pump_vs_probe(
+        record2d,
+        delay,
+        roi_pixel=slice(None),
+        pump_vs_probe_kwgs={},
+        contour_kwgs={},
+        colorbar=True,
+        diagonal=True,
+        num=None,
+        title='',
+        tight_layout=False,
+):
+    """Figure of 2dRecprd."""
+
+    fig, ax = plt.subplots(num=num)
+    fig.clf()
+    plt.title(title)
+    pump_vs_probe_kwgs['delay'] = delay
+    pump_vs_probe_kwgs['roi_pixel'] = roi_pixel
+    x = record2d.pump_freqs
+    y = record2d.wavenumbers[roi_pixel]
+    z = record2d.pump_vs_probe(**pump_vs_probe_kwgs)
+    plt.contourf(x, y, z, **contour_kwgs)
+    plt.xlabel('Pump in 1/cm')
+    plt.ylabel('Probe in 1/cm')
+    if colorbar:
+        plt.colorbar()
+    if diagonal:
+        l_min = np.max([x.min(), y.min()])
+        l_max = np.min([x.max(), y.max()])
+        plt.plot([l_min, l_max], [l_min, l_max], color='k')
+    if tight_layout:
+        plt.tight_layout()
+
+    return fig
+
+
 @ioff
 def spectra_pump_vs_probe(
         record2d,
@@ -711,7 +748,7 @@ def spectra_pump_vs_probe(
         fig.clf()
         plt.title(title + ' {:.0f} fs'.format(record2d.pp_delays[delay]))
         pump_vs_probe_kwgs['delay'] = delay
-        pump_vs_probe_kwgs['roi_pixel'] = roi_pixel,
+        pump_vs_probe_kwgs['roi_pixel'] = roi_pixel
         x = record2d.pump_freqs
         y = record2d.wavenumbers[roi_pixel]
         z = record2d.pump_vs_probe(**pump_vs_probe_kwgs)

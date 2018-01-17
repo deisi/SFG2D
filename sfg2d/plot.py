@@ -5,6 +5,7 @@
 
 import matplotlib.pyplot as plt
 import sfg2d
+from numpy import transpose
 
 def fit_model(
         x,
@@ -56,12 +57,12 @@ def model(model, errorbar_kwgs=None, lineplot_kwgs=None):
     errorbar_kwgs.setdefault('marker', 'o')
     errorbar_kwgs.setdefault('linestyle', 'None')
     plotline, capline, barline = plt.errorbar(
-        model.xdata, model.ydata, model.yerr, **errorbar_kwgs
+        model.xdata, model.ydata.T, model.yerr.T, **errorbar_kwgs
     )
     print(plotline.get_color())
     lineplot_kwgs.setdefault('color', plotline.get_color())
     print(lineplot_kwgs)
-    plt.plot(model.xsample, model.yfit_sample, **lineplot_kwgs)
+    plt.plot(model.xsample, model.yfit_sample.T, **lineplot_kwgs)
 
 def points_modeled(x, y, yerr=None, xline=None, yline=None, point_kwgs={}, line_kwgs={}):
     """Plot points and line."""
@@ -183,4 +184,5 @@ def trace(
                     ax.plot(xdata, frame.T, **kwargs)
             else:
                 plt.errorbar(xdata, spec[0], yerr[:, j, i], axes=ax, **kwargs)
+
 
