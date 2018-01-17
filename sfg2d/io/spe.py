@@ -8,7 +8,7 @@ debug = 0
 class PrincetonSPEFile3():
     """Class to import and read spe files.
 
-    Capabilities 
+    Capabilities
     -----------
     Use this class to import spe files from Andor or Lightfield.
     It can handle spe v2 and spe v3 data.
@@ -64,8 +64,8 @@ class PrincetonSPEFile3():
         The read temperature of the camera
 
     roi : dict
-        Region of interest 
-        
+        Region of interest
+
 
     Examples
     --------
@@ -82,7 +82,7 @@ class PrincetonSPEFile3():
     }
     def __init__(self, fname, verbose=False):
         self._verbose = verbose
-        
+
         # if not os.path.isfile(fname) and \
         #    not os.path.islink(fname):
         #     raise IOError('%s does not exist' % fname)
@@ -124,19 +124,19 @@ class PrincetonSPEFile3():
 
     def _read_v2_header(self):
         """Read calibrations parameters and calculate wavelength as it
-        was usually done in pre v3 .spe time."""
+        was done in pre v3 .spe time."""
 
         # General meta data
         self.exposureTime = timedelta(
-            seconds = self._readFromHeader('f', 10)[0] # in seconds
+            seconds=self._readFromHeader('f', 10)[0]  # in seconds
         )
         date = self._readFromHeader('9s', 20)[0].decode('utf-8')
         self.tempSet = self._readFromHeader('f', 36)[0]
         timeLocal = self._readFromHeader('6s', 172)[0].decode('utf-8')
         timeUTC = self._readFromHeader('6s', 179)[0].decode('utf-8')
 
-        # Try statement is a workaround, because sometimes date seems to be male formated
-        # and currently the program cant deal with it.
+        # Try statement is a workaround, because sometimes date seems to be
+        # badly formatted and the program cant deal with it.
         try:
             self.date = datetime.strptime(
                 date + timeLocal, "%d%b%Y%H%M%S"

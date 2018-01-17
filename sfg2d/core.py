@@ -209,7 +209,7 @@ class SfgRecord():
         self._normalizedE = None
 
         # type of data file
-        self._type = 'unknown'
+        self.type = 'unknown'
 
         # 1d array with wavelength values
         self._wavelength = None
@@ -745,6 +745,8 @@ class SfgRecord():
         """
         if self._setted_wavelength:
             return self._wavelength
+        if self.type == 'spe':
+            return self._sp.wavelength
         cw = self.central_wl
         self._wavelength = pixel_to_nm(self.pixel, cw)
         return self._wavelength
@@ -797,7 +799,9 @@ class SfgRecord():
 
         if self._setted_wavenumber:
             return self._wavenumber
-        vis_wl = self.metadata.get("vis_wl")
+        # Changing this because I dont know if this will still be needed
+        # vis_wl = self.metadata.get("vis_wl")
+        vis_wl = self.vis_wl
         if isinstance(vis_wl, type(None)) or vis_wl < 1:
             self._wavenumber = nm_to_wavenumbers(self.wavelength)
         else:
@@ -1185,12 +1189,12 @@ class SfgRecord():
 
         # spe is binary and we hope its not named wrongly
         if path.splitext(ftail)[1] == '.spe':
-            self._type = 'spe'
+            self.type = 'spe'
             return True
 
         # Compressed binary version.
         if path.splitext(ftail)[1] == '.npz':
-            self._type = 'npz'
+            self.type = 'npz'
             return True
 
         # We open the file and by looking at the
@@ -1198,11 +1202,11 @@ class SfgRecord():
         # and what function is needed to read it.
         start_of_data = np.genfromtxt(self._fname, max_rows=3, dtype="long")
         if start_of_data.shape[1] == 4:
-            self._type = 'victor'
+            self.type = 'victor'
             return True
 
         elif start_of_data.shape[1] == 6:
-            self._type = 'veronica'
+            self.type = 'veronica'
             return True
         else:
             # Check if we have a header.
@@ -1212,11 +1216,11 @@ class SfgRecord():
                 if line[0] == "#":
                     # First line is pixel then 3 spectra repeating
                     if (start_of_data.shape[1] - 1) % 3 == 0:
-                        self._type = 'victor'
+                        self.type = 'victor'
                         return True
                 else:
                     if start_of_data.shape[1] % 6 == 0:
-                        self._type = 'veronica'
+                        self.type = 'veronica'
                         return True
         raise IOError("Cant understand data in %f" % self._fname)
 
@@ -1224,7 +1228,7 @@ class SfgRecord():
         """Import the data."""
 
         # Pick import function according to data type automatically.
-        if self._type == "spe":
+        if self.type == "spe":
             from .io.spe import PrincetonSPEFile3
             self._sp = PrincetonSPEFile3(self._fname)
             self.rawData = self._sp.data.reshape(
@@ -1232,7 +1236,7 @@ class SfgRecord():
             )
             return
 
-        if self._type == "npz":
+        if self.type == "npz":
             imp = np.load(self._fname)
             for key, value in self.saveable.items():
                 if key in imp.keys():
@@ -1251,11 +1255,11 @@ class SfgRecord():
                 pass
             return
 
-        if self._type == "veronica":
+        if self.type == "veronica":
             self.rawData, self.pp_delays = get_from_veronika(self._fname)
             return
 
-        if self._type == "victor":
+        if self.type == "victor":
             self.rawData, self.pp_delays = get_from_victor_controller(
                 self._fname
             )
@@ -1273,9 +1277,11 @@ class SfgRecord():
 
         # Update datadependent rois
         if isinstance(self.roi_spectra, type(slice(None))):
-           if not self.roi_spectra.stop:
-               self.roi_spectra = slice(self.roi_spectra.start,
-                                        self.number_of_spectra)
+            if not self.roi_spectra.stop:
+                self.roi_spectra = slice(
+                    self.roi_spectra.start,
+                    self.number_of_spectra
+                )
         if not self.roi_frames.stop:
             self.roi_frames = slice(self.roi_frames.start,
                                     self.number_of_frames)
@@ -1283,7 +1289,7 @@ class SfgRecord():
             self.roi_delay = slice(self.roi_delay.start,
                                    self.number_of_pp_delays)
 
-        if self._type == "npz":
+        if self.type == "npz":
             # We skipp this step here, bacuse metadata is extracted from the
             # file Directly.
             return
@@ -1297,14 +1303,14 @@ class SfgRecord():
                 '/nSkipping'
             warnings.warn(msg)
 
-        if self._type == "victor":
+        if self.type == "victor":
             # Read metadata from file header.
             from .io.victor_controller import (read_header,
                                                translate_header_to_metadata)
             header = read_header(self._fname)
             metadata = {**metadata, **translate_header_to_metadata(header)}
 
-        if self._type == 'spe':
+        if self.type == 'spe':
             metadata['central_wl'] = self._sp.central_wl
             metadata['exposure_time'] = self._sp.exposureTime
             metadata['gain'] = self._sp.gain
@@ -1313,8 +1319,6 @@ class SfgRecord():
             metadata['tempSet'] = self._sp.tempSet
             self._wavelength = self._sp.wavelength
             self.calib_poly = self._sp.calib_poly
-            # Dont need the spe datatype object any more.
-            del self._sp
 
         for key in metadata:
             self.metadata[key] = metadata[key]
@@ -1336,7 +1340,7 @@ class SfgRecord():
         ret.pp_delays = self.pp_delays.copy()
         ret.metadata = self.metadata.copy()
         ret._fname = self._fname
-        ret._type = self._type
+        ret.type = self.type
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
         ret.baseline_offset = self.baseline_offset

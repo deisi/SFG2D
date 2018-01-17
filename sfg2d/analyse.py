@@ -6,6 +6,9 @@ import os
 import matplotlib.pyplot as plt
 import sfg2d
 
+
+### Deprecated
+
 # Contour Plot
 def fig_pump_probe(record, fig_pump_probe_kwgs):
     """Configurable contour plot."""
