@@ -1,41 +1,49 @@
 """Module to read raw data and produce records with."""
 import yaml, sys
-from .core import SfgRecord, SfgRecords_from_file_list
+import sfg2d.core as core
+import sfg2d.fig as fig
 
 fname = 'raw_config.yaml'
 
-with open(fname) as ifile:
-    config = yaml.load(ifile)
-
-
-records = {}
 
 def main():
+    global records, figures
+    records = {}
+    figures = {}
+
+    with open(fname) as ifile:
+        config = yaml.load(ifile)
     for record_entrie in config['records']:
-        #try:
-            fpath = record_entrie['fpath']
-            record_kwgs = record_entrie.get('record_kwgs', {})
-            base_dict = record_entrie.get('base')
-            if base_dict:
-                base = records[base_dict['name']].select(
-                    prop='rawData',
-                    frame_med=True
-                )
-                record_kwgs['base'] = base
+        fpath = record_entrie['fpath']
+        record_kwgs = record_entrie.get('record_kwgs', {})
+        base_dict = record_entrie.get('base')
+        if base_dict:
+            base = records[base_dict['name']].select(
+                prop='rawData',
+                frame_med=True
+            )
+            record_kwgs['base'] = base
 
-            norm_dict = record_entrie.get('norm')
-            if norm_dict:
-                norm = records[norm_dict['name']].select(
-                    prop='basesubed',
-                    frame_med=True
-                )
-                record_kwgs['norm'] = norm
-                print(norm.mean())
+        norm_dict = record_entrie.get('norm')
+        if norm_dict:
+            norm = records[norm_dict['name']].select(
+                prop='basesubed',
+                frame_med=True
+            )
+            record_kwgs['norm'] = norm
 
-            if type(fpath) == str:
-                record = SfgRecord(fpath, **record_kwgs)
-            else:
-                record = SfgRecords_from_file_list(fpath, **record_kwgs)
-            records[record_entrie['name']] = record
-        #except OSError:
-        #    print('During Import of {}\nFile not found {}'.format(record_entrie['name'], fpath))
+        if type(fpath) == str:
+            record = core.SfgRecord(fpath, **record_kwgs)
+        else:
+            record = core.SfgRecords_from_file_list(fpath, **record_kwgs)
+        records[record_entrie['name']] = record
+
+    for fig_config in config['figures']:
+        # Name is equal the config key, so it must be stripped
+        fig_name, fig_config = list(fig_config.items())[0]
+        fig_func = getattr(fig, fig_config['type'])
+        fig_kwgs = fig_config['fig_kwgs'].copy()
+        record = fig_kwgs.get('record')
+        if record:
+            fig_kwgs['record'] = records[record]
+        figures[fig_name] = fig_func(**fig_kwgs)

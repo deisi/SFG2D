@@ -2,6 +2,7 @@ from os import path
 import warnings
 
 import numpy as np
+import scipy.fftpack as fft
 from scipy.signal import medfilt
 from scipy.stats import sem
 
@@ -420,7 +421,7 @@ class SfgRecord():
 
             ret = getattr(self, prop)
         # Infered properites need aditional kwgs
-        elif prop in ('pumped', 'unpumped', 'bleach', 'trace'):
+        elif prop in ('pumped', 'unpumped', 'bleach', 'trace', 'time_domain', 'frequencie_domain', 'normalize_het'):
             ret = getattr(self, prop)(**prop_kwgs)
         else:
             raise NotImplementedError('{} not know'.format(prop))
@@ -544,6 +545,7 @@ class SfgRecord():
     @property
     def normalized(self):
         """Normalized data.
+        Uses SfgRecord.basesubed and SfgRecord.norm to normalize data.
 
         4D array like `SfgRecord.rawData` after normalizting.
         """
@@ -1094,6 +1096,49 @@ class SfgRecord():
         )
         return x, y, yerr
 
+    def time_domain(self, **kwargs):
+        """
+        Use Inverse-FFT to transform into time domain.
+        a:
+
+        prop default to basesubed
+
+        **kwargs** get passed to *SfgRecod.select*
+        """
+
+        kwargs.setdefault('prop', 'basesubed')
+        kwargs.setdefault('frame_med', True)
+        ret = self.select(**kwargs)
+        ret = fft.ifft(ret)
+        return ret
+
+    def frequency_domain(self, start, stop, **kwargs):
+        """
+        Transform data into time_domain, then select region between start
+        and stop and transform back into frequencie space.
+
+        start: int
+        stop: int
+          start and stop filter out during time domain phase
+        """
+        time_domain = self.time_domain(**kwargs)
+        time_domain[:, :, :, 0: start] = 0
+        time_domain[:, :, :, stop: None] = 0
+        ret = fft.fft(time_domain)
+        return ret
+
+    def normalize_het(self, frequency_domain_kwgs):
+        """Normalize heterodyne SFG measurment.
+
+        frequency_domain_kwgs:
+          dict with at least {'start': int, 'stop': int}. This dict is used to
+          construct the real and imag part of the chi2 signal.
+        """
+        signal = self.frequency_domain(**frequency_domain_kwgs)
+        frequency_domain_kwgs['prop'] = 'norm'
+        norm = self.frequency_domain(**frequency_domain_kwgs)
+        return signal/norm
+
     def trace_multiple(
             self,
             prop='bleach',
@@ -1448,6 +1493,15 @@ class SfgRecord():
         ret._rawData += delta
         # Reset internal properties so we leave with a clean SfgRecord
         return ret
+
+class SfgRecordHet(SfgRecord):
+
+    @property
+    def normalized(self):
+        """"""
+        return self.basesubed
+
+
 
 
 def get_Record2d_from_sfgRecords(records):

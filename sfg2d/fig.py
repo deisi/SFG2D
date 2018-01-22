@@ -45,11 +45,14 @@ def spectrum(
         scale=1,
         select_kw={},
         x_prop='wavenumber',
+        x_prop_kw={},
         save=False,
         title=None,
         fname=None,
         xlim=None,
         ylim=None,
+        fig=None,
+        ydata_attr=None,
         **kwargs
 ):
     """Figure of Static spectrum from a record.
@@ -58,18 +61,38 @@ def spectrum(
     save: Boolean, Save figure
     scale: Scale y axis.
     select_kw: dict passed to select method
+    fig: give figure to plot on
+    x_prop_kw: Dict for selection of x propertie
+    ydata_prop: Allows to use a certain attribute of the ydata for the plot.
 
     Returns
       fig and ax.
     """
     subplot_kw.setdefault('num', '{}_static'.format(record.name))
-    fig, ax = plt.subplots(**subplot_kw)
-    fig.clf()
+    if not fig:
+        fig, ax = plt.subplots(**subplot_kw)
+        fig.clf()
+    else:
+        fig = plt.gcf()
+        ax = plt.gca()
     select_kw.setdefault('delay_mean', True)
     select_kw.setdefault('frame_med', True)
     select_kw.setdefault('prop', 'unpumped')
     ydata = scale * record.select(**select_kw)
-    xdata = record.select(x_prop)
+
+    # Must make sure that the use of roi_pixel doesn't fuck up figure axes
+    prop_kwgs = select_kw.get('prop_kwgs')
+    if prop_kwgs:
+        roi_pixel = prop_kwgs.get('roi_pixel')
+        if roi_pixel and x_prop in ('pixel', 'wavenumber', 'wavelength'):
+            x_prop_kw['roi_pixel'] = roi_pixel
+    print(x_prop_kw)
+    #HERE Problem with recrustion
+    xdata = record.select(x_prop, **x_prop_kw)
+
+    if ydata_attr:
+        ydata = getattr(ydata, ydata_attr)
+
     roi_pixel = select_kw.get('roi_pixel')
     if roi_pixel:
         xdata = xdata[roi_pixel]
