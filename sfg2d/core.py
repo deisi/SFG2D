@@ -1772,12 +1772,12 @@ def concatenate_list_of_SfgRecords(list_of_records):
             ret.metadata[key] = values
     return ret
 
-def SfgRecords_from_file_list(list):
+def SfgRecords_from_file_list(list, **kwargs):
     """Import a list of files as a single SfgRecord.
 
     list: list of filepaths to import SfgRecords from.
     """
-    return concatenate_list_of_SfgRecords([SfgRecord(elm) for elm in list])
+    return concatenate_list_of_SfgRecords([SfgRecord(elm, **kwargs) for elm in list])
 
 def get_fit_results(record):
     """Extract fit results from a record with a minuit based model fit.

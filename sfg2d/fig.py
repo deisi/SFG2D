@@ -68,8 +68,12 @@ def spectrum(
     select_kw.setdefault('delay_mean', True)
     select_kw.setdefault('frame_med', True)
     select_kw.setdefault('prop', 'unpumped')
-    data = record.select(**select_kw)
-    sfg2d.plot.spectrum(record.select(x_prop), scale*data, **kwargs)
+    ydata = scale * record.select(**select_kw)
+    xdata = record.select(x_prop)
+    roi_pixel = select_kw.get('roi_pixel')
+    if roi_pixel:
+        xdata = xdata[roi_pixel]
+    sfg2d.plot.spectrum(xdata, ydata, **kwargs)
     if not title:
         title = "{}".format(record.lname)
     plt.title(title)
