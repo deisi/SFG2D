@@ -45,7 +45,7 @@ def spectrum(
         scale=1,
         select_kw={},
         x_prop='wavenumber',
-        x_prop_kw={},
+        x_prop_kw=None,
         save=False,
         title=None,
         fname=None,
@@ -75,23 +75,26 @@ def spectrum(
     else:
         fig = plt.gcf()
         ax = plt.gca()
+    # Must be None at first to prevent memory leackage from other calls
+    if not x_prop_kw:
+        x_prop_kw = {}
     select_kw.setdefault('delay_mean', True)
     select_kw.setdefault('frame_med', True)
     select_kw.setdefault('prop', 'unpumped')
     ydata = scale * record.select(**select_kw)
 
-    # Must make sure that the use of roi_pixel doesn't fuck up figure axes
+    # Make sure that the use of roi_pixel doesn't fuck up figure axes
     prop_kwgs = select_kw.get('prop_kwgs')
     if prop_kwgs:
         roi_pixel = prop_kwgs.get('roi_pixel')
         if roi_pixel and x_prop in ('pixel', 'wavenumber', 'wavelength'):
             x_prop_kw['roi_pixel'] = roi_pixel
-    print(x_prop_kw)
-    #HERE Problem with recrustion
     xdata = record.select(x_prop, **x_prop_kw)
 
     if ydata_attr:
         ydata = getattr(ydata, ydata_attr)
+
+    print('yshape: ', ydata.shape)
 
     roi_pixel = select_kw.get('roi_pixel')
     if roi_pixel:

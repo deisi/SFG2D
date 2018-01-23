@@ -88,8 +88,8 @@ def spectrum(
         ydata,
         *args,
         ax=None,
-        xlabel='Wavenumber in 1/cm',
-        ylabel='SFG Intensity in a.u.',
+        xlabel=None,
+        ylabel=None,
         **kwargs
 ):
     """

@@ -7,9 +7,10 @@ fname = 'raw_config.yaml'
 
 
 def main():
-    global records, figures
+    global records, figures, config
     records = {}
     figures = {}
+    config = {}
 
     with open(fname) as ifile:
         config = yaml.load(ifile)
@@ -46,4 +47,7 @@ def main():
         record = fig_kwgs.get('record')
         if record:
             fig_kwgs['record'] = records[record]
+        print(fig_name)
+        print('select_kw: ', fig_kwgs['select_kw'])
+        print('###############')
         figures[fig_name] = fig_func(**fig_kwgs)
