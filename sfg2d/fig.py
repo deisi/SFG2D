@@ -41,18 +41,18 @@ def save_figs_to_multipage_pdf(figs, fpath):
 
 def spectrum(
         record,
-        subplot_kw={},
-        scale=1,
+        subplot_kw=None,
         select_kw={},
-        x_prop='wavenumber',
+        x_prop='range',
         x_prop_kw=None,
+        scale=1,
         save=False,
         title=None,
         fname=None,
         xlim=None,
         ylim=None,
-        fig=None,
         ydata_attr=None,
+        legend=None,
         **kwargs
 ):
     """Figure of Static spectrum from a record.
@@ -68,8 +68,7 @@ def spectrum(
     Returns
       fig and ax.
     """
-    subplot_kw.setdefault('num', '{}_static'.format(record.name))
-    if not fig:
+    if subplot_kw:
         fig, ax = plt.subplots(**subplot_kw)
         fig.clf()
     else:
@@ -82,6 +81,8 @@ def spectrum(
     select_kw.setdefault('frame_med', True)
     select_kw.setdefault('prop', 'unpumped')
     ydata = scale * record.select(**select_kw)
+    if ydata_attr:
+        ydata = getattr(ydata, ydata_attr)
 
     # Make sure that the use of roi_pixel doesn't fuck up figure axes
     prop_kwgs = select_kw.get('prop_kwgs')
@@ -89,17 +90,19 @@ def spectrum(
         roi_pixel = prop_kwgs.get('roi_pixel')
         if roi_pixel and x_prop in ('pixel', 'wavenumber', 'wavelength'):
             x_prop_kw['roi_pixel'] = roi_pixel
-    xdata = record.select(x_prop, **x_prop_kw)
 
-    if ydata_attr:
-        ydata = getattr(ydata, ydata_attr)
+    # Handle xdata
+    if x_prop == 'range':
+        xdata = range(ydata.shape[-1])
+    else:
+        xdata = record.select(x_prop, **x_prop_kw)
+        roi_pixel = select_kw.get('roi_pixel')
+        if roi_pixel:
+            xdata = xdata[roi_pixel]
 
-    print('yshape: ', ydata.shape)
-
-    roi_pixel = select_kw.get('roi_pixel')
-    if roi_pixel:
-        xdata = xdata[roi_pixel]
+    # Call of the plot function
     sfg2d.plot.spectrum(xdata, ydata, **kwargs)
+
     if not title:
         title = "{}".format(record.lname)
     plt.title(title)
@@ -107,6 +110,11 @@ def spectrum(
         plt.xlim(*xlim)
     if ylim:
         plt.ylim(*ylim)
+    if legend:
+        if isinstance(legend, dict):
+            plt.legend(**legend)
+        else:
+            plt.legend()
     if not fname:
         fname = 'figures/{}_static.pdf'.format(record.name)
     if save:
@@ -115,6 +123,27 @@ def spectrum(
         print("saved")
     return fig, ax
 
+def figure(
+        record,
+        select_ydata_kw,
+        select_xdata_kw,
+        plot_func,
+        plot_func_attr,
+        subplots_kw=None,
+):
+    if subplots_kw:
+        fig, ax = plt.subplots(**subplots_kw)
+    else:
+        fig = plt.gcf()
+        ax = plt.gca()
+
+    xdata = record.select(**select_xdata_kw)
+    ydata = record.select(**select_ydata_kw)
+
+    plot_func = getattr(sfg2d.plot, plot_func)
+    plot_func(xdata, ydata, **plot_func_attr)
+
+    return fig, ax
 
 def hot_and_cold(
         record_cold,
