@@ -10,7 +10,6 @@ import sfg2d
 
 from .plot import fit_model
 
-
 def ioff(func):
     """Decorator to make plotting non interactive temporally ."""
     def make_ioff(*args, **kwargs):
@@ -39,19 +38,55 @@ def save_figs_to_multipage_pdf(figs, fpath):
     print("Saved figure to: {}".format(os.path.abspath(fpath)))
 
 
+def multiplot(plots=None, figure_kw={}, subplot_args=[111], subplot_kw={},
+              fig_setters=None, axis_setters=None, legend=False):
+    fig = plt.figure(**figure_kw)
+    ax = fig.add_subplot(*subplot_args, **subplot_kw)
+    ax.cla()
+
+    #plt.ion()
+
+    if fig_setters:
+        for setter_name, setter_value in fig_setters.items():
+            setter_func = getattr(fig, setter_name)
+            setter_func(**setter_value)
+    if axis_setters:
+        for setter_name, setter_value in axis_setters.items():
+            print(setter_name, setter_value)
+            setter_func = getattr(ax, setter_name)
+            if isinstance(setter_value, dict):
+                setter_func(**setter_value)
+            else:
+                setter_func(setter_value)
+
+    for plot_config in plots:
+        # name of the plot config is plot function name.
+        # Therefore it must be stripped
+        plot_func_name, plot_config = list(plot_config.items())[0]
+        plot_func = getattr(sfg2d.plot, plot_func_name)
+
+        record = plot_config['record']
+        xdata = record.select(**plot_config['select_x_kw'])
+        ydata = record.select(**plot_config['select_y_kw'])
+
+        plot_kwgs = plot_config.get('plot_kwgs', {})
+        plot_func(xdata, ydata, **plot_kwgs)
+
+    if legend:
+        ax.legend()
+    return fig, ax
+
 def spectrum(
         record,
         subplot_kw=None,
         select_kw={},
         x_prop='range',
         x_prop_kw=None,
-        scale=1,
         save=False,
         title=None,
         fname=None,
         xlim=None,
         ylim=None,
-        ydata_attr=None,
         legend=None,
         **kwargs
 ):
@@ -80,9 +115,7 @@ def spectrum(
     select_kw.setdefault('delay_mean', True)
     select_kw.setdefault('frame_med', True)
     select_kw.setdefault('prop', 'unpumped')
-    ydata = scale * record.select(**select_kw)
-    if ydata_attr:
-        ydata = getattr(ydata, ydata_attr)
+    ydata = record.select(**select_kw)
 
     # Make sure that the use of roi_pixel doesn't fuck up figure axes
     prop_kwgs = select_kw.get('prop_kwgs')

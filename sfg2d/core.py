@@ -146,7 +146,8 @@ class SfgRecord():
         4 d normalized array
     """
     def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)),
-                 base=None, norm=None, baseline_offset=0):
+                 base=None, norm=None, baseline_offset=0, wavelength=None,
+                 wavenumber=None):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
         #np.seterr(divide='ignore')
@@ -213,12 +214,18 @@ class SfgRecord():
         self.type = 'unknown'
 
         # 1d array with wavelength values
-        self._wavelength = None
-        self._setted_wavelength = False
+        self._wavelength = wavelength
+        if not isinstance(wavelength, type(None)):
+            self._setted_wavelength = True
+        else:
+            self._setted_wavelength = False
 
         # 1d array with wavenumber values
-        self._wavenumber = None
-        self._setted_wavenumber = False
+        self._wavenumber = wavenumber
+        if not isinstance(wavenumber, type(None)):
+            self._setted_wavenumber = True
+        else:
+            self._setted_wavenumber = False
 
         # y-pixel/spectra index of pumped data
         self._pumped_index = 0
@@ -372,7 +379,10 @@ class SfgRecord():
             spectra_mean=False,
             pixel_mean=False,
             medfilt_pixel=1,
-            resample_freqs=0
+            resample_freqs=0,
+            attribute=None,
+            scale=None,
+            abs=False,
     ):
         """Central Interface to select data.
 
@@ -415,13 +425,19 @@ class SfgRecord():
             elif prop is "frames":
                 ret = ret[roi_frames]
             return ret
+        if prop == 'range':
+            ret = np.arange(0, self.number_of_x_pixel)
+            if roi_pixel:
+                ret = np.arange(0, roi_pixel.stop - roi_pixel.start)
+            return ret
 
         # Real properties get used directly
-        if prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm'):
+        if prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2', 'chi2_abs'):
 
             ret = getattr(self, prop)
         # Infered properites need aditional kwgs
-        elif prop in ('pumped', 'unpumped', 'bleach', 'trace', 'time_domain', 'frequencie_domain', 'normalize_het'):
+        elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
+                      'time_domain', 'frequency_domain', 'normalize_het'):
             ret = getattr(self, prop)(**prop_kwgs)
         else:
             raise NotImplementedError('{} not know'.format(prop))
@@ -446,6 +462,13 @@ class SfgRecord():
         # Median because sometimes there are still nan and infs left.
         if pixel_mean:
             ret = np.median(ret, X_PIXEL_INDEX, keepdims=True)
+        if attribute:
+            print('getting {}'.format(attribute))
+            ret = getattr(ret, attribute)
+        if scale:
+            ret = scale * ret
+        if abs:
+            ret = np.absolute(ret)
         return ret
 
     def sem(self, prop, **kwgs):
@@ -755,7 +778,6 @@ class SfgRecord():
 
     @wavelength.setter
     def wavelength(self, arg):
-        print("Set Wavelength Called")
         self._setted_wavelength = True
         self._wavelength = arg
 
@@ -1127,17 +1149,30 @@ class SfgRecord():
         ret = fft.fft(time_domain)
         return ret
 
-    def normalize_het(self, frequency_domain_kwgs):
+    def normalize_het(self, frequency_domain_kwgs, quartz=True):
         """Normalize heterodyne SFG measurment.
 
         frequency_domain_kwgs:
           dict with at least {'start': int, 'stop': int}. This dict is used to
           construct the real and imag part of the chi2 signal.
+        quartz: Correct with quartz reference
         """
         signal = self.frequency_domain(**frequency_domain_kwgs)
         frequency_domain_kwgs['prop'] = 'norm'
         norm = self.frequency_domain(**frequency_domain_kwgs)
-        return signal/norm
+        if quartz:
+            chi2 = signal/(1j*norm)
+        else:
+            chi2 = signal/norm
+        self.chi2 = chi2
+        return chi2
+
+    #Spagetty code
+    @property
+    def chi2_abs(self):
+        return np.abs(self.chi2)
+
+    # Spagetty end
 
     def trace_multiple(
             self,
@@ -1362,7 +1397,8 @@ class SfgRecord():
             metadata['sp_type'] = 'spe'
             metadata['date'] = self._sp.date
             metadata['tempSet'] = self._sp.tempSet
-            self._wavelength = self._sp.wavelength
+            if not self._setted_wavelength:
+                self.wavelength = self._sp.wavelength
             self.calib_poly = self._sp.calib_poly
 
         for key in metadata:
@@ -1812,6 +1848,19 @@ def concatenate_list_of_SfgRecords(list_of_records):
                 FRAME_AXIS_INDEX
             )
         )
+
+    concatable_calibration = ('_wavelength', '_wavenumber')
+    for attribute in concatable_calibration:
+        print(attribute)
+        if all([all(getattr(elm, attribute)==getattr(list_of_records[0], attribute)) for elm in list_of_records]):
+            setattr(ret, attribute, getattr(list_of_records[0], attribute))
+            if attribute == '_wavenumber':
+                ret._setted_wavenumber = True
+            if attribute == '_wavelength':
+                ret._setted_wavelength = True
+        else:
+            print('Not concatenating {}'.format(attribute))
+
     ret.dates = np.concatenate([elm.dates for elm in list_of_records]).tolist()
     ret.pp_delays = list_of_records[0].pp_delays
     #ret.metadata["central_wl"] = list_of_records[0].metadata.get("central_wl")
