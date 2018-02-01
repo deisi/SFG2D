@@ -87,3 +87,18 @@ def main():
 
         fig_func = getattr(fig, fig_type)
         figures[fig_name] = fig_func(**fig_kwgs)
+
+    # Finalize
+    list_of_figures = [value[0] for value in figures.values()]
+    fig.save_figs_to_multipage_pdf(list_of_figures, './figures_all.pdf' )
+
+    try:
+        from git import Repo, InvalidGitRepositoryError
+        module_path = core.__file__
+        repo = Repo(module_path, search_parent_directories=True)
+        sha = repo.head.object.hexsha
+        with open('.gitversion', 'w') as ofile:
+            ofile.write(sha)
+    except InvalidGitRepositoryError:
+        print('Cant Save gitversion because no repo available.')
+

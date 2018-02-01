@@ -27,3 +27,5 @@ widgetsnbextension
 ipywidgets
 
 iminuit
+
+gitpython
