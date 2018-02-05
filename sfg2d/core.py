@@ -1134,7 +1134,7 @@ class SfgRecord():
         ret = fft.ifft(ret)
         return ret
 
-    def frequency_domain(self, start, stop, **kwargs):
+    def frequency_domain(self, start, stop, flip=False, **kwargs):
         """
         Transform data into time_domain, then select region between start
         and stop and transform back into frequencie space.
@@ -1142,23 +1142,31 @@ class SfgRecord():
         start: int
         stop: int
           start and stop filter out during time domain phase
+        flip: Flip the signal in frequency domain by pi
         """
         time_domain = self.time_domain(**kwargs)
         time_domain[:, :, :, 0: start] = 0
         time_domain[:, :, :, stop: None] = 0
         ret = fft.fft(time_domain)
+        if flip:
+            ret = -1 * ret
         return ret
 
-    def normalize_het(self, frequency_domain_kwgs, quartz=True):
+    def normalize_het(self, frequency_domain_kwgs, quartz=True, flip=False):
         """Normalize heterodyne SFG measurment.
 
         frequency_domain_kwgs:
           dict with at least {'start': int, 'stop': int}. This dict is used to
           construct the real and imag part of the chi2 signal.
         quartz: Correct with quartz reference
+        flip: Flip the signal in frequency domain by pi
         """
         signal = self.frequency_domain(**frequency_domain_kwgs)
+        if flip:
+            signal = -1 * signal
         frequency_domain_kwgs['prop'] = 'norm'
+        # Only Signal needs to be flipped. Never both
+        frequency_domain_kwgs['flip'] = False
         norm = self.frequency_domain(**frequency_domain_kwgs)
         if quartz:
             chi2 = signal/(1j*norm)

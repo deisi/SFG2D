@@ -1,28 +1,37 @@
 """Module to read raw data and produce records with."""
 from pylab import *
+import sys
 import yaml
+import os
 import numpy as np
 import sfg2d.core as core
 import sfg2d.fig as fig
 import dpath.util
-
-fname = 'raw_config.yaml'
-
 plt.ion()
 
+fname = 'raw_config.yaml'
+gitversion = '.gitversion'
+records = {}
+figures = {}
+configuration = {}
 
 def main():
-    global records, figures, config
+    #global records, figures, configuration
+    thismodule = sys.modules[__name__]
+    records = thismodule.records
+    figures = thismodule.figures
+    configuration = thismodule.configuration
     records = {}
     figures = {}
-    config = {}
+    configuration = {}
 
     with open(fname) as ifile:
-        config = yaml.load(ifile)
+        configuration = yaml.load(ifile)
 
-    options = config.get('options')
+    options = configuration.get('options')
     wavelength = None
     wavenumber = None
+    # Import global options for this data set
     if options:
         mplstyle = options.get('mplstyle')
         if mplstyle:
@@ -43,7 +52,8 @@ def main():
                 print('Cant find wavenumber in calib file %s'.format(
                     calib_pixel_file))
 
-    for record_entrie in config['records']:
+    # Import data and configure them
+    for record_entrie in configuration['records']:
         fpath = record_entrie['fpath']
         record_kwgs = record_entrie.get('record_kwgs', {})
         base_dict = record_entrie.get('base')
@@ -71,8 +81,9 @@ def main():
             record = core.SfgRecords_from_file_list(fpath, **record_kwgs)
         records[record_entrie['name']] = record
 
-    for fig_config in config['figures']:
-        # Name is equal the config key, so it must be stripped
+    # Make figures
+    for fig_config in configuration['figures']:
+        # Name is equal the configuration key, so it must be stripped
         fig_name, fig_config = list(fig_config.items())[0]
         print('Making: {}'.format(fig_name))
         fig_type = fig_config['type']
@@ -88,17 +99,29 @@ def main():
         fig_func = getattr(fig, fig_type)
         figures[fig_name] = fig_func(**fig_kwgs)
 
-    # Finalize
+    # Export a pdf with all figures
     list_of_figures = [value[0] for value in figures.values()]
     fig.save_figs_to_multipage_pdf(list_of_figures, './figures_all.pdf' )
 
+    # Write down the used git version so we can go back
     try:
         from git import Repo, InvalidGitRepositoryError
         module_path = core.__file__
         repo = Repo(module_path, search_parent_directories=True)
         sha = repo.head.object.hexsha
-        with open('.gitversion', 'w') as ofile:
-            ofile.write(sha)
+        with open(gitversion, 'r+') as ofile:
+            if sha not in ofile.read():
+                print('Appending {} to {}'.format(
+                    sha, os.path.abspath(gitversion)))
+                ofile.write(sha + '\n')
     except InvalidGitRepositoryError:
         print('Cant Save gitversion because no repo available.')
 
+    # Write down all installed python modules
+    import pip
+    installed_packages = pip.get_installed_distributions()
+    installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
+         for i in installed_packages])
+    with open('.installed_packages', 'w') as ofile:
+        for package in installed_packages_list:
+            ofile.write(package+'\n')
