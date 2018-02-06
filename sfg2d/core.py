@@ -21,8 +21,8 @@ def import_sfgrecord(
         record,
         baseline=None,
         norm=None,
-        baseline_select_kw={},
-        norm_select_kw={},
+        kwargs_select_baseline={},
+        kwargs_select_norm={},
         **kwargs
 ):
     """Function to import and configure SfgRecord.
@@ -36,7 +36,7 @@ def import_sfgrecord(
     **Keywords:**
       - **baseline**: String or SfgRecord to use as baseline
       - **norm**: String or SfgRecord to use for normalization
-      - **baseline_select_kw**: Keywords to subselect baseline record with.
+      - **kwargs_select_baseline**: Keywords to subselect baseline record with.
           Default is {'prop': 'rawData', 'frame_med': True}
       - **norm_select_kw**: Keywords to subselect norm record with.
           Default is {'prop': 'basesubed', 'frame_med': True}
@@ -66,22 +66,22 @@ def import_sfgrecord(
         baseline = SfgRecord(baseline)
 
     if baseline:
-        baseline_select_kw.setdefault('prop', 'rawData')
-        baseline_select_kw.setdefault('frame_med', True)
-        record.base = baseline.select(**baseline_select_kw)
+        kwargs_select_baseline.setdefault('prop', 'rawData')
+        kwargs_select_baseline.setdefault('frame_med', True)
+        record.base = baseline.select(**kwargs_select_baseline)
 
     if isinstance(norm, str):
         norm = SfgRecord(norm)
         try:
-            norm.base = baseline.select(**baseline_select_kw)
+            norm.base = baseline.select(**kwargs_select_baseline)
             print('Warning: Using record baseline as normalization baseline.')
         except AttributeError:
             print('Warning: No baseline for normalization found.')
 
     if norm:
-        norm_select_kw.setdefault('prop', 'basesubed')
-        norm_select_kw.setdefault('frame_med', True)
-        record.norm = norm.select(**norm_select_kw)
+        kwargs_select_norm.setdefault('prop', 'basesubed')
+        kwargs_select_norm.setdefault('frame_med', True)
+        record.norm = norm.select(**kwargs_select_norm)
 
     if kwargs:
         for key, value in kwargs.items():
@@ -381,7 +381,7 @@ class SfgRecord():
     def select(
             self,
             prop="normalized",
-            prop_kwgs={},
+            kwargs_prop={},
             roi_delay=None,
             roi_frames=None,
             roi_spectra=None,
@@ -399,7 +399,7 @@ class SfgRecord():
         """Central Interface to select data.
 
         prop: Name of the propertie to select data from
-        prop_kwgs: For Infered properties, spectial kwgs,
+        kwargs_prop: For Infered properties, spectial kwargs,
         roi_delay: Region of Interest of delay slice
         roi_frames: Select Frames
         roi_spectra: Select Spectra
@@ -447,10 +447,10 @@ class SfgRecord():
         if prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2'):
 
             ret = getattr(self, prop)
-        # Infered properites need aditional kwgs
+        # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
                       'time_domain', 'frequency_domain', 'normalize_het'):
-            ret = getattr(self, prop)(**prop_kwgs)
+            ret = getattr(self, prop)(**kwargs_prop)
         else:
             raise NotImplementedError('{} not know'.format(prop))
 
@@ -483,17 +483,17 @@ class SfgRecord():
             ret = np.absolute(ret)
         return ret
 
-    def sem(self, prop, **kwgs):
+    def sem(self, prop, **kwargs):
         """Returns standard error of the mean of given property.
 
-        kwgs: get passed to SfgRecord.subselect
+        kwargs: get passed to SfgRecord.subselect
         """
         #Forced because error is calculated over the frame axis.
-        kwgs['frame_med'] = False
-        kwgs['prop'] = prop
+        kwargs['frame_med'] = False
+        kwargs['prop'] = prop
         if 'trace' in prop:
-            kwgs['pixel_mean'] = True
-        return sem(self.select(**kwgs), FRAME_AXIS_INDEX)
+            kwargs['pixel_mean'] = True
+        return sem(self.select(**kwargs), FRAME_AXIS_INDEX)
 
     @property
     def rawData(self):
@@ -977,41 +977,41 @@ class SfgRecord():
             raise IOError("Cant set unpumped index bigger then data dim.")
         self._unpumped_index = value
 
-    def pumped(self, prop='normalized', **kwgs):
+    def pumped(self, prop='normalized', **kwargs):
         """Returns subselected_data at pumped index.
 
-        kwgs are same as for SfgRecord.select.
+        kwargs are same as for SfgRecord.select.
         overwritten defaults are:
         *prop*: normalized
         *frame_med*: True
         """
-        kwgs.setdefault('roi_spectra', [self.pumped_index])
-        kwgs['prop'] = prop
-        # Reset subselect kwgs, to cope with multiple callings of it.
-        kwgs.setdefault('roi_delay', slice(None))
-        kwgs.setdefault('roi_frames', slice(None))
-        kwgs.setdefault('roi_pixel', slice(None))
-        return self.select(**kwgs)
+        kwargs.setdefault('roi_spectra', [self.pumped_index])
+        kwargs['prop'] = prop
+        # Reset subselect kwargs, to cope with multiple callings of it.
+        kwargs.setdefault('roi_delay', slice(None))
+        kwargs.setdefault('roi_frames', slice(None))
+        kwargs.setdefault('roi_pixel', slice(None))
+        return self.select(**kwargs)
 
-    def unpumped(self, prop='normalized', **kwgs):
-        kwgs.setdefault('roi_spectra', [self.unpumped_index])
-        kwgs['prop'] = prop
-        # Reset subselect kwgs, to cope with multiple callings of it.
-        kwgs.setdefault('roi_delay', slice(None))
-        kwgs.setdefault('roi_frames', slice(None))
-        kwgs.setdefault('roi_pixel', slice(None))
-        return self.select(**kwgs)
+    def unpumped(self, prop='normalized', **kwargs):
+        kwargs.setdefault('roi_spectra', [self.unpumped_index])
+        kwargs['prop'] = prop
+        # Reset subselect kwargs, to cope with multiple callings of it.
+        kwargs.setdefault('roi_delay', slice(None))
+        kwargs.setdefault('roi_frames', slice(None))
+        kwargs.setdefault('roi_pixel', slice(None))
+        return self.select(**kwargs)
 
-    def bleach(self, opt='rel', prop='normalized', **kwgs):
+    def bleach(self, opt='rel', prop='normalized', **kwargs):
         """Calculate bleach of property with given operation."""
 
-        kwgs['prop'] = prop
-        # Reset subselect kwgs, to cope with multiple callings of it.
-        kwgs.setdefault('roi_delay', slice(None))
-        kwgs.setdefault('roi_frames', slice(None))
-        kwgs.setdefault('roi_pixel', slice(None))
-        pumped = self.pumped(**kwgs)
-        unpumped = self.unpumped(**kwgs)
+        kwargs['prop'] = prop
+        # Reset subselect kwargs, to cope with multiple callings of it.
+        kwargs.setdefault('roi_delay', slice(None))
+        kwargs.setdefault('roi_frames', slice(None))
+        kwargs.setdefault('roi_pixel', slice(None))
+        pumped = self.pumped(**kwargs)
+        unpumped = self.unpumped(**kwargs)
 
         if "relative" in opt or '/' in opt or 'rel' in opt:
             relative = True
@@ -1044,12 +1044,12 @@ class SfgRecord():
             self,
             y_property='wavenumber',
             z_property='bleach',
-            **subselect_kws
+            **kwargs
     ):
         """Returns data formatted for a contour plot.
 
 
-        subselect_kws get passed to SfgRecord.select.
+        kwargs get passed to SfgRecord.select.
         defaults are adjusted with:
         *y_property*: bleach_rel
         *medfilt_kernel*: 11
@@ -1064,24 +1064,24 @@ class SfgRecord():
           *spectra_mean*:
           *pixel_mean*:
         """
-        subselect_kws.setdefault('prop', z_property)
-        subselect_kws.setdefault('medfilt_pixel', 11)
-        subselect_kws.setdefault('frame_med', True)
+        kwargs.setdefault('prop', z_property)
+        kwargs.setdefault('medfilt_pixel', 11)
+        kwargs.setdefault('frame_med', True)
 
-        x = self.select('pp_delays', roi_delay=subselect_kws.get('roi_delay'))
-        y = self.select(y_property, roi_pixel=subselect_kws.get('roi_pixel'))
-        z = self.select(**subselect_kws)
+        x = self.select('pp_delays', roi_delay=kwargs.get('roi_delay'))
+        y = self.select(y_property, roi_pixel=kwargs.get('roi_pixel'))
+        z = self.select(**kwargs)
         z = z.squeeze().T
         if len(z.shape) !=2:
             raise IOError(
-                "Shape of subselected data can't be processed. Subselection was {}".format(subselect_kws)
+                "Shape of subselected data can't be processed. Subselection was {}".format(kwargs)
             )
         return x, y, z
 
     def trace(
             self,
             prop='bleach',
-            prop_kwgs={'opt': 'rel', 'prop': 'basesubed'},
+            kwargs_prop={'opt': 'rel', 'prop': 'basesubed'},
             roi_wavenumber=None,
             roi_delay=None,
             shift_neg_time=False,
@@ -1090,7 +1090,7 @@ class SfgRecord():
         """Shortcut to get trace.
 
         prop: property to calculate the trace from
-        prop_kwgs: additional kwgs of the property
+        kwargs_prop: additional kwargs of the property
         roi_wavenumber: roi to calculate trace over in wavenumbers.
         roi_delay: pp_delay roi to use as x axis.
         shift_neg_time: The Zero_time_subtraction can lead to an not 1 negative time.
@@ -1115,7 +1115,7 @@ class SfgRecord():
 
         y = self.select(
             prop=prop,
-            prop_kwgs=prop_kwgs,
+            kwargs_prop=kwargs_prop,
             **kwargs
         )
 
@@ -1125,7 +1125,7 @@ class SfgRecord():
         kwargs['frame_med'] = False
         yerr = self.sem(
             prop=prop,
-            prop_kwgs=prop_kwgs,
+            kwargs_prop=kwargs_prop,
             **kwargs
         )
         return x, y, yerr
@@ -1170,20 +1170,20 @@ class SfgRecord():
             ret = ret * np.exp(1j * np.pi * shift)
         return ret
 
-    def normalize_het(self, frequency_domain_kwgs, quartz=None):
+    def normalize_het(self, kwargs_frequency_domain, quartz=None):
         """Normalize heterodyne SFG measurment.
 
-        frequency_domain_kwgs:
+        kwargs_frequency_domain:
           dict with at least {'start': int, 'stop': int}. This dict is used to
           construct the real and imag part of the chi2 signal.
         quartz: Correct with quartz reference
         shift: Shift the signal in units of radiant.
         """
-        signal = self.frequency_domain(**frequency_domain_kwgs)
-        frequency_domain_kwgs['prop'] = 'norm'
+        signal = self.frequency_domain(**kwargs_frequency_domain)
+        kwargs_frequency_domain['prop'] = 'norm'
         # Never shift quartz, only the signal
-        frequency_domain_kwgs['shift'] = False
-        norm = self.frequency_domain(**frequency_domain_kwgs)
+        kwargs_frequency_domain['shift'] = False
+        norm = self.frequency_domain(**kwargs_frequency_domain)
 
         if isinstance(quartz, type(None)):
             quartz = self.quartz_norm_het
@@ -1197,7 +1197,7 @@ class SfgRecord():
     def trace_multiple(
             self,
             prop='bleach',
-            prop_kwgs={'opt': 'rel', 'prop': 'basesubed'},
+            kwargs_prop={'opt': 'rel', 'prop': 'basesubed'},
             roi_wavenumbers=[None],
             roi_delays=[None],
             shift_neg_time=False,
@@ -1205,7 +1205,7 @@ class SfgRecord():
     ):
         """Return multiple traces at the same time."""
 
-        return [self.trace(prop, prop_kwgs, roi_wavenumber, roi_delay, shift_neg_time, **kwargs) for roi_wavenumber, roi_delay in zip(roi_wavenumbers, roi_delays)]
+        return [self.trace(prop, kwargs_prop, roi_wavenumber, roi_delay, shift_neg_time, **kwargs) for roi_wavenumber, roi_delay in zip(roi_wavenumbers, roi_delays)]
 
     def get_linear_baseline(self, start_slice=None,
                             stop_slice=None, data_attr="rawData"):
@@ -1469,11 +1469,11 @@ class SfgRecord():
 
         If you want to know what is saved, then you can open the saved
         result with e.g. 7.zip and inspect its content."""
-        kwgs = {key: getattr(self, value) for key, value in self.saveable.items()}
-        print(kwgs['zero_time_selec'])
+        kwargs = {key: getattr(self, value) for key, value in self.saveable.items()}
+        print(kwargs['zero_time_selec'])
         np.savez_compressed(
             file,
-            **kwgs
+            **kwargs
         )
 
     def keep_frames(self, frame_slice=None):
@@ -1762,7 +1762,7 @@ class Record2d():
             self,
             delay,
             prop='bleach',
-            prop_kwgs={},
+            kwargs_prop={},
             roi_pixel=slice(None),
             medfilt_kernel=None,
             resample_freqs=0,
@@ -1778,7 +1778,7 @@ class Record2d():
 
         **Keywords**:
           - **prop**: Default 'bleach'. Property of data.
-          - **prop_kwgs**: Keywords to select property with.
+          - **kwargs_prop**: Keywords to select property with.
           - **roi_pixel**: Pixel Region of interest of data
           - **medfilt_kernel**: Median filter kernel. Two element array with:
               (probe, pump)
@@ -1793,7 +1793,7 @@ class Record2d():
         2d Numpy array with pump vs probe orientation.
 
         """
-        z_raw = getattr(self, prop)(**prop_kwgs)
+        z_raw = getattr(self, prop)(**kwargs_prop)
         if shift_zero_time_offset:
             time = self.pp_delays[delay]
             best_delay_indeces = self.find_delay_index(time)
@@ -1801,7 +1801,7 @@ class Record2d():
             z = z_raw[best_delay_indeces, range(self.number_of_pump_freqs), roi_pixel].T
         else:
             z = z_raw[delay, :, roi_pixel].T
-        opt = prop_kwgs.get('opt', 'rel')
+        opt = kwargs_prop.get('opt', 'rel')
         if medfilt_kernel:
             z = medfilt(z, medfilt_kernel)
         if resample_freqs:
@@ -1825,7 +1825,7 @@ class Record2d():
 
     def save(self, file):
         """Save Record2d into a numpy array obj."""
-        kwgs = dict(
+        kwargs = dict(
             pump_freqs=self.pump_freqs,
             pumped=self.pumped,
             unpumped=self.unpumped,
@@ -1840,7 +1840,7 @@ class Record2d():
         print('Saving to {}'.format(path.abspath(file)))
         np.savez_compressed(
             file,
-            **kwgs
+            **kwargs
         )
 
 

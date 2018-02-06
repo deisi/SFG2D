@@ -12,10 +12,10 @@ def fit_model(
         y,
         yerr,
         name,
-        model_kwgs={},
+        kwargs_model={},
         fit=True,
         print_matrix=True,
-        plot_kwgs={},
+        kwargs_plot={},
         show_box=True,
         box_coords=None,
 ):
@@ -28,60 +28,60 @@ def fit_model(
       - **name**: Name of the model
 
     **Keywords:**
-      - **model_kwgs**: Keywords for the model
+      - **kwargs_model**: Keywords for the model
       - **fit**: Boolean to run fit
       - **print_matrix**: Boolean to print Correlation Matrix
       - **show_box**: Show fit result box
       - **box_coords**: Coordinates of the fit result box
     """
-    model = getattr(sfg2d.models, name)(x, y, yerr, **model_kwgs)
+    model = getattr(sfg2d.models, name)(x, y, yerr, **kwargs_model)
 
     if fit:
         sfg2d.fit_model(
             model, print_matrix=print_matrix
         )
-    plot_kwgs.setdefault('color', 'red')
-    plot_kwgs.setdefault('label', 'Fit')
-    plt.plot(model.xsample, model.yfit_sample, **plot_kwgs)
+    kwargs_plot.setdefault('color', 'red')
+    kwargs_plot.setdefault('label', 'Fit')
+    plt.plot(model.xsample, model.yfit_sample, **kwargs_plot)
 
     if show_box:
         model.draw_text_box(box_coords)
     return model
 
-def model(model, errorbar_kwgs=None, lineplot_kwgs=None):
-    if not errorbar_kwgs:
-        errorbar_kwgs = {}
-    if not lineplot_kwgs:
-        lineplot_kwgs = {}
+def model(model, kwargs_errorbar=None, kwargs_line_plot=None):
+    if not kwargs_errorbar:
+        kwargs_errorbar = {}
+    if not kwargs_line_plot:
+        kwargs_line_plot = {}
 
-    errorbar_kwgs.setdefault('marker', 'o')
-    errorbar_kwgs.setdefault('linestyle', 'None')
+    kwargs_errorbar.setdefault('marker', 'o')
+    kwargs_errorbar.setdefault('linestyle', 'None')
     plotline, capline, barline = plt.errorbar(
-        model.xdata, model.ydata.T, model.yerr.T, **errorbar_kwgs
+        model.xdata, model.ydata.T, model.yerr.T, **kwargs_errorbar
     )
     print(plotline.get_color())
-    lineplot_kwgs.setdefault('color', plotline.get_color())
-    print(lineplot_kwgs)
-    plt.plot(model.xsample, model.yfit_sample.T, **lineplot_kwgs)
+    kwargs_line_plot.setdefault('color', plotline.get_color())
+    print(kwargs_line_plot)
+    plt.plot(model.xsample, model.yfit_sample.T, **kwargs_line_plot)
 
-def points_modeled(x, y, yerr=None, xline=None, yline=None, point_kwgs={}, line_kwgs={}):
+def points_modeled(x, y, yerr=None, xline=None, yline=None, kwargs_point={}, kwargs_line={}):
     """Plot points and line."""
-    point_kwgs.setdefault('marker', 'o')
-    point_kwgs.setdefault('linestyle', 'None')
+    kwargs_point.setdefault('marker', 'o')
+    kwargs_point.setdefault('linestyle', 'None')
     if  isinstance(yerr, type(None)):
-        lines = plt.plot(x, y, **point_kwgs)
+        lines = plt.plot(x, y, **kwargs_point)
         point = lines[-1]
     else:
         point, capline, barline = plt.errorbar(
-            x, y, yerr, **point_kwgs
+            x, y, yerr, **kwargs_point
            )
 
     if not isinstance(xline, type(None)) and not isinstance(yline, type(None)):
         # For some reason, color must be set explicitly here,
         # otherwise it is not respected. Its a workaround
-        line_kwgs.setdefault('color', point.get_color())
-        color = line_kwgs.pop('color')
-        plt.plot(xline, yline, color=color, **line_kwgs)
+        kwargs_line.setdefault('color', point.get_color())
+        color = kwargs_line.pop('color')
+        plt.plot(xline, yline, color=color, **kwargs_line)
 
 def spectrum(
         xdata,

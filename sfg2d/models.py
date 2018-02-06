@@ -16,7 +16,7 @@ def make_model_fit(
         yerr=None,
         fit=False,
         print_matrix=True,
-        model_kwgs={}
+        model_kwargs={}
 ):
     """Generig interface for model fits.
     **Arguments:**
@@ -27,10 +27,10 @@ def make_model_fit(
     **Keywords:**
       - **yerr**: yerr to model
       - **fit**: boolean weather to run the fit
-      - **model_kwgs**: Keywords passed to model during creation
+      - **model_kwargs**: Keywords passed to model during creation
     """
 
-    model = getattr(thismodule, model_name)(xdata, ydata, yerr, **model_kwgs)
+    model = getattr(thismodule, model_name)(xdata, ydata, yerr, **model_kwargs)
     if fit:
         fit_model(
             model, print_matrix=print_matrix

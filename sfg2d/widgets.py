@@ -808,11 +808,11 @@ class WidgetBase():
             x = self.data.wavenumber
         return x
 
-    def spectra(self, prop, prop_kwgs={}):
+    def spectra(self, prop, kwargs_prop={}):
         """Use settings of the gui to select spectra data from SfgRecord."""
-        kwgs = dict(
+        kwargs = dict(
             prop=prop,
-            prop_kwgs=prop_kwgs,
+            kwargs_prop=kwargs_prop,
             roi_delay=self.pp_delay_selected,
             roi_frames=self.frame_selected,
             roi_spectra=self.spec_slice,
@@ -822,13 +822,13 @@ class WidgetBase():
             spectra_mean=self.wCheckSpectraMean.value,
             medfilt_pixel=self.wIntSliderSmooth.value,
         )
-        return self.data.select(**kwgs)
+        return self.data.select(**kwargs)
 
-    def trace(self, prop, prop_kwgs={}):
+    def trace(self, prop, kwargs_prop={}):
         """Use settings of gui to susbelect data for trace."""
-        kwgs = dict(
+        kwargs = dict(
             prop=prop,
-            prop_kwgs=prop_kwgs,
+            kwargs_prop=kwargs_prop,
             roi_delay=self.pp_delay_slice,
             roi_frames=self.frame_selected,
             roi_spectra=self.spec_slice,
@@ -837,11 +837,11 @@ class WidgetBase():
             spectra_mean=self.wCheckSpectraMean.value,
             medfilt_pixel=self.wIntSliderSmooth.value,
         )
-        return self.data.trace(**kwgs)
+        return self.data.trace(**kwargs)
 
     def select_traces(self, y_property):
         """Use settings of gui to susbelect data for traces."""
-        kwgs = dict(
+        kwargs = dict(
             y_property=y_property,
             x_property='pp_delays',
             roi_delay=self.wRangeSliderPPDelay.slice,
@@ -852,12 +852,12 @@ class WidgetBase():
             pixel_mean=True,
             medfilt_pixel=self.wIntSliderSmooth.value,
         )
-        ret_shape = list(self.data.subselect(**kwgs)[1].shape)
+        ret_shape = list(self.data.subselect(**kwargs)[1].shape)
         ret_shape[3] = len(self.data.rois_x_pixel_trace)
         ret = np.zeros(ret_shape)
         for i in range(len(self.data.rois_x_pixel_trace)):
             roi_x_pixel = self.data.rois_x_pixel_trace[i]
-            x, y = self.data.subselect(roi_pixel=roi_x_pixel, **kwgs)
+            x, y = self.data.subselect(roi_pixel=roi_x_pixel, **kwargs)
             ret[:, :, :, i] = y[:, :, :, 0]
         return x, ret
 
@@ -1031,7 +1031,7 @@ class WidgetFigures():
             self.x_spec[self.x_pixel_slice],
             self.spectra(
                 'bleach',
-                prop_kwgs=dict(
+                kwargs_prop=dict(
                     opt=self.wDropdownBleachOpt.value,
                     prop=self.wDropdownBleachProp.value
                 )
@@ -1063,7 +1063,7 @@ class WidgetFigures():
             return
         xdata, ydata, yerr = self.trace(
             'bleach',
-            prop_kwgs=dict(
+            kwargs_prop=dict(
                 opt=self.wDropdownBleachOpt.value,
                 prop=self.wDropdownBleachProp.value
             ),

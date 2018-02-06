@@ -36,31 +36,32 @@ def main(config_file='./raw_config.yaml'):
             import matplotlib.pyplot as plt
             plt.style.use(mplstyle)
 
-        calib_pixel_file = options.get('calib_pixel_file')
-        if calib_pixel_file:
-            calib_pixel = np.loadtxt(calib_pixel_file)
+        file_calib = options.get('file_calib')
+        if file_calib:
+            calib_pixel = np.loadtxt(file_calib)
             try:
                 wavelength = calib_pixel.T[1]
             except IndexError:
                 print("Cant find wavelength in calib file %s".format(
-                    calib_pixel_file))
+                    file_calib))
             try:
                 wavenumber = calib_pixel.T[2]
             except IndexError:
                 print('Cant find wavenumber in calib file %s'.format(
-                    calib_pixel_file))
+                    file_calib))
 
     # Import data and configure them
     for record_entrie in configuration['records']:
+        print('Importing {}'.format(record_entrie['name']))
         fpath = record_entrie['fpath']
-        record_kwgs = record_entrie.get('record_kwgs', {})
+        kwargs_record = record_entrie.get('kwargs_record', {})
         base_dict = record_entrie.get('base')
         if base_dict:
             base = records[base_dict['name']].select(
                 prop='rawData',
                 frame_med=True
             )
-            record_kwgs['base'] = base
+            kwargs_record['base'] = base
 
         norm_dict = record_entrie.get('norm')
         if norm_dict:
@@ -68,15 +69,15 @@ def main(config_file='./raw_config.yaml'):
                 prop='basesubed',
                 frame_med=True
             )
-            record_kwgs['norm'] = norm
+            kwargs_record['norm'] = norm
 
-        record_kwgs.setdefault('wavelength', wavelength)
-        record_kwgs.setdefault('wavenumber', wavenumber)
+        kwargs_record.setdefault('wavelength', wavelength)
+        kwargs_record.setdefault('wavenumber', wavenumber)
 
         if type(fpath) == str:
-            record = core.SfgRecord(fpath, **record_kwgs)
+            record = core.SfgRecord(fpath, **kwargs_record)
         else:
-            record = core.SfgRecords_from_file_list(fpath, **record_kwgs)
+            record = core.SfgRecords_from_file_list(fpath, **kwargs_record)
         records[record_entrie['name']] = record
 
     # Make figures
@@ -85,17 +86,18 @@ def main(config_file='./raw_config.yaml'):
         fig_name, fig_config = list(fig_config.items())[0]
         print('Making: {}'.format(fig_name))
         fig_type = fig_config['type']
-        fig_kwgs = fig_config['fig_kwgs'].copy()
+        kwargs_fig = fig_config['kwargs'].copy()
 
         # Replace records strings with real records:
-        found_records = dpath.util.search(fig_kwgs, '**/record',
-                                           yielded=True)
+        found_records = dpath.util.search(
+            kwargs_fig, '**/record', yielded=True
+        )
         for path, record_name in found_records:
             print("Configuring {} with {}".format(path, record_name))
-            dpath.util.set(fig_kwgs, path, records[record_name])
+            dpath.util.set(kwargs_fig, path, records[record_name])
 
         fig_func = getattr(fig, fig_type)
-        figures[fig_name] = fig_func(**fig_kwgs)
+        figures[fig_name] = fig_func(**kwargs_fig)
 
     # Export a pdf with all figures
     list_of_figures = [figures[key][0] for key in sorted(figures.keys())]

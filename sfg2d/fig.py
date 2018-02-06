@@ -38,16 +38,16 @@ def save_figs_to_multipage_pdf(figs, fpath):
     print("Saved figure to: {}".format(os.path.abspath(fpath)))
 
 
-def multiplot(plots=None, figure_kw={}, subplot_args=[111], subplot_kw={},
-              fig_setters=None, axis_setters=None, legend=False):
-    fig = plt.figure(**figure_kw)
-    ax = fig.add_subplot(*subplot_args, **subplot_kw)
+def multiplot(plots=None, kwargs_figure={}, args_subplot=[111], kwargs_subplot={},
+              setters_fig=None, setters_axis=None, legend=False):
+    fig = plt.figure(**kwargs_figure)
+    ax = fig.add_subplot(*args_subplot, **kwargs_subplot)
     ax.cla()
 
     #plt.ion()
 
-    if fig_setters:
-        for setter_name, setter_value in fig_setters.items():
+    if setters_fig:
+        for setter_name, setter_value in setters_fig.items():
             setter_func = getattr(fig, setter_name)
             setter_func(**setter_value)
 
@@ -58,14 +58,14 @@ def multiplot(plots=None, figure_kw={}, subplot_args=[111], subplot_kw={},
         plot_func = getattr(sfg2d.plot, plot_func_name)
 
         record = plot_config['record']
-        xdata = record.select(**plot_config['select_x_kw'])
-        ydata = record.select(**plot_config['select_y_kw'])
+        xdata = record.select(**plot_config['kwargs_select_x'])
+        ydata = record.select(**plot_config['kwargs_select_y'])
 
-        plot_kwgs = plot_config.get('plot_kwgs', {})
-        plot_func(xdata, ydata, **plot_kwgs)
+        kwargs_plot = plot_config.get('kwargs_plot', {})
+        plot_func(xdata, ydata, **kwargs_plot)
 
-    if axis_setters:
-        for setter_name, setter_value in axis_setters.items():
+    if setters_axis:
+        for setter_name, setter_value in setters_axis.items():
             setter_func = getattr(ax, setter_name)
             if isinstance(setter_value, dict):
                 setter_func(**setter_value)
@@ -78,8 +78,8 @@ def multiplot(plots=None, figure_kw={}, subplot_args=[111], subplot_kw={},
 
 def spectrum(
         record,
-        subplot_kw=None,
-        select_kw={},
+        kwargs_subplot=None,
+        kwargs_select={},
         x_prop='range',
         x_prop_kw=None,
         save=False,
@@ -95,7 +95,7 @@ def spectrum(
     record: Record to get data from
     save: Boolean, Save figure
     scale: Scale y axis.
-    select_kw: dict passed to select method
+    kwargs_select: dict passed to select method
     fig: give figure to plot on
     x_prop_kw: Dict for selection of x propertie
     ydata_prop: Allows to use a certain attribute of the ydata for the plot.
@@ -103,8 +103,8 @@ def spectrum(
     Returns
       fig and ax.
     """
-    if subplot_kw:
-        fig, ax = plt.subplots(**subplot_kw)
+    if kwargs_subplot:
+        fig, ax = plt.subplots(**kwargs_subplot)
         fig.clf()
     else:
         fig = plt.gcf()
@@ -112,15 +112,15 @@ def spectrum(
     # Must be None at first to prevent memory leackage from other calls
     if not x_prop_kw:
         x_prop_kw = {}
-    select_kw.setdefault('delay_mean', True)
-    select_kw.setdefault('frame_med', True)
-    select_kw.setdefault('prop', 'unpumped')
-    ydata = record.select(**select_kw)
+    kwargs_select.setdefault('delay_mean', True)
+    kwargs_select.setdefault('frame_med', True)
+    kwargs_select.setdefault('prop', 'unpumped')
+    ydata = record.select(**kwargs_select)
 
     # Make sure that the use of roi_pixel doesn't fuck up figure axes
-    prop_kwgs = select_kw.get('prop_kwgs')
-    if prop_kwgs:
-        roi_pixel = prop_kwgs.get('roi_pixel')
+    kwargs_prop = kwargs_select.get('kwargs_prop')
+    if kwargs_prop:
+        roi_pixel = kwargs_prop.get('roi_pixel')
         if roi_pixel and x_prop in ('pixel', 'wavenumber', 'wavelength'):
             x_prop_kw['roi_pixel'] = roi_pixel
 
@@ -129,7 +129,7 @@ def spectrum(
         xdata = range(ydata.shape[-1])
     else:
         xdata = record.select(x_prop, **x_prop_kw)
-        roi_pixel = select_kw.get('roi_pixel')
+        roi_pixel = kwargs_select.get('roi_pixel')
         if roi_pixel:
             xdata = xdata[roi_pixel]
 
@@ -181,9 +181,9 @@ def figure(
 def hot_and_cold(
         record_cold,
         record_hot,
-        subplot_kw={},
-        select_kw_cold={},
-        select_kw_hot={},
+        kwargs_subplot={},
+        kwargs_select_cold={},
+        kwargs_select_hot={},
         x_prop='wavenumber',
         title=None,
         plot_hot_kw={},
@@ -196,15 +196,15 @@ def hot_and_cold(
         ylim=None,
 ):
     """Heat figure."""
-    fig, ax = plt.subplots(**subplot_kw)
+    fig, ax = plt.subplots(**kwargs_subplot)
     fig.clf()
 
-    for select_kw in (select_kw_hot, select_kw_cold):
-        select_kw.setdefault('delay_mean', True)
-        select_kw.setdefault('frame_med', True)
-        select_kw.setdefault('prop', 'unpumped')
-    cold = record_cold.select(**select_kw_cold)
-    hot = record_hot.select(**select_kw_hot)
+    for kwargs_select in (kwargs_select_hot, kwargs_select_cold):
+        kwargs_select.setdefault('delay_mean', True)
+        kwargs_select.setdefault('frame_med', True)
+        kwargs_select.setdefault('prop', 'unpumped')
+    cold = record_cold.select(**kwargs_select_cold)
+    hot = record_hot.select(**kwargs_select_hot)
     plot_hot_kw.setdefault('label', 'Hot')
     plot_hot_kw.setdefault('color', 'C3')
     plot_cold_kw.setdefault('label', 'Cold')
@@ -232,9 +232,9 @@ def heat_diff(
         record_cold,
         record_hot,
         opt='-',
-        subplot_kw={},
-        select_kw_cold={},
-        select_kw_hot={},
+        kwargs_subplot={},
+        kwargs_select_cold={},
+        kwargs_select_hot={},
         x_prop='wavenumber',
         title=None,
         plot_kw={},
@@ -247,15 +247,15 @@ def heat_diff(
 ):
 
     """Figure with the difference between cold and hot spectrum."""
-    fig, ax = plt.subplots(**subplot_kw)
+    fig, ax = plt.subplots(**kwargs_subplot)
     fig.clf()
 
-    for select_kw in (select_kw_hot, select_kw_cold):
-        select_kw.setdefault('delay_mean', True)
-        select_kw.setdefault('frame_med', True)
-        select_kw.setdefault('prop', 'unpumped')
-    cold = record_cold.select(**select_kw_cold)
-    hot = record_hot.select(**select_kw_hot)
+    for kwargs_select in (kwargs_select_hot, kwargs_select_cold):
+        kwargs_select.setdefault('delay_mean', True)
+        kwargs_select.setdefault('frame_med', True)
+        kwargs_select.setdefault('prop', 'unpumped')
+    cold = record_cold.select(**kwargs_select_cold)
+    hot = record_hot.select(**kwargs_select_hot)
 
     if opt is '-':
         diff = hot-cold
@@ -281,9 +281,9 @@ def heat_diff(
 
 def pump_probe(
         record,
-        subplot_kwgs={},
-        data_kwgs={},
-        plot_kwgs={},
+        kwargs_subplots={},
+        kwargs_data={},
+        kwargs_plot={},
         colorbar=True,
         title=None,
         xlim=None,
@@ -299,18 +299,18 @@ def pump_probe(
 
     A contour plot of a record. By default it uses the relative
     bleach of  the record. At first a median filter of 7 pixels is used.
-    Can be changed with: 'data_kwgs=dicht(medfilt_pixel=number)'. Afterwards
+    Can be changed with: 'kwargs_data=dicht(medfilt_pixel=number)'. Afterwards
     an FFT based double resample filter with 30 Frequencies is used. Can
-    be changed with 'data_kwgs=dict(resample_filter=number)'. To change the
+    be changed with 'kwargs_data=dict(resample_filter=number)'. To change the
     contrast of the plot, change the levels of the contour plot with:
-    'plot_kwgs=dict(levels=arange(min, max, stepsize))'.
+    'kwargs_plot=dict(levels=arange(min, max, stepsize))'.
 
     **Arguments:**
       - **record**: The record to plot.
     **Keywords:**
-      - **subplot_kwgs**: Keywords for subplot creation
-      - **data_kwgs**: Keywords for record.contour data selection
-      - **plot_kwgs**: Keywords for the contour plot.
+      - **kwargs_subplots**: Keywords for subplot creation
+      - **kwargs_data**: Keywords for record.contour data selection
+      - **kwargs_plot**: Keywords for the contour plot.
       - **colorbar**: Boolean to show colorbar
       - **title**: Title string. By default tries to construct tile from record
       - **xlim**: X axis limit of the plot. Default is None
@@ -330,17 +330,17 @@ def pump_probe(
         print("Skipping...")
         return
 
-    fig, ax = plt.subplots(**subplot_kwgs)
+    fig, ax = plt.subplots(**kwargs_subplots)
     record.figures[fig.number] = fig
 
-    data_kwgs.setdefault('resample_freqs', 30)
-    data_kwgs.setdefault('medfilt_pixel', 7)
+    kwargs_data.setdefault('resample_freqs', 30)
+    kwargs_data.setdefault('medfilt_pixel', 7)
     x, y, z = record.contour(
-        **data_kwgs
+        **kwargs_data
     )
 
-    plot_kwgs.setdefault('extend', 'both')
-    plt.contourf(x, y, z, **plot_kwgs)
+    kwargs_plot.setdefault('extend', 'both')
+    plt.contourf(x, y, z, **kwargs_plot)
     if colorbar:
         plt.colorbar()
 
@@ -375,12 +375,12 @@ def pump_probe(
 def trace(
         record,
         sl,
-        data_kwgs={},
-        fit_model_kwgs={},
-        subplot_kwgs={},
+        kwargs_data={},
+        fit_modekwargs_legend={},
+        kwargs_subplots={},
         title=None,
-        plot_kwgs={},
-        errorbar_kwgs=None,
+        kwargs_plot={},
+        errorbar_kwargs=None,
         xlim=None,
         ylim=None,
         xlabel='Time in fs',
@@ -397,13 +397,13 @@ def trace(
       - **sl**: slice that selects the region of interest in wavenumbers.
 
     **Optional fig_trace_config keywords:**
-      - **data_kwgs**: Keywords of data selection. See `sfg2d.SfgRecord.trace`
+      - **kwargs_data**: Keywords of data selection. See `sfg2d.SfgRecord.trace`
         for more information.
-      - **fit_model_kwgs**: Config of `fit_model`, See sfg2d.analyse.fit_model for
+      - **fit_modekwargs_legend**: Config of `fit_model`, See sfg2d.analyse.fit_model for
         further information.
-      - **fig_kwgs**: Keywors of the subplots.
+      - **fig_kwargs**: Keywors of the subplots.
       - **title**: Title of the plot.
-      - **errorbar_kwgs**: Keywords of the errorbar plot
+      - **errorbar_kwargs**: Keywords of the errorbar plot
       - **xlim**: Xlim of the plot
       - **ylim**: Ylim of the plot
       - **xlabel**: xlabel of the plot
@@ -413,46 +413,46 @@ def trace(
       - **save**: Boolean if figure should be saved to fname.
 
     """
-    data_kwgs['roi_wavenumber'] =  sl
-    x, y, yerr = record.trace(**data_kwgs)
+    kwargs_data['roi_wavenumber'] =  sl
+    x, y, yerr = record.trace(**kwargs_data)
     y, yerr = y.squeeze(), yerr.squeeze()
 
     # Indentifier is there for convenience
     _model_identifier = '' # Identifier for default filename if model is used.
-    model_name = fit_model_kwgs.get('name')
+    model_name = fit_modekwargs_legend.get('name')
     if model_name:
         _model_identifier = '_{}'.format({
             'FourLevelMolKinM': '4L',
             'SimpleDecay': 'SD'
         }.get(model_name, model_name))
 
-    fig, ax = plt.subplots(**subplot_kwgs)
+    fig, ax = plt.subplots(**kwargs_subplots)
 
     if title:
         plt.title(title)
 
-    if errorbar_kwgs:
-        errorbar_kwgs.setdefault('marker', 'o')
-        errorbar_kwgs.setdefault('label', 'Data')
-        errorbar_kwgs.setdefault('linestyle', 'None')
-        errorbar_kwgs.setdefault('axes', ax)
+    if errorbar_kwargs:
+        errorbar_kwargs.setdefault('marker', 'o')
+        errorbar_kwargs.setdefault('label', 'Data')
+        errorbar_kwargs.setdefault('linestyle', 'None')
+        errorbar_kwargs.setdefault('axes', ax)
         plotline, capline, barline = plt.errorbar(
             x,
             y,
             yerr,
-            **errorbar_kwgs
+            **errorbar_kwargs
         )
     else:
-        plot_kwgs.setdefault('marker', 'o')
-        plot_kwgs.setdefault('linestyle', 'None')
-        ax.plot(x, y, **plot_kwgs)
+        kwargs_plot.setdefault('marker', 'o')
+        kwargs_plot.setdefault('linestyle', 'None')
+        ax.plot(x, y, **kwargs_plot)
 
     model = None
     if model_name:
         model_key = '{}-{} {}'.format(
                 sl.start, sl.stop, model_name
             )
-        model = fit_model(x, y, yerr, **fit_model_kwgs)
+        model = fit_model(x, y, yerr, **fit_modekwargs_legend)
         record.models[model_key] = model
 
     if xlim:
@@ -486,10 +486,10 @@ def trace(
 
 def trace_model(
         model,
-        subplot_kwgs={},
+        kwargs_subplots={},
         title=None,
-        errorbar_kwgs={},
-        lineplot_kwgs={},
+        errorbar_kwargs={},
+        linekwargs_plot={},
         xlim=None,
         ylim=None,
         xlabel="Time in fs",
@@ -506,12 +506,12 @@ def trace_model(
       - **config**: A dictionary with configuration parameters of the plot.
 
     **config**:
-      - **fig_kwgs**: Dictionary to configure the figure with.
+      - **fig_kwargs**: Dictionary to configure the figure with.
       - **ax**: Dictionary to configure the axes with
       - **title**: Title string of the figure
-      - **error_kwgs**: Dictonary to configure the errorbar plot with.
+      - **error_kwargs**: Dictonary to configure the errorbar plot with.
     """
-    fig, ax = plt.subplots(**subplot_kwgs)
+    fig, ax = plt.subplots(**kwargs_subplots)
     if clf:
         fig.clf()
 
@@ -519,14 +519,14 @@ def trace_model(
         plt.title(title)
     model.figures[fig.number] = fig
 
-    errorbar_kwgs.setdefault('marker', 'o')
-    errorbar_kwgs.setdefault('linestyle', 'None')
+    errorbar_kwargs.setdefault('marker', 'o')
+    errorbar_kwargs.setdefault('linestyle', 'None')
     plotline, capline, barline = plt.errorbar(
-        model.xdata, model.ydata, model.yerr, **errorbar_kwgs
+        model.xdata, model.ydata, model.yerr, **errorbar_kwargs
     )
 
-    lineplot_kwgs.setdefault('color', plotline.get_color())
-    plt.plot(model.xsample, model.yfit_sample, **lineplot_kwgs)
+    linekwargs_plot.setdefault('color', plotline.get_color())
+    plt.plot(model.xsample, model.yfit_sample, **linekwargs_plot)
 
     if xlim:
         plt.xlim(xlim)
@@ -549,7 +549,7 @@ def trace_model(
 
 def models(
         models,
-        models_plot_kwgs=[],
+        models_kwargs_plot=[],
         num=None,
         title=None,
         fname=None
@@ -557,18 +557,18 @@ def models(
     """Plot list of given models.
 
     models: List of Models to plot
-    models_plot_kwgs: List of configurations per plot
+    models_kwargs_plot: List of configurations per plot
     """
     fig, ax = plt.subplots(num=num)
     fig.clf()
     for i in range(len(models)):
         model = models[i]
-        plot_kwgs = {}
+        kwargs_plot = {}
         try:
-            plot_kwgs = models_plot_kwgs[i]
+            kwargs_plot = models_kwargs_plot[i]
         except:
             pass
-        sfg2d.plot.model(model, plot_kwgs)
+        sfg2d.plot.model(model, kwargs_plot)
     if title:
         plt.title(title)
     plt.legend()
@@ -581,19 +581,19 @@ def models(
     return fig, ax
 
 
-def record_models(record, model_names, model_plot_kwgs=None):
+def record_models(record, model_names, modekwargs_legend_plot=None):
     """Figure of multiple models from the same record.
 
-    model_plot_kwgs: list of dicts. Each entry gets passed to
+    modekwargs_legend_plot: list of dicts. Each entry gets passed to
         `sfg2d.plot.model` as kwargs.
     """
     models = [record.models.get(model_name) for model_name in model_names]
     fig, ax = plt.subplots(
         num='{}_pump{}_traces'.format(record.name, record.pump_freq))
     fig.clf()
-    if not model_plot_kwgs:
-        model_plot_kwgs = [{} for model in models]
-    for model, model_plot_kwg in zip(models, model_plot_kwgs):
+    if not modekwargs_legend_plot:
+        modekwargs_legend_plot = [{} for model in models]
+    for model, model_plot_kwg in zip(models, modekwargs_legend_plot):
         # Catch when model was not created
         if model:
             print(model_plot_kwg)
@@ -606,30 +606,30 @@ def record_models(record, model_names, model_plot_kwgs=None):
 
 def bleach_slider(
         record,
-        select_kws={},
+        kwargs_selects={},
         x_prop='wavenumber',
-        plot_kwgs={},
+        kwargs_plot={},
         scale=1,
         fig=None,
         ax=None,
         ylim=None,
         xlim=None,
-        l_kwgs={"loc": "lower left"},
+        kwargs_legend={"loc": "lower left"},
 ):
     """Bleachplot, with slidable pp_delay index and autoscale.
 
     **Keywrords:**
       - **record**: The record to plot
-      - **select_kw**: Select keywords to select data with.
+      - **kwargs_select**: Select keywords to select data with.
          The default corresponds to:
-         `{'prop': 'bleach', 'prop_kwgs':'{'prop':'basesubed'},
+         `{'prop': 'bleach', 'kwargs_prop':'{'prop':'basesubed'},
           'frame_med': True, 'medfilt_pixel':5}`
       - **scale**: Scaling factor for the data.
       - **fig**: figure
       - **ax**: axes
       - **ylim**: Optional tuple. Set fix ymin and ymax.
       - **xlim**: tuple to set xaxis.
-      - **l_kwgs**: Keywordsfor the plot legend
+      - **kwargs_legend**: Keywordsfor the plot legend
     """
     from ipywidgets import interact, widgets
 
@@ -643,11 +643,11 @@ def bleach_slider(
 
     axes_lim_buffer = None
 
-    select_y_kws = dict(**select_kws)
-    select_y_kws.setdefault('prop', 'bleach')
-    select_y_kws.setdefault('prop_kwgs', {'prop': 'basesubed'})
-    select_y_kws.setdefault('frame_med', True)
-    select_y_kws.setdefault('medfilt_pixel', 5)
+    kwargs_select_y = dict(**kwargs_selects)
+    kwargs_select_y.setdefault('prop', 'bleach')
+    kwargs_select_y.setdefault('kwargs_prop', {'prop': 'basesubed'})
+    kwargs_select_y.setdefault('frame_med', True)
+    kwargs_select_y.setdefault('medfilt_pixel', 5)
 
     @interact(
         Autoscale=True,
@@ -662,9 +662,9 @@ def bleach_slider(
         ax.clear()
         y = record.select(
             roi_delay=slice(index, index+1),
-            **select_y_kws,
+            **kwargs_select_y,
         )
-        sfg2d.plot.spectrum(record.select(x_prop), scale*y, **plot_kwgs)
+        sfg2d.plot.spectrum(record.select(x_prop), scale*y, **kwargs_plot)
 
         if Autoscale:
             axes_lim_buffer = ax.get_xlim(), ax.get_ylim()
@@ -679,7 +679,7 @@ def bleach_slider(
         elif not Autoscale:
             ax.set_xlim(axes_lim_buffer[0])
 
-        ax.legend(**l_kwgs)
+        ax.legend(**kwargs_legend)
         ax.figure.canvas.draw()
 
     return fig, ax
@@ -690,8 +690,8 @@ def bleach_pdf(
         record,
         sfile,
         sfolder="./figures/",
-        select_kws={},
-        plot_kwgs={},
+        kwargs_selects={},
+        kwargs_plot={},
         scale=1,
         xlim=None,
         ylim=None,
@@ -699,7 +699,7 @@ def bleach_pdf(
         num_base='bl{}',
         xlabel='Wavenumber in 1/cm',
         ylabel=None,
-        l_kwgs={"loc": "lower left"},
+        kwargs_legend={"loc": "lower left"},
         title_prefix=None,
         delay_offset=0,
 ):
@@ -710,11 +710,11 @@ def bleach_pdf(
       - **sfile**: String with filename to save.
     **Keywords**:
       - **sfolder**: String with foldername to save file in.
-      - **select_kws**: Dict with keywords for selection of data.
+      - **kwargs_selects**: Dict with keywords for selection of data.
         default corresponds to:
-          {'prop': 'bleach', 'prop_kwgs':'{'prop':'basesubed'},
+          {'prop': 'bleach', 'kwargs_prop':'{'prop':'basesubed'},
           'frame_med': True, 'medfilt_pixel':5}`
-      - **plot_kwgs**: Keywords passed to the `plot_spce` function.
+      - **kwargs_plot**: Keywords passed to the `plot_spce` function.
       - **scale**: Scaling factor for the data.
       - **ylim**: Optional tuple. Set fix ymin and ymax.
       - **xlim**: tuple to set xaxis.
@@ -722,18 +722,18 @@ def bleach_pdf(
       - **num_base**: String to index the multiple plots with.
       - **xlabel**: String for the xlabel
       - **ylabel**: string for the y label
-      - **l_kwgs**: Keywordsfor the plot legend
+      - **kwargs_legend**: Keywordsfor the plot legend
       - **title_prefix**: Optinal String to prefix the title with.
            Default is record.metadata['material']
       - **delay_offset**: Offset to add to the delay.
     axes limits are always the same for all subplots.
     """
 
-    select_y_kws = dict(**select_kws)
-    select_y_kws.setdefault('prop', 'bleach')
-    select_y_kws.setdefault('prop_kwgs', {'prop': 'basesubed'})
-    select_y_kws.setdefault('frame_med', True)
-    select_y_kws.setdefault('medfilt_pixel', 5)
+    kwargs_select_y = dict(**kwargs_selects)
+    kwargs_select_y.setdefault('prop', 'bleach')
+    kwargs_select_y.setdefault('kwargs_prop', {'prop': 'basesubed'})
+    kwargs_select_y.setdefault('frame_med', True)
+    kwargs_select_y.setdefault('medfilt_pixel', 5)
     figs = []
     for index in range(record.number_of_pp_delays):
         fig, ax = plt.subplots(num=num_base.format(index))
@@ -741,10 +741,10 @@ def bleach_pdf(
 
         y = record.select(
             roi_delay=slice(index, index+1),
-            **select_y_kws,
+            **kwargs_select_y,
         )
         x = record.select(prop=x_prop)
-        sfg2d.plot.spectrum(x, scale*y, ax=ax, **plot_kwgs)
+        sfg2d.plot.spectrum(x, scale*y, ax=ax, **kwargs_plot)
 
         if not title_prefix:
             title_prefix = record.metadata.get('material', '')
@@ -782,8 +782,8 @@ def spectrum_pump_vs_probe(
         record2d,
         delay,
         roi_pixel=slice(None),
-        pump_vs_probe_kwgs={},
-        contour_kwgs={},
+        kwargs_pump_vs_probe={},
+        kwargs_contour={},
         colorbar=True,
         diagonal=True,
         num=None,
@@ -795,12 +795,12 @@ def spectrum_pump_vs_probe(
     fig, ax = plt.subplots(num=num)
     fig.clf()
     plt.title(title)
-    pump_vs_probe_kwgs['delay'] = delay
-    pump_vs_probe_kwgs['roi_pixel'] = roi_pixel
+    kwargs_pump_vs_probe['delay'] = delay
+    kwargs_pump_vs_probe['roi_pixel'] = roi_pixel
     x = record2d.pump_freqs
     y = record2d.wavenumbers[roi_pixel]
-    z = record2d.pump_vs_probe(**pump_vs_probe_kwgs)
-    plt.contourf(x, y, z, **contour_kwgs)
+    z = record2d.pump_vs_probe(**kwargs_pump_vs_probe)
+    plt.contourf(x, y, z, **kwargs_contour)
     plt.xlabel('Pump in 1/cm')
     plt.ylabel('Probe in 1/cm')
     if colorbar:
@@ -820,8 +820,8 @@ def spectra_pump_vs_probe(
         record2d,
         roi_pump_freqs=slice(None),
         roi_pixel=slice(None),
-        pump_vs_probe_kwgs={},
-        contour_kwgs={},
+        kwargs_pump_vs_probe={},
+        kwargs_contour={},
         fig_name='',
         title='',
         close=True,
@@ -839,12 +839,12 @@ def spectra_pump_vs_probe(
         figures.append(fig)
         fig.clf()
         plt.title(title + ' {:.0f} fs'.format(record2d.pp_delays[delay]))
-        pump_vs_probe_kwgs['delay'] = delay
-        pump_vs_probe_kwgs['roi_pixel'] = roi_pixel
+        kwargs_pump_vs_probe['delay'] = delay
+        kwargs_pump_vs_probe['roi_pixel'] = roi_pixel
         x = record2d.pump_freqs
         y = record2d.wavenumbers[roi_pixel]
-        z = record2d.pump_vs_probe(**pump_vs_probe_kwgs)
-        plt.contourf(x, y, z, **contour_kwgs)
+        z = record2d.pump_vs_probe(**kwargs_pump_vs_probe)
+        plt.contourf(x, y, z, **kwargs_contour)
         plt.xlabel('Pump in 1/cm')
         plt.ylabel('Probe in 1/cm')
         if colorbar:
@@ -871,19 +871,19 @@ def spectra_pump_vs_probe(
 
 def spectra_static(
         record2d,
-        subplot_kwgs={},
-        data_kwgs={},
+        kwargs_subplots={},
+        kwargs_data={},
         title=None,
 ):
     """Static Spectra for measured Pump Frequencies."""
-    fig, ax = plt.subplots(**subplot_kwgs)
+    fig, ax = plt.subplots(**kwargs_subplots)
     fig.clf()
     if title:
         plt.title(title)
 
-    data_kwgs.setdefault('delay', 0)
-    xdata = record2d.wavenumbers[data_kwgs.get('roi_pixel', slice(None))]
-    ydata = record2d.static(**data_kwgs)
+    kwargs_data.setdefault('delay', 0)
+    xdata = record2d.wavenumbers[kwargs_data.get('roi_pixel', slice(None))]
+    ydata = record2d.static(**kwargs_data)
     plt.plot(xdata, ydata)
     plt.legend(['{:.0f} 1/cm'.format(elm) for elm in record2d.pump_freqs])
     plt.xlabel('Wavenumber in 1/cm')
