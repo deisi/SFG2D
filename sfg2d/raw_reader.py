@@ -9,23 +9,21 @@ import sfg2d.fig as fig
 import dpath.util
 plt.ion()
 
-fname = 'raw_config.yaml'
 gitversion = '.gitversion'
-records = {}
-figures = {}
-configuration = {}
 
-def main():
-    #global records, figures, configuration
-    thismodule = sys.modules[__name__]
-    records = thismodule.records
-    figures = thismodule.figures
-    configuration = thismodule.configuration
+def main(config_file='./raw_config.yaml'):
+    global records, figures, configuration
     records = {}
     figures = {}
     configuration = {}
+    config_file = os.path.expanduser(config_file)
+    dir = os.path.split(os.path.abspath(config_file))[0]
+    cur_dir = os.getcwd()
+    os.chdir(dir)
+    print('Changing to: ', dir)
 
-    with open(fname) as ifile:
+    # Import the configuration
+    with open(config_file) as ifile:
         configuration = yaml.load(ifile)
 
     options = configuration.get('options')
@@ -100,7 +98,7 @@ def main():
         figures[fig_name] = fig_func(**fig_kwgs)
 
     # Export a pdf with all figures
-    list_of_figures = [value[0] for value in figures.values()]
+    list_of_figures = [figures[key][0] for key in sorted(figures.keys())]
     fig.save_figs_to_multipage_pdf(list_of_figures, './figures_all.pdf' )
 
     # Write down the used git version so we can go back
@@ -109,7 +107,7 @@ def main():
         module_path = core.__file__
         repo = Repo(module_path, search_parent_directories=True)
         sha = repo.head.object.hexsha
-        with open(gitversion, 'r+') as ofile:
+        with open(dir + '/' + gitversion, 'r+') as ofile:
             if sha not in ofile.read():
                 print('Appending {} to {}'.format(
                     sha, os.path.abspath(gitversion)))
@@ -122,6 +120,7 @@ def main():
     installed_packages = pip.get_installed_distributions()
     installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
          for i in installed_packages])
-    with open('.installed_packages', 'w') as ofile:
+    with open(dir + '/.installed_packages', 'w') as ofile:
         for package in installed_packages_list:
             ofile.write(package+'\n')
+

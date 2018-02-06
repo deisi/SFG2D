@@ -144,10 +144,13 @@ class SfgRecord():
         4 d baselinesubstracted array
     normalized: np.array
         4 d normalized array
+    shift: Needed for heterodyne measurments. Shifts the filtered signal by given value in rad.
+    quartz_norm_het: Add 1j shift if quartz is used for heterodyne normalization
     """
     def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)),
                  base=None, norm=None, baseline_offset=0, wavelength=None,
-                 wavenumber=None):
+                 wavenumber=None, quartz_flip=False, shift=None,
+                 quartz_norm_het=None):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
         #np.seterr(divide='ignore')
@@ -287,6 +290,12 @@ class SfgRecord():
         # A Nice Latex Version of the name of the recrod
         self._lname = None
 
+        # Default shift of the heterodyne signal
+        self.shift = shift
+
+        # True if heterodyne Signal is normalized with quartz
+        self.quartz_norm_het = quartz_norm_het
+
         if isinstance(fname, type(None)):
             return
 
@@ -339,6 +348,7 @@ class SfgRecord():
 
         # This is needed, because one might or might not circumvent the setter
         # and getter functions of the properties.
+        # TODO this should be a set, not a dict.
         saveable = {}
         saveable['rawData'] = '_rawData'
         saveable['metadata'] = 'metadata'
@@ -364,6 +374,8 @@ class SfgRecord():
         saveable['roi_frames'] = 'roi_frames'
         saveable['roi_delay'] = 'roi_delay'
         saveable['rois_delays_pump_probe'] = 'rois_delays_pump_probe'
+        saveable['shift'] = 'shift'
+        saveable['quartz_het_norm'] = 'quartz_het_norm'
         return saveable
 
     def select(
@@ -432,7 +444,7 @@ class SfgRecord():
             return ret
 
         # Real properties get used directly
-        if prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2', 'chi2_abs'):
+        if prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2'):
 
             ret = getattr(self, prop)
         # Infered properites need aditional kwgs
@@ -1134,7 +1146,7 @@ class SfgRecord():
         ret = fft.ifft(ret)
         return ret
 
-    def frequency_domain(self, start, stop, flip=False, **kwargs):
+    def frequency_domain(self, start, stop, shift=None, **kwargs):
         """
         Transform data into time_domain, then select region between start
         and stop and transform back into frequencie space.
@@ -1142,45 +1154,45 @@ class SfgRecord():
         start: int
         stop: int
           start and stop filter out during time domain phase
-        flip: Flip the signal in frequency domain by pi
+        shift: Shift the signal in frequency domain by shift in rad.
+          A pi shift might be needed depending on the alignment.
         """
         time_domain = self.time_domain(**kwargs)
         time_domain[:, :, :, 0: start] = 0
         time_domain[:, :, :, stop: None] = 0
         ret = fft.fft(time_domain)
-        if flip:
-            ret = -1 * ret
+        # Shifts the signal by value of shift in radiant.
+        # `SfgRecord.shift` is default
+        if isinstance(shift, type(None)):
+            shift = self.shift
+            print('Using Auto shift by: ', shift)
+        if shift:
+            ret = ret * np.exp(1j * np.pi * shift)
         return ret
 
-    def normalize_het(self, frequency_domain_kwgs, quartz=True, flip=False):
+    def normalize_het(self, frequency_domain_kwgs, quartz=None):
         """Normalize heterodyne SFG measurment.
 
         frequency_domain_kwgs:
           dict with at least {'start': int, 'stop': int}. This dict is used to
           construct the real and imag part of the chi2 signal.
         quartz: Correct with quartz reference
-        flip: Flip the signal in frequency domain by pi
+        shift: Shift the signal in units of radiant.
         """
         signal = self.frequency_domain(**frequency_domain_kwgs)
-        if flip:
-            signal = -1 * signal
         frequency_domain_kwgs['prop'] = 'norm'
-        # Only Signal needs to be flipped. Never both
-        frequency_domain_kwgs['flip'] = False
+        # Never shift quartz, only the signal
+        frequency_domain_kwgs['shift'] = False
         norm = self.frequency_domain(**frequency_domain_kwgs)
+
+        if isinstance(quartz, type(None)):
+            quartz = self.quartz_norm_het
         if quartz:
             chi2 = signal/(1j*norm)
         else:
             chi2 = signal/norm
         self.chi2 = chi2
         return chi2
-
-    #Spagetty code
-    @property
-    def chi2_abs(self):
-        return np.abs(self.chi2)
-
-    # Spagetty end
 
     def trace_multiple(
             self,
@@ -1314,8 +1326,8 @@ class SfgRecord():
 
     def _import_data(self):
         """Import the data."""
-
         # Pick import function according to data type automatically.
+
         if self.type == "spe":
             from .io.spe import PrincetonSPEFile3
             self._sp = PrincetonSPEFile3(self._fname)
@@ -1442,6 +1454,8 @@ class SfgRecord():
         ret.roi_frames = self.roi_frames
         ret.roi_delay = self.roi_delay
         ret.rois_delays_pump_probe = self.rois_delays_pump_probe
+        ret.shift = self.shift
+        ret.quarz_norm_het = self.quartz_norm_het
         return ret
 
     def save(self, file, *args, **kwargs):
@@ -1537,15 +1551,6 @@ class SfgRecord():
         ret._rawData += delta
         # Reset internal properties so we leave with a clean SfgRecord
         return ret
-
-class SfgRecordHet(SfgRecord):
-
-    @property
-    def normalized(self):
-        """"""
-        return self.basesubed
-
-
 
 
 def get_Record2d_from_sfgRecords(records):
@@ -1857,9 +1862,8 @@ def concatenate_list_of_SfgRecords(list_of_records):
             )
         )
 
-    concatable_calibration = ('_wavelength', '_wavenumber')
-    for attribute in concatable_calibration:
-        print(attribute)
+    concatable_lists = ('_wavelength', '_wavenumber')
+    for attribute in concatable_lists:
         if all([all(getattr(elm, attribute)==getattr(list_of_records[0], attribute)) for elm in list_of_records]):
             setattr(ret, attribute, getattr(list_of_records[0], attribute))
             if attribute == '_wavenumber':
@@ -1869,18 +1873,24 @@ def concatenate_list_of_SfgRecords(list_of_records):
         else:
             print('Not concatenating {}'.format(attribute))
 
+    # Concatenate unlistable attributes
+    concatable_attributes = ('shift', 'pp_delays', 'quartz_norm_het')
+    for attribute in concatable_attributes:
+        if all([getattr(elm, attribute) == getattr(list_of_records[0], attribute) for elm in list_of_records]):
+            setattr(ret, attribute, getattr(list_of_records[0], attribute))
+
+    # concat some properties
     ret.dates = np.concatenate([elm.dates for elm in list_of_records]).tolist()
     ret.pp_delays = list_of_records[0].pp_delays
-    #ret.metadata["central_wl"] = list_of_records[0].metadata.get("central_wl")
-    #ret.metadata["vis_wl"] = list_of_records[0].metadata.get("vis_wl")
-    #all([record.metadata.get(key) for record in list_of_records for key in list_of_records.metadata])
-    ## Keep unchanged metadata and listify changed metadata.
+
+    # Keep unchanged metadata and listify changed metadata.
     for key in list_of_records[0].metadata:
         values = [record.metadata.get(key) for record in list_of_records]
         if all([elm == values[0] for elm in values]):
             ret.metadata[key] = values[0]
         else:
             ret.metadata[key] = values
+
     return ret
 
 def SfgRecords_from_file_list(list, **kwargs):

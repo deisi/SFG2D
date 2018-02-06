@@ -50,14 +50,6 @@ def multiplot(plots=None, figure_kw={}, subplot_args=[111], subplot_kw={},
         for setter_name, setter_value in fig_setters.items():
             setter_func = getattr(fig, setter_name)
             setter_func(**setter_value)
-    if axis_setters:
-        for setter_name, setter_value in axis_setters.items():
-            print(setter_name, setter_value)
-            setter_func = getattr(ax, setter_name)
-            if isinstance(setter_value, dict):
-                setter_func(**setter_value)
-            else:
-                setter_func(setter_value)
 
     for plot_config in plots:
         # name of the plot config is plot function name.
@@ -71,6 +63,14 @@ def multiplot(plots=None, figure_kw={}, subplot_args=[111], subplot_kw={},
 
         plot_kwgs = plot_config.get('plot_kwgs', {})
         plot_func(xdata, ydata, **plot_kwgs)
+
+    if axis_setters:
+        for setter_name, setter_value in axis_setters.items():
+            setter_func = getattr(ax, setter_name)
+            if isinstance(setter_value, dict):
+                setter_func(**setter_value)
+            else:
+                setter_func(setter_value)
 
     if legend:
         ax.legend()
