@@ -144,13 +144,14 @@ class SfgRecord():
         4 d baselinesubstracted array
     normalized: np.array
         4 d normalized array
-    shift: Needed for heterodyne measurments. Shifts the filtered signal by given value in rad.
-    quartz_norm_het: Add 1j shift if quartz is used for heterodyne normalization
+    shift: shift heterodyne singal by given angle in radiant.
+    norm_het_shift: Shift heterodyne quartz by given angle in radiants.
     """
     def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)),
                  base=None, norm=None, baseline_offset=0, wavelength=None,
-                 wavenumber=None, quartz_flip=False, shift=None,
-                 quartz_norm_het=None):
+                 wavenumber=None, roi_x_pixel_spec=slice(0, PIXEL), het_shift=None,
+                 het_start=None, het_stop=None, norm_het_shift=None,
+                 norm_het_start=None, norm_het_stop=None):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
         #np.seterr(divide='ignore')
@@ -258,7 +259,7 @@ class SfgRecord():
         self._static_corr = None
 
         # Region of interest for the x_spec
-        self.roi_x_pixel_spec = slice(0, PIXEL)
+        self.roi_x_pixel_spec = roi_x_pixel_spec
 
         # Region of interest x_pixel
         self.rois_x_pixel_trace = [slice(0, PIXEL)]
@@ -290,11 +291,23 @@ class SfgRecord():
         # A Nice Latex Version of the name of the recrod
         self._lname = None
 
-        # Default shift of the heterodyne signal
-        self.shift = shift
+        # Default time_domain start cutoff
+        self.het_start = het_start
 
-        # True if heterodyne Signal is normalized with quartz
-        self.quartz_norm_het = quartz_norm_het
+        # Default time_domain stop cutoff
+        self.het_stop = het_stop
+
+        # Default shift of the heterodyne signal
+        self.het_shift = het_shift
+
+        # Default amount to shift heterodyne normalization with
+        self.norm_het_shift = norm_het_shift
+
+        # Default time_domain start cutoff for heterodyne normalization signal
+        self.norm_het_start = norm_het_start
+
+        # Default time_domain stop cutoff for heterodyne normalization signal
+        self.norm_het_stop = norm_het_stop
 
         if isinstance(fname, type(None)):
             return
@@ -374,8 +387,12 @@ class SfgRecord():
         saveable['roi_frames'] = 'roi_frames'
         saveable['roi_delay'] = 'roi_delay'
         saveable['rois_delays_pump_probe'] = 'rois_delays_pump_probe'
-        saveable['shift'] = 'shift'
-        saveable['quartz_het_norm'] = 'quartz_het_norm'
+        saveable['het_shift'] = 'het_shift'
+        saveable['het_start'] = 'het_start'
+        saveable['het_stop'] = 'het_stop'
+        saveable['norm_het_shift'] = 'norm_het_shift'
+        saveable['norm_het_start'] = 'norm_het_start'
+        saveable['norm_het_stop'] = 'norm_het_stop'
         return saveable
 
     def select(
@@ -1153,24 +1170,45 @@ class SfgRecord():
 
         start: int
         stop: int
-          start and stop filter out during time domain phase
+          start and stop are the cutoffs for the time_domain signal.
         shift: Shift the signal in frequency domain by shift in rad.
           A pi shift might be needed depending on the alignment.
         """
         time_domain = self.time_domain(**kwargs)
+        if isinstance(start, type(None)) or isinstance(stop, type(None)):
+            raise TypeError(
+                'Must define not None start {} and stop {}'.format(start, stop)
+            )
         time_domain[:, :, :, 0: start] = 0
         time_domain[:, :, :, stop: None] = 0
         ret = fft.fft(time_domain)
         # Shifts the signal by value of shift in radiant.
         # `SfgRecord.shift` is default
         if isinstance(shift, type(None)):
-            shift = self.shift
-            print('Using Auto shift by: ', shift)
+            shift = self.het_shift
         if shift:
             ret = ret * np.exp(1j * np.pi * shift)
         return ret
 
-    def normalize_het(self, kwargs_frequency_domain, quartz=None):
+    def norm_het(self, **kwargs):
+        """Get heterodyne signal of norm.
+
+        **kwargs**
+          start: start time during time selection
+            defaults to `SfgRecords.norm_het_start`
+          stop: stop time during time  selection
+            defaults to `SfgRecords.norm_het_stop`
+          shift: phase schift in radiants
+            defaults to `SfgRecords.norm_het_shift`
+        """
+        kwargs['prop'] = 'norm'
+        kwargs.setdefault('shift', self.norm_het_shift)
+        kwargs.setdefault('start', self.norm_het_start)
+        kwargs.setdefault('stop', self.norm_het_stop)
+        norm = self.frequency_domain(**kwargs)
+        return norm
+
+    def normalize_het(self, kwargs_frequency_domain={}, keywargs_norm_het={}):
         """Normalize heterodyne SFG measurment.
 
         kwargs_frequency_domain:
@@ -1179,18 +1217,12 @@ class SfgRecord():
         quartz: Correct with quartz reference
         shift: Shift the signal in units of radiant.
         """
+        kwargs_frequency_domain.setdefault('start', self.het_start)
+        kwargs_frequency_domain.setdefault('stop', self.het_stop)
+        kwargs_frequency_domain.setdefault('shift', self.het_shift)
         signal = self.frequency_domain(**kwargs_frequency_domain)
-        kwargs_frequency_domain['prop'] = 'norm'
-        # Never shift quartz, only the signal
-        kwargs_frequency_domain['shift'] = False
-        norm = self.frequency_domain(**kwargs_frequency_domain)
-
-        if isinstance(quartz, type(None)):
-            quartz = self.quartz_norm_het
-        if quartz:
-            chi2 = signal/(1j*norm)
-        else:
-            chi2 = signal/norm
+        norm = self.norm_het(**keywargs_norm_het)
+        chi2 = signal/norm
         self.chi2 = chi2
         return chi2
 
@@ -1874,7 +1906,9 @@ def concatenate_list_of_SfgRecords(list_of_records):
             print('Not concatenating {}'.format(attribute))
 
     # Concatenate unlistable attributes
-    concatable_attributes = ('shift', 'pp_delays', 'quartz_norm_het')
+    concatable_attributes = (
+        'het_shift', 'het_start', 'het_stop', 'pp_delays', 'norm_het_shift', 'norm_het_start', 'norm_het_stop',
+    )
     for attribute in concatable_attributes:
         if all([getattr(elm, attribute) == getattr(list_of_records[0], attribute) for elm in list_of_records]):
             setattr(ret, attribute, getattr(list_of_records[0], attribute))
