@@ -1,4 +1,6 @@
-from numpy import log10, floor, abs, round
+import warnings
+import os
+from numpy import log10, floor, abs, round, poly1d, load
 from .detect_peaks import detect_peaks
 from .metadata import get_metadata_from_filename
 from .static import (
@@ -7,8 +9,10 @@ from .static import (
 )
 from .consts import (
     X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX,
-    PP_INDEX, PIXEL, FRAME_AXIS_INDEX
+    PP_INDEX, PIXEL, FRAME_AXIS_INDEX,
+    PIXEL, SPECS, CALIB_PARAMS, CALIB_CW
 )
+
 from .filter import double_resample, replace_pixel
 
 
@@ -29,3 +33,48 @@ def round_by_error(value, error, min_sig=2):
     # Kepp at least minimal number of significant digits.
     if sig_digits <= min_sig: sig_digits = min_sig
     return round_sig(value, sig_digits), round_sig(error, 1)
+
+
+def pixel_to_nm(
+        x,
+        central_wl,
+):
+    """ transform pixel to nanometer
+
+    Parameters
+    ----------
+    central_wl : int
+        central wavelength of the camera in nm
+    params_file_path: Optinal file path to calibration parameter file
+        If None given, a default is loaded.
+    """
+
+    pixel_to_nm = poly1d(CALIB_PARAMS) + central_wl - CALIB_CW
+    return pixel_to_nm(x)
+
+def nm_to_pixel(x, central_wl):
+    """ transform nm to pixel coordinates for central wavelength
+
+    Parameters
+    ----------
+    x : array like
+        nm to transform in pixel
+    central_wl : int
+        central wavelength of the camera
+
+    Returns
+    -------
+    num or array of x in pixel coordinates
+    """
+
+    params_file_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "../data/calib/params_Ne_670.npy"
+    )
+    params = load(params_file_path)
+    calib_cw = int(params_file_path[-7:-4])
+    if len(params) > 2:
+        params = params[-2:]
+    if len(params) < 2:
+        warnings.Warn("Can't use constant calibration")
+    return x - params[1] - central_wl + calib_cw/params[0]

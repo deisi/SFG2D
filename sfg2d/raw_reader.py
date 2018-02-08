@@ -74,10 +74,8 @@ def main(config_file='./raw_config.yaml'):
         kwargs_record.setdefault('wavelength', wavelength)
         kwargs_record.setdefault('wavenumber', wavenumber)
 
-        if type(fpath) == str:
-            record = core.SfgRecord(fpath, **kwargs_record)
-        else:
-            record = core.SfgRecords_from_file_list(fpath, **kwargs_record)
+        record = core.SfgRecord(fpath, **kwargs_record)
+        # Update record name with its real record
         records[record_entrie['name']] = record
 
     # Make figures

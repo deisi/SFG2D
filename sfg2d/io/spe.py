@@ -1,9 +1,9 @@
 import struct
 import numpy as np
-import os
 from datetime import datetime, timedelta
 
 debug = 0
+
 
 class PrincetonSPEFile3():
     """Class to import and read spe files.

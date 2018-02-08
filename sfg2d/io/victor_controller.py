@@ -1,9 +1,8 @@
 """Module to import data from the victor controller."""
 import datetime
 import numpy as np
-import re
 
-from sfg2d.utils.consts import PIXEL, SPECS
+from sfg2d.utils import PIXEL, SPECS
 from sfg2d.utils.metadata import get_unit_from_string
 
 
@@ -50,6 +49,7 @@ def get_from_victor_controller(fpath, **kwargs):
 
     return ret, pp_delays
 
+
 def read_header(fpath):
     """Read informaion from fileheader and return as dictionary."""
     ret = {}
@@ -63,6 +63,7 @@ def read_header(fpath):
             # Strip newline
             ret[name] = value[:-1]
     return ret
+
 
 def translate_header_to_metadata(header_dict):
     """Translate the header dictionary to metadata dictionary."""

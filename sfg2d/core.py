@@ -1,4 +1,4 @@
-from os import path
+
 import warnings
 
 import numpy as np
@@ -6,11 +6,10 @@ import scipy.fftpack as fft
 from scipy.signal import medfilt
 from scipy.stats import sem
 
-from .io.veronica import pixel_to_nm, get_from_veronika
-from .io.victor_controller import get_from_victor_controller
+from .io import import_data
 from .utils import (
     nm_to_ir_wavenumbers, nm_to_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX,
-    FRAME_AXIS_INDEX, PIXEL, PP_INDEX, SPEC_INDEX, find_nearest_index
+    FRAME_AXIS_INDEX, PIXEL, PP_INDEX, SPEC_INDEX, find_nearest_index, pixel_to_nm
 )
 from .utils.consts import (VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC,
                            FRAME_AXIS_INDEX_P,  PP_INDEX_P)
@@ -104,7 +103,7 @@ class SfgRecord():
 
     Parameters
     ----------
-    fname: string
+    fname: List of strings or string
         Path to input data
     base: 4d castable array.
         Data for the baseline
@@ -163,11 +162,8 @@ class SfgRecord():
         # Dicitionary of metadata
         self.metadata = {}
 
-        # File name of the data file
-        if not fname:
-            self._fname = ""
-        else:
-            self._fname = fname
+        # Set and format and test filenames
+        self.fname = fname
 
         # 4d array of raw data
         self._rawData = rawData
@@ -312,13 +308,9 @@ class SfgRecord():
         if isinstance(fname, type(None)):
             return
 
-        # Allows the use of ~ on windows and linux
-        if '~' in fname:
-            fname = path.expanduser(fname)
-        self._fname = path.abspath(fname)
         self._dates = None
 
-        self._readData()
+        self._readData(self.fname)
 
         if isinstance(base, type(None)):
             base = BASE_SPEC
@@ -361,39 +353,51 @@ class SfgRecord():
 
         # This is needed, because one might or might not circumvent the setter
         # and getter functions of the properties.
-        # TODO this should be a set, not a dict.
-        saveable = {}
-        saveable['rawData'] = '_rawData'
-        saveable['metadata'] = 'metadata'
-        saveable['norm'] = '_norm'
-        saveable['base'] = '_base'
-        saveable['pp_delays'] = 'pp_delays'
-        #saveable['wavelength'] = '_wavelength'
-        #saveable['wavenumber'] = '_wavenumber'
-        #saveable['dates'] = '_dates'
-        saveable['pumped_index'] = '_pumped_index'
-        saveable['unpumped_index'] = '_unpumped_index'
-        #saveable['rawDataE'] = '_rawDataE'
-        #saveable['normE'] = '_normE'
-        #saveable['baseE'] = '_baseE'
-        #saveable['basesubedE'] = '_basesubedE'
-        #saveable['normalizedE'] = 'normalizedE'
-        saveable['baseline_offset'] = '_baseline_offset'
-        saveable['zero_time_subtraction'] = '_zero_time_subtraction'
-        saveable['zero_time_selec'] = 'zero_time_selec'
-        saveable['rois_x_pixel_trace'] = 'rois_x_pixel_trace'
-        saveable['roi_x_pixel_spec'] = 'roi_x_pixel_spec'
-        saveable['roi_spectra'] = 'roi_spectra'
-        saveable['roi_frames'] = 'roi_frames'
-        saveable['roi_delay'] = 'roi_delay'
-        saveable['rois_delays_pump_probe'] = 'rois_delays_pump_probe'
-        saveable['het_shift'] = 'het_shift'
-        saveable['het_start'] = 'het_start'
-        saveable['het_stop'] = 'het_stop'
-        saveable['norm_het_shift'] = 'norm_het_shift'
-        saveable['norm_het_start'] = 'norm_het_start'
-        saveable['norm_het_stop'] = 'norm_het_stop'
-        return saveable
+        return {
+            'rawData': '_rawData',
+            'metadata': 'metadata',
+            'norm': '_norm',
+            'base': '_base',
+            'pp_delays': 'pp_delays',
+            'pumped_index': '_pumped_index',
+            'unpumped_index': '_unpumped_index',
+            'baseline_offset': '_baseline_offset',
+            'zero_time_subtraction': '_zero_time_subtraction',
+            'zero_time_selec': 'zero_time_selec',
+            'rois_x_pixel_trace': 'rois_x_pixel_trace',
+            'roi_x_pixel_spec': 'roi_x_pixel_spec',
+            'roi_spectra': 'roi_spectra',
+            'roi_frames': 'roi_frames',
+            'roi_delay': 'roi_delay',
+            'rois_delays_pump_probe': 'rois_delays_pump_probe',
+            'het_shift': 'het_shift',
+            'het_start': 'het_start',
+            'het_stop': 'het_stop',
+            'norm_het_shift': 'norm_het_shift',
+            'norm_het_start': 'norm_het_start',
+            'norm_het_stop': 'norm_het_stop',
+        }
+
+    @property
+    def fname(self):
+        """List of filenames to read data from."""
+        return self._fname
+
+    @fname.setter
+    def fname(self, fname):
+
+        self._fname = fname
+        #if isinstance(fname, str):
+        #    self._fname = [fname]
+        #else:
+        #    self._fname = fname
+
+        #if isinstance(self._fname, type(None)):
+        #    return
+
+        #for fname in self.fname:
+        #    if not path.isfile(fname):
+        #        raise ValueError("File {} doesn't exist".format(fname))
 
     def select(
             self,
@@ -1296,80 +1300,34 @@ class SfgRecord():
         )) * np.ones_like(self.rawData)
         return correction_factors
 
-    def _readData(self):
-        """The central readData function.
+    def _readData(self, fname):
+        """Read Data of Record from fname.
 
-        This function shows the structure of a general data import.
-        First one needs to find out what type the data is of.
-        Then the data is imported and at the end metadata is extracted.
+        **Arguments:**
+          fname: path to data file
+        """
 
-        Think of this function as a general recipe how to import data.
-        It is here for structural reasons."""
-        self._get_type()
-        self._import_data()
-        self._read_metadata()
-
-    def _get_type(self):
-        """Get the type of the data, by looking at its name, and if
-        necessary by looking at a fraction of the data itself.
-
-        We don't directly import all data here, so we can keep the
-        actual import functions within there own modules and have
-        more encapsulation. By reading only a fraction of the data
-        we make sure the function is fast."""
-        fhead, ftail = path.split(self._fname)
-
-        # spe is binary and we hope its not named wrongly
-        if path.splitext(ftail)[1] == '.spe':
-            self.type = 'spe'
-            return True
-
-        # Compressed binary version.
-        if path.splitext(ftail)[1] == '.npz':
-            self.type = 'npz'
-            return True
-
-        # We open the file and by looking at the
-        # first view lines, we can see if that is a readable file
-        # and what function is needed to read it.
-        start_of_data = np.genfromtxt(self._fname, max_rows=3, dtype="long")
-        if start_of_data.shape[1] == 4:
-            self.type = 'victor'
-            return True
-
-        elif start_of_data.shape[1] == 6:
-            self.type = 'veronica'
-            return True
-        else:
-            # Check if we have a header.
-            # Only data from victor_controller has # started header.
-            with open(self._fname) as f:
-                line = f.readline()
-                if line[0] == "#":
-                    # First line is pixel then 3 spectra repeating
-                    if (start_of_data.shape[1] - 1) % 3 == 0:
-                        self.type = 'victor'
-                        return True
-                else:
-                    if start_of_data.shape[1] % 6 == 0:
-                        self.type = 'veronica'
-                        return True
-        raise IOError("Cant understand data in %f" % self._fname)
-
-    def _import_data(self):
-        """Import the data."""
-        # Pick import function according to data type automatically.
-
+        imported = import_data(fname)
+        self.type = imported['type']
+        self.metadata = imported['metadata']
         if self.type == "spe":
-            from .io.spe import PrincetonSPEFile3
-            self._sp = PrincetonSPEFile3(self._fname)
-            self.rawData = self._sp.data.reshape(
-                1, self._sp.NumFrames, self._sp.ydim, self._sp.xdim
+            sps = imported['data']
+            rawData = [sp.data for sp in sps]
+            print(rawData.shape)
+            # Here push NumFramges
+            #NumFrames = 
+            ydim = sps[0].ydim
+            xdim = sps[0].xdim
+            self.rawData = rawData.reshape(
+                1, NumFrames, ydim, xdim
             )
-            return
+            if not self._setted_wavelength:
+                self.wavelength = sps[0].wavelength
+            self.calib_poly = sps[0].calib_poly
+            # TODO Update internal properties
 
-        if self.type == "npz":
-            imp = np.load(self._fname)
+        elif self.type == "npz":
+            imp = imported['data']
             for key, value in self.saveable.items():
                 if key in imp.keys():
                     setattr(self, value, imp[key])
@@ -1385,27 +1343,12 @@ class SfgRecord():
                 self._baseline_offset = imp['baseline_offset']
             except KeyError:
                 pass
-            return
 
-        if self.type == "veronica":
-            self.rawData, self.pp_delays = get_from_veronika(self._fname)
-            return
+        elif self.type == "veronica":
+            self.rawData, self.pp_delays = imported['data']
 
-        if self.type == "victor":
-            self.rawData, self.pp_delays = get_from_victor_controller(
-                self._fname
-            )
-            return
-
-        msg = "Uuuups this should never be reached."\
-              "Bug with %s. I cannot understand the datatype" % self._fname
-
-        raise NotImplementedError(msg)
-
-    def _read_metadata(self):
-        """Read metadata of the file"""
-
-        from .utils.metadata import get_metadata_from_filename
+        elif self.type == "victor":
+            self.rawData, self.pp_delays = imported['data']
 
         # Update datadependent rois
         if isinstance(self.roi_spectra, type(slice(None))):
@@ -1420,41 +1363,6 @@ class SfgRecord():
         if not self.roi_delay.stop:
             self.roi_delay = slice(self.roi_delay.start,
                                    self.number_of_pp_delays)
-
-        if self.type == "npz":
-            # We skipp this step here, bacuse metadata is extracted from the
-            # file Directly.
-            return
-
-        try:
-            metadata = get_metadata_from_filename(self._fname)
-        # TODO Refactor this, if I would program better this
-        # would not happen
-        except ValueError:
-            msg ='ValueError while trying to extract metadata from filepath.'\
-                '/nSkipping'
-            warnings.warn(msg)
-
-        if self.type == "victor":
-            # Read metadata from file header.
-            from .io.victor_controller import (read_header,
-                                               translate_header_to_metadata)
-            header = read_header(self._fname)
-            metadata = {**metadata, **translate_header_to_metadata(header)}
-
-        if self.type == 'spe':
-            metadata['central_wl'] = self._sp.central_wl
-            metadata['exposure_time'] = self._sp.exposureTime
-            metadata['gain'] = self._sp.gain
-            metadata['sp_type'] = 'spe'
-            metadata['date'] = self._sp.date
-            metadata['tempSet'] = self._sp.tempSet
-            if not self._setted_wavelength:
-                self.wavelength = self._sp.wavelength
-            self.calib_poly = self._sp.calib_poly
-
-        for key in metadata:
-            self.metadata[key] = metadata[key]
 
         # Explicitly given VIS_WL overwrite file vis_wl.
         if not isinstance(VIS_WL, type(None)):
