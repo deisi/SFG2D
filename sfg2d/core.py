@@ -416,6 +416,8 @@ class SfgRecord():
             attribute=None,
             scale=None,
             abs=False,
+            square=False,
+            sqrt=False,
     ):
         """Central Interface to select data.
 
@@ -440,14 +442,22 @@ class SfgRecord():
             roi_delay = self.roi_delay
         if isinstance(roi_frames, type(None)):
             roi_frames = self.roi_frames
+
+        # Some prop must ignore spectra settings
         if isinstance(roi_spectra, type(None)):
             only_one_spec = ('bleach', 'pumped', 'unpumped')
             if any([teststr in prop for teststr in only_one_spec]):
                 roi_spectra = [0]
             else:
                 roi_spectra = self.roi_spectra
+
+        # Some prop must ignore roi_pixel settings
         if isinstance(roi_pixel, type(None)):
-            roi_pixel = self.roi_x_pixel_spec
+            if prop in ('time_domain', 'frequency_domain', 'normalize_het'):
+                roi_pixel = slice(None)
+            else:
+                roi_pixel = self.roi_x_pixel_spec
+
         # Usually X-Axis properties.
         if prop in ('pixel', 'wavenumber', 'wavelength', 'pp_delays', 'frames'):
             ret = getattr(self, prop)
@@ -502,6 +512,10 @@ class SfgRecord():
             ret = scale * ret
         if abs:
             ret = np.absolute(ret)
+        if square:
+            ret = ret*ret
+        if sqrt:
+            ret = np.sqrt(ret)
         return ret
 
     def sem(self, prop, **kwargs):
@@ -1206,6 +1220,7 @@ class SfgRecord():
             defaults to `SfgRecords.norm_het_shift`
         """
         kwargs['prop'] = 'norm'
+        # Issue of self.norm_het_shift is none, then self.het_shift gets used
         kwargs.setdefault('shift', self.norm_het_shift)
         kwargs.setdefault('start', self.norm_het_start)
         kwargs.setdefault('stop', self.norm_het_stop)
@@ -1304,7 +1319,7 @@ class SfgRecord():
         """Read Data of Record from fname.
 
         **Arguments:**
-          fname: path to data file
+          fname: path to data file or files.
         """
 
         imported = import_data(fname)
@@ -1312,15 +1327,8 @@ class SfgRecord():
         self.metadata = imported['metadata']
         if self.type == "spe":
             sps = imported['data']
-            rawData = [sp.data for sp in sps]
-            print(rawData.shape)
-            # Here push NumFramges
-            #NumFrames = 
-            ydim = sps[0].ydim
-            xdim = sps[0].xdim
-            self.rawData = rawData.reshape(
-                1, NumFrames, ydim, xdim
-            )
+            rawData = np.concatenate([sp.data for sp in sps], 0)
+            self.rawData = rawData.reshape(1, *rawData.shape)
             if not self._setted_wavelength:
                 self.wavelength = sps[0].wavelength
             self.calib_poly = sps[0].calib_poly

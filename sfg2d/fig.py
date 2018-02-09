@@ -38,8 +38,15 @@ def save_figs_to_multipage_pdf(figs, fpath):
     print("Saved figure to: {}".format(os.path.abspath(fpath)))
 
 
-def multiplot(plots=None, kwargs_figure={}, args_subplot=[111], kwargs_subplot={},
-              setters_fig=None, setters_axis=None, legend=False):
+def multiplot(
+        plots=None,
+        kwargs_figure={},
+        args_subplot=[111],
+        kwargs_subplot={},
+        setters_fig=None,
+        setters_axis=None,
+        legend=False
+):
     fig = plt.figure(**kwargs_figure)
     ax = fig.add_subplot(*args_subplot, **kwargs_subplot)
     ax.cla()
@@ -58,8 +65,9 @@ def multiplot(plots=None, kwargs_figure={}, args_subplot=[111], kwargs_subplot={
         plot_func = getattr(sfg2d.plot, plot_func_name)
 
         record = plot_config['record']
-        xdata = record.select(**plot_config['kwargs_select_x'])
+        print(plot_config['kwargs_select_y'])
         ydata = record.select(**plot_config['kwargs_select_y'])
+        xdata = record.select(**plot_config['kwargs_select_x'])
 
         kwargs_plot = plot_config.get('kwargs_plot', {})
         plot_func(xdata, ydata, **kwargs_plot)
