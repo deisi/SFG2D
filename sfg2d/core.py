@@ -418,6 +418,8 @@ class SfgRecord():
             abs=False,
             square=False,
             sqrt=False,
+            offset=None,
+            shift=None,
     ):
         """Central Interface to select data.
 
@@ -434,6 +436,7 @@ class SfgRecord():
         madfilt_pixel: Moving median filter over pixel axis.
         resample_freqs: FFT Frequency filter. Give number of frequencoes.
             0 is off. Higher number -> Less smoothing.
+        shift: Complex shifting of signal
         Return
         ------
         4-D Array with [Delay, Frames, Spectra, Pixel] axes.
@@ -481,7 +484,12 @@ class SfgRecord():
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
                       'time_domain', 'frequency_domain', 'normalize_het'):
+
             ret = getattr(self, prop)(**kwargs_prop)
+            # Med needs to be used different for normalize_het because of FFT
+            if prop in ('normalize_het',) and frame_med:
+                ret = np.mean(ret, FRAME_AXIS_INDEX, keepdims=True)
+
         else:
             raise NotImplementedError('{} not know'.format(prop))
 
@@ -505,11 +513,19 @@ class SfgRecord():
         # Median because sometimes there are still nan and infs left.
         if pixel_mean:
             ret = np.median(ret, X_PIXEL_INDEX, keepdims=True)
+        if shift:
+            if hasattr(shift, '__iter__'):
+                for j in range(len(shift)):
+                    ret[:, j] = ret[:, j] * np.exp(shift[j] * 1j * np.pi)
+            else:
+                ret = ret * np.exp(shift * 1j * np.pi)
         if attribute:
             print('getting {}'.format(attribute))
             ret = getattr(ret, attribute)
         if scale:
             ret = scale * ret
+        if offset:
+            ret = ret + offset
         if abs:
             ret = np.absolute(ret)
         if square:
@@ -1176,7 +1192,7 @@ class SfgRecord():
         """
 
         kwargs.setdefault('prop', 'basesubed')
-        kwargs.setdefault('frame_med', True)
+        #kwargs.setdefault('frame_med', True)
         ret = self.select(**kwargs)
         ret = fft.ifft(ret)
         return ret
@@ -1192,6 +1208,16 @@ class SfgRecord():
         shift: Shift the signal in frequency domain by shift in rad.
           A pi shift might be needed depending on the alignment.
         """
+        frame_med = None
+        if isinstance(shift, type(None)):
+            shift = self.het_shift
+        # For condensation correction frame_med must be catched
+        if hasattr(shift, '__iter__'):
+            try:
+                frame_med = kwargs.pop('frame_med')
+            except KeyError:
+                pass
+
         time_domain = self.time_domain(**kwargs)
         if isinstance(start, type(None)) or isinstance(stop, type(None)):
             raise TypeError(
@@ -1202,10 +1228,24 @@ class SfgRecord():
         ret = fft.fft(time_domain)
         # Shifts the signal by value of shift in radiant.
         # `SfgRecord.shift` is default
-        if isinstance(shift, type(None)):
-            shift = self.het_shift
-        if shift:
-            ret = ret * np.exp(1j * np.pi * shift)
+        if not isinstance(shift, type(None)):
+            if hasattr(shift, '__iter__'):
+                frames = kwargs.get('roi_frames', slice(None))
+                shift = shift[frames]
+                if len(shift) < ret.shape[FRAME_AXIS_INDEX]:
+                    msg = 'Not enough shift values for given frames\nData {} \nShift: {}'
+                    raise IndexError(msg.format(
+                        ret.shape[FRAME_AXIS_INDEX], np.shape(shift))
+                    )
+                for j in range(ret.shape[FRAME_AXIS_INDEX]):
+                    ret[:, j] = ret[:, j] * np.exp(1j * np.pi * shift[j])
+                print('Shif with ', shift)
+            else:
+                ret = ret * np.exp(1j * np.pi * shift)
+
+        # Needs to be done here because of condensation correction
+        if frame_med:
+            ret = np.mean(ret, FRAME_AXIS_INDEX, keepdims=True)
         return ret
 
     def norm_het(self, **kwargs):
@@ -1224,24 +1264,37 @@ class SfgRecord():
         kwargs.setdefault('shift', self.norm_het_shift)
         kwargs.setdefault('start', self.norm_het_start)
         kwargs.setdefault('stop', self.norm_het_stop)
+        kwargs.setdefault('frame_med', True)
         norm = self.frequency_domain(**kwargs)
         return norm
 
-    def normalize_het(self, kwargs_frequency_domain={}, keywargs_norm_het={}):
+    def normalize_het(self, kwargs_frequency_domain=None, kwargs_norm_het=None,
+                      shift=None, frame_med=None):
         """Normalize heterodyne SFG measurment.
 
         kwargs_frequency_domain:
           dict with at least {'start': int, 'stop': int}. This dict is used to
           construct the real and imag part of the chi2 signal.
-        quartz: Correct with quartz reference
-        shift: Shift the signal in units of radiant.
+        shift: Shift the signal in units of radiant after normalization
+        frame_med: Calculate frame mean after normalization
         """
+        if not kwargs_frequency_domain:
+            kwargs_frequency_domain = {}
+        if not kwargs_norm_het:
+            kwargs_norm_het = {}
         kwargs_frequency_domain.setdefault('start', self.het_start)
         kwargs_frequency_domain.setdefault('stop', self.het_stop)
         kwargs_frequency_domain.setdefault('shift', self.het_shift)
+        print('Signal with: ', kwargs_frequency_domain)
         signal = self.frequency_domain(**kwargs_frequency_domain)
-        norm = self.norm_het(**keywargs_norm_het)
+        norm = self.norm_het(**kwargs_norm_het)
         chi2 = signal/norm
+        if shift:
+            for j in range(len(shift)):
+                chi2[:, j] = chi2[:, j] * np.exp(1j * np.pi * shift[j])
+        if frame_med:
+            chi2 = np.mean(chi2, FRAME_AXIS_INDEX, keepdims=True)
+
         self.chi2 = chi2
         return chi2
 
