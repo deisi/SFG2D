@@ -404,49 +404,51 @@ class SfgRecord():
         #        raise ValueError("File {} doesn't exist".format(fname))
 
     def select(
-            self,
-            prop="normalized",
-            kwargs_prop=None,
-            roi_delay=None,
-            roi_frames=None,
-            roi_spectra=None,
-            roi_pixel=None,
-            frame_med=False,
-            delay_mean=False,
-            spectra_mean=False,
-            pixel_mean=False,
-            medfilt_pixel=1,
-            resample_freqs=0,
-            attribute=None,
-            scale=None,
-            abs=False,
-            square=False,
-            sqrt=False,
+            self, prop="normalized", kwargs_prop=None,
+            roi_delay=None, roi_frames=None, roi_spectra=None, roi_pixel=None,
+            frame_med=False, delay_mean=False, spectra_mean=False,
+            pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
+            attribute=None, scale=None, abs=False, square=False, sqrt=False,
             offset=None,
-            shift=None,
+            **kwargs
     ):
         """Central Interface to select data.
 
-        prop: Name of the propertie to select data from
-        kwargs_prop: For Infered properties, spectial kwargs,
-        roi_delay: Region of Interest of delay slice
-        roi_frames: Select Frames
-        roi_spectra: Select Spectra
-        roi_pixel: Select Pixel
-        frame_med: Calculate frae wise median.
-        delay_mean: calculate delaywise median.
-        spectr_mean: Spctra wise mean
-        pixel_mean: Calculates median. Called mean due to historic reasons.
-        madfilt_pixel: Moving median filter over pixel axis.
-        resample_freqs: FFT Frequency filter. Give number of frequencoes.
-            0 is off. Higher number -> Less smoothing.
-        shift: Complex shifting of signal
-        Return
-        ------
+        This is usually all you need.
+
+        **Keywords:**
+          - **prop**: Name of the propertie to select data from
+          - **kwargs_prop**: For Infered properties, spectial kwargs,
+              Unknown **kwargs get passed into this.
+          - **roi_delay:** Region of Interest of delay slice
+          - **roi_frames:** Select Frames
+          - **roi_spectra:** Select Spectra
+          - **roi_pixel:** Select Pixel
+          - **frame_med:** Calculate frae wise median.
+          - **delay_mean:** calculate delaywise median.
+          - **spectr_mean:** Spctra wise mean
+          - **pixel_mean:** Calculates median. Called mean due to historic reasons.
+          - **medfilt_pixel:** Moving median filter over pixel axis.
+          - **resample_freqs:** FFT Frequency filter. Give number of frequencoes.
+              0 is off. Higher number -> Less smoothing.
+          - **attribute**: Attribute to get at the end
+          - **scale**: A factor to scale results with
+          - **abs**: Boolean to get absolute with
+          - **square**: Boolean to calculate square with
+          - **sqrt**: Boolean to calculate square-root with
+          - **offset**: Offset to add to result
+
+        **kwargs**:
+          Combined into *kwargs_prop*
+
+        **Returns:**
         4-D Array with [Delay, Frames, Spectra, Pixel] axes.
         """
         if not kwargs_prop:
             kwargs_prop = {}
+
+        # For historic reasons kwargs_prop and kwargs are not the same
+        kwargs_prop = {**kwargs, **kwargs_prop}
         if isinstance(roi_delay, type(None)):
             roi_delay = self.roi_delay
         if isinstance(roi_frames, type(None)):
@@ -491,9 +493,6 @@ class SfgRecord():
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
                       'time_domain', 'frequency_domain', 'normalize_het'):
 
-            if not isinstance(shift, type(None)) and prop in ('frequency_domain', 'normalize_het'):
-                kwargs_prop['shift'] = shift
-                print('passing shift :', shift)
             ret = getattr(self, prop)(**kwargs_prop)
         else:
             raise ValueError("Don't know prop: {}".format(prop))
