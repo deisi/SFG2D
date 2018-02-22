@@ -463,8 +463,13 @@ class SfgRecord():
                 roi_spectra = self.roi_spectra
 
         # Some prop must ignore roi_pixel settings
+        # This allows for better singal to noise because
+        # these properties rely on an fft of the raw data
+        # that works better if no 0 data is at the beginning and
+        # end.
         if isinstance(roi_pixel, type(None)):
-            if prop in ('time_domain', 'frequency_domain', 'normalize_het'):
+            if prop in ('time_domain', 'frequency_domain',
+                        'normalize_het', 'norm_het', 'signal_het'):
                 roi_pixel = slice(None)
             else:
                 roi_pixel = self.roi_x_pixel_spec
@@ -491,19 +496,22 @@ class SfgRecord():
             ret = getattr(self, prop)
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
-                      'time_domain', 'frequency_domain', 'normalize_het'):
+                      'time_domain', 'frequency_domain', 'normalize_het',
+                      'norm_het', 'signal_het'):
 
             ret = getattr(self, prop)(**kwargs_prop)
         else:
             raise ValueError("Don't know prop: {}".format(prop))
 
+        print('Prop: ', prop)
+        print('Selecting Pixels: ', roi_pixel)
         ret = ret[
                 roi_delay,
                 roi_frames,
                 roi_spectra,
                 roi_pixel,
                ]
-        if prop in ('normalize_het',) and frame_med:
+        if prop in ('normalize_het', 'norm_het', 'signal_het') and frame_med:
             ret = np.mean(ret, axis=FRAME_AXIS_INDEX, keepdims=1)
             frame_med = None
         if frame_med:
@@ -520,9 +528,12 @@ class SfgRecord():
         if pixel_mean:
             ret = np.median(ret, X_PIXEL_INDEX, keepdims=True)
         if scale:
-            ret = scale * ret
+            ret *= scale
         if offset:
-            ret = ret + offset
+            if np.any(np.iscomplex(ret)):
+                offset = np.complex(offset, offset)
+            print('Using offset: ', offset)
+            ret += offset
         if attribute:
             ret = getattr(ret, attribute)
         if abs:
@@ -1183,7 +1194,6 @@ class SfgRecord():
     def time_domain(self, **kwargs):
         """
         Use Inverse-FFT to transform into time domain.
-        a:
 
         prop default to basesubed
 
@@ -1191,7 +1201,7 @@ class SfgRecord():
         """
 
         kwargs.setdefault('prop', 'basesubed')
-        #kwargs.setdefault('frame_med', True)
+        print('time_domain kwargs: ', kwargs)
         ret = self.select(**kwargs)
         ret = fft.ifft(ret)
         return ret
@@ -1201,8 +1211,8 @@ class SfgRecord():
         Transform data into time_domain, then select region between start
         and stop and transform back into frequencie space.
 
-        start: int
-        stop: int
+        **start**: int
+        **stop**: int
           start and stop are the cutoffs for the time_domain signal.
         shift: Shift the signal in frequency domain by shift in rad.
           A pi shift might be needed depending on the alignment.
@@ -1217,8 +1227,13 @@ class SfgRecord():
             raise TypeError(
                 'Must define start {} and stop {}'.format(start, stop)
             )
-        time_domain[:, :, :, 0: start] = 0
-        time_domain[:, :, :, stop: None] = 0
+        # Filter out undesired times.
+        #time_domain[:, :, :, 0: start] = 0
+        #time_domain[:, :, :, stop: None] = 0
+        filter_mask = np.zeros_like(time_domain)
+        x = np.arange(filter_mask.shape[-1])
+        filter_mask[:, :, :] = 1/(1+(np.exp((start-x)/0.0025)))-1/(1+(np.exp((stop-x)/0.0025)))
+        time_domain *= filter_mask
         ret = fft.fft(time_domain)
         # Shifts the signal by value of shift in radiant.
         # `SfgRecord.shift` is default
@@ -1227,14 +1242,22 @@ class SfgRecord():
                 frames = kwargs.get('roi_frames', slice(None))
                 shift = shift[frames]
                 if len(shift) < ret.shape[FRAME_AXIS_INDEX]:
-                    msg = 'Not enough shift values for given frames\nData {} \nShift: {}'
+                    msg = 'Not enough shift values given\nData {} \nShift: {}'
                     raise IndexError(msg.format(
                         ret.shape[FRAME_AXIS_INDEX], np.shape(shift))
                     )
                 for j in range(ret.shape[FRAME_AXIS_INDEX]):
+                    #ret[:, j] = np.abs(ret[:, j]) * np.exp(
+                    #     1j * (np.angle(ret[:, j]) + np.pi * shift[j])
+                    #)
                     ret[:, j] = ret[:, j] * np.exp(1j * np.pi * shift[j])
+                    print('Shifting with: ', np.exp(1j * np.pi * shift[j]))
             else:
+                #ret = np.abs(ret) * np.exp(
+                #    1j * (np.angle(ret) + np.pi * shift)
+                #)
                 ret = ret * np.exp(1j * np.pi * shift)
+                print('Shifting with: ', np.exp(1j * np.pi * shift))
 
         return ret
 
@@ -1254,9 +1277,18 @@ class SfgRecord():
         kwargs.setdefault('shift', self.norm_het_shift)
         kwargs.setdefault('start', self.norm_het_start)
         kwargs.setdefault('stop', self.norm_het_stop)
-        kwargs.setdefault('frame_med', True)
+        #kwargs.setdefault('frame_med', True)
         norm = self.frequency_domain(**kwargs)
         return norm
+
+    def signal_het(self, shift=None, **kwargs):
+        """Default heterodyne unnormalized signal."""
+        kwargs.setdefault('start', self.het_start)
+        kwargs.setdefault('stop', self.het_stop)
+        if not isinstance(shift, type(None)):
+            print('setting shift: ', shift)
+            kwargs['shift'] = shift
+        return self.frequency_domain(**kwargs)
 
     def normalize_het(self, kwargs_frequency_domain=None, kwargs_norm_het=None,
                       shift=None):
@@ -1272,14 +1304,15 @@ class SfgRecord():
             kwargs_frequency_domain = {}
         if not kwargs_norm_het:
             kwargs_norm_het = {}
-        kwargs_frequency_domain.setdefault('start', self.het_start)
-        kwargs_frequency_domain.setdefault('stop', self.het_stop)
-        if not isinstance(shift, type(None)):
-            print('setting shift: ', shift)
-            kwargs_frequency_domain['shift'] = shift
-        #kwargs_frequency_domain.setdefault('shift', self.het_shift)
-        signal = self.frequency_domain(**kwargs_frequency_domain)
+        #kwargs_frequency_domain.setdefault('start', self.het_start)
+        #kwargs_frequency_domain.setdefault('stop', self.het_stop)
+        #if not isinstance(shift, type(None)):
+        #    print('setting shift: ', shift)
+        #    kwargs_frequency_domain['shift'] = shift
+        signal = self.signal_het(**kwargs_frequency_domain)
         norm = self.norm_het(**kwargs_norm_het)
+        print('signal shape: ', signal.shape)
+        print('Norm Shape: ', norm.shape)
         chi2 = signal/norm
 
         self.chi2 = chi2

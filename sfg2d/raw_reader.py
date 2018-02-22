@@ -82,6 +82,7 @@ def main(config_file='./raw_config.yaml'):
     for fig_config in configuration['figures']:
         # Name is equal the configuration key, so it must be stripped
         fig_name, fig_config = list(fig_config.items())[0]
+        print('********************************************')
         print('Making: {}'.format(fig_name))
         fig_type = fig_config['type']
         kwargs_fig = fig_config['kwargs'].copy()
@@ -95,6 +96,15 @@ def main(config_file='./raw_config.yaml'):
             dpath.util.set(kwargs_fig, path, records[record_name])
 
         fig_func = getattr(fig, fig_type)
+        # Use fig_name as default figure num
+        try:
+            dpath.util.get(kwargs_fig, 'kwargs_figure/num')
+        except KeyError:
+            if not kwargs_fig.get('kwargs_figure'):
+                dpath.util.new(kwargs_fig, 'kwargs_figure/num', fig_name)
+            else:
+                kwargs_fig['kwargs_figure']['num'] = fig_name
+
         figures[fig_name] = fig_func(**kwargs_fig)
 
     # Export a pdf with all figures

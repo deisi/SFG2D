@@ -40,13 +40,17 @@ def save_figs_to_multipage_pdf(figs, fpath):
 
 def multiplot(
         plots=None,
-        kwargs_figure={},
+        kwargs_figure=None,
         args_subplot=[111],
-        kwargs_subplot={},
+        kwargs_subplot=None,
         setters_fig=None,
         setters_axis=None,
         legend=False
 ):
+    if not kwargs_figure:
+        kwargs_figure = {}
+    if not kwargs_subplot:
+        kwargs_subplot = {}
     fig = plt.figure(**kwargs_figure)
     ax = fig.add_subplot(*args_subplot, **kwargs_subplot)
     ax.cla()
@@ -87,7 +91,7 @@ def multiplot(
 def spectrum(
         record,
         kwargs_subplot=None,
-        kwargs_select={},
+        kwargs_select=None,
         x_prop='range',
         x_prop_kw=None,
         save=False,
@@ -120,6 +124,9 @@ def spectrum(
     # Must be None at first to prevent memory leackage from other calls
     if not x_prop_kw:
         x_prop_kw = {}
+    if not kwargs_select:
+        kwargs_select = {}
+
     kwargs_select.setdefault('delay_mean', True)
     kwargs_select.setdefault('frame_med', True)
     kwargs_select.setdefault('prop', 'unpumped')
@@ -189,13 +196,13 @@ def figure(
 def hot_and_cold(
         record_cold,
         record_hot,
-        kwargs_subplot={},
-        kwargs_select_cold={},
-        kwargs_select_hot={},
+        kwargs_subplot=None,
+        kwargs_select_cold=None,
+        kwargs_select_hot=None,
         x_prop='wavenumber',
         title=None,
-        plot_hot_kw={},
-        plot_cold_kw={},
+        plot_hot_kw=None,
+        plot_cold_kw=None,
         scale=1,
         fname='figures/hot_and_cold.pdf',
         save=False,
@@ -204,8 +211,16 @@ def hot_and_cold(
         ylim=None,
 ):
     """Heat figure."""
+
+    if not kwargs_subplot: kwargs_subplot = {}
+    if not kwargs_select_cold: kwargs_select_cold = {}
+    if not kwargs_select_hot: kwargs_select_hot = {}
+    if not plot_hot_kw: plot_hot_kw = {}
+    if not plot_cold_kw: plot_cold_kw = {}
+
     fig, ax = plt.subplots(**kwargs_subplot)
     fig.clf()
+
 
     for kwargs_select in (kwargs_select_hot, kwargs_select_cold):
         kwargs_select.setdefault('delay_mean', True)
