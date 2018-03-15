@@ -154,7 +154,7 @@ class SfgRecord():
                  base=None, norm=None, baseline_offset=0, wavelength=None,
                  wavenumber=None, roi_x_pixel_spec=slice(0, PIXEL), het_shift=None,
                  het_start=None, het_stop=None, norm_het_shift=None,
-                 norm_het_start=None, norm_het_stop=None):
+                 norm_het_start=None, norm_het_stop=None, roi_frames=None):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
         #np.seterr(divide='ignore')
@@ -268,7 +268,9 @@ class SfgRecord():
         self.roi_spectra = slice(0, None)
 
         # Region of interest frames
-        self.roi_frames = slice(0, None)
+        if not roi_frames:
+            roi_frames = slice(None)
+        self.roi_frames = roi_frames
 
         # Region of interest pp_delays
         self.roi_delay = slice(0, None)
@@ -380,6 +382,8 @@ class SfgRecord():
             'norm_het_shift': 'norm_het_shift',
             'norm_het_start': 'norm_het_start',
             'norm_het_stop': 'norm_het_stop',
+            'wavenumber': 'wavenumber',
+            'wavelength': 'wavelength',
         }
 
     @property
@@ -449,41 +453,48 @@ class SfgRecord():
 
         # For historic reasons kwargs_prop and kwargs are not the same
         kwargs_prop = {**kwargs, **kwargs_prop}
-        if isinstance(roi_delay, type(None)):
+
+        if not roi_delay:
             roi_delay = self.roi_delay
-        if isinstance(roi_frames, type(None)):
+        if not roi_frames:
             roi_frames = self.roi_frames
+        if not roi_spectra:
+            roi_spectra = slice(None)
+        # This is wrong for traces
+        if not roi_pixel:
+            roi_pixel = self.roi_x_pixel_spec
 
         # Some prop must ignore spectra settings
-        if isinstance(roi_spectra, type(None)):
-            only_one_spec = ('bleach', 'pumped', 'unpumped')
-            if any([teststr in prop for teststr in only_one_spec]):
-                roi_spectra = [0]
-            else:
-                roi_spectra = self.roi_spectra
+        #if isinstance(roi_spectra, type(None)):
+        #    only_one_spec = ('bleach', 'pumped', 'unpumped')
+        #    if any([teststr in prop for teststr in only_one_spec]):
+        #        roi_spectra = [0]
+        #    else:
+        #        roi_spectra = self.roi_spectra
 
         # Some prop must ignore roi_pixel settings
         # This allows for better singal to noise because
         # these properties rely on an fft of the raw data
         # that works better if no 0 data is at the beginning and
         # end.
-        if isinstance(roi_pixel, type(None)):
-            if prop in ('time_domain', 'frequency_domain',
-                        'normalize_het', 'norm_het', 'signal_het'):
-                roi_pixel = slice(None)
-            else:
-                roi_pixel = self.roi_x_pixel_spec
+        #if isinstance(roi_pixel, type(None)):
+        #    if prop in ('time_domain', 'frequency_domain',
+        #                'normalize_het', 'norm_het', 'signal_het'):
+        #        roi_pixel = slice(None)
+        #    else:
+        #        roi_pixel = self.roi_x_pixel_spec
 
         # Usually X-Axis properties.
-        if prop in ('pixel', 'wavenumber', 'wavelength', 'pp_delays', 'frames'):
+        if prop in ('pixel', 'wavenumber', 'wavelength', 'pp_delays', 'frames', 'pp_delays_ps'):
             ret = getattr(self, prop)
             if prop in ('pixel', 'wavenumber', 'wavelength'):
                 ret = ret[roi_pixel]
-            elif prop is "pp_delays":
+            elif prop in ("pp_delays", 'pp_delays_ps'):
                 ret = ret[roi_delay]
             elif prop is "frames":
                 ret = ret[roi_frames]
             return ret
+
         elif prop == 'range':
             ret = np.arange(0, self.number_of_x_pixel)
             if roi_pixel:
@@ -492,25 +503,47 @@ class SfgRecord():
 
         # Real properties get used directly
         elif prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2'):
-
             ret = getattr(self, prop)
+            # Only Real properties get cut down
+            print('Prop: ', prop)
+            print('Selecting Delay', roi_delay)
+            print('Selecting Frames:', roi_frames)
+            print('Selecting Spectra', roi_spectra)
+            print('Selecting Pixels: ', roi_pixel)
+            ret = ret[
+                    roi_delay,
+                    roi_frames,
+                    roi_spectra,
+                    roi_pixel,
+                   ]
+            print('After slicing: ', ret.shape)
+
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
                       'time_domain', 'frequency_domain', 'normalize_het',
                       'norm_het', 'signal_het'):
+            # rois get passed down to inferior properties
+            kwargs_prop['roi_delay'] = roi_delay
+            kwargs_prop['roi_frames'] = roi_frames
+            kwargs_prop['roi_spectra'] = roi_spectra
+            kwargs_prop['roi_pixel'] = roi_pixel
+
+            # Corrects trace in such a way, that it returns only the y data
+            # what is the expected behaviour of a select call
+            if prop == 'trace':
+                kwargs_prop.setdefault('y_only', True)
 
             ret = getattr(self, prop)(**kwargs_prop)
+
+            # Pixel get selected up on trace selection already. Here they must behaviour
+            # removed, because else a double call would occur
+            #if prop == 'trace':
+            # Sublevel props dont get used for selection
         else:
             raise ValueError("Don't know prop: {}".format(prop))
 
         print('Prop: ', prop)
-        print('Selecting Pixels: ', roi_pixel)
-        ret = ret[
-                roi_delay,
-                roi_frames,
-                roi_spectra,
-                roi_pixel,
-               ]
+        print('ret.shape: ',ret.shape)
         if prop in ('normalize_het', 'norm_het', 'signal_het') and frame_med:
             ret = np.mean(ret, axis=FRAME_AXIS_INDEX, keepdims=1)
             frame_med = None
@@ -542,6 +575,21 @@ class SfgRecord():
             ret = np.square(ret)
         if sqrt:
             ret = np.sqrt(ret)
+        return ret
+
+    def selectE(
+            self,
+            prop,
+            **kwargs
+    ):
+        """Select errors of properties."""
+
+        ret = getattr(self, prop)
+        # Infired properties are functions and need to be called with kwargs
+        ## TODO select could be written in the same way
+        if prop in ('traceE', ):
+            ret = ret(**kwargs)
+
         return ret
 
     def sem(self, prop, **kwargs):
@@ -671,14 +719,14 @@ class SfgRecord():
     def rawDataE(self):
         """Std error of the mean rawData.
         """
-        self._rawDataE = self._calc_sem('rawData')
+        self._rawDataE = self.sem('rawData')
         return self._rawDataE
 
     @property
     def baseE(self):
         """Error of the baseline/background.
         """
-        self._baseE = self._calc_sem('base')
+        self._baseE = self.sem('base')
         return self._baseE
 
     @property
@@ -686,19 +734,19 @@ class SfgRecord():
         """Error of the normalization spectrum.
 
         Same structure as `SfgRecord.rawData`."""
-        self._normE = self._calc_sem('norm')
+        self._normE = self.sem('norm')
         return self._normE
 
     @property
     def basesubedE(self):
         """Data error after subtracting baseline."""
-        self._basesubedE = self._calc_sem('basesubed')
+        self._basesubedE = self.sem('basesubed')
         return self._basesubedE
 
     @property
     def normalizedE(self):
         """Error of the normalized data."""
-        self._normalizedE = self._calc_sem('normalized')
+        self._normalizedE = self.sem('normalized')
         return self._normalizedE
 
     @property
@@ -1038,7 +1086,7 @@ class SfgRecord():
             raise IOError("Cant set unpumped index bigger then data dim.")
         self._unpumped_index = value
 
-    def pumped(self, prop='normalized', **kwargs):
+    def pumped(self, prop='normalized', pumped_index=None, **kwargs):
         """Returns subselected_data at pumped index.
 
         kwargs are same as for SfgRecord.select.
@@ -1046,33 +1094,35 @@ class SfgRecord():
         *prop*: normalized
         *frame_med*: True
         """
-        kwargs.setdefault('roi_spectra', [self.pumped_index])
+        if not pumped_index:
+            pumped_index = self.pumped_index
+        kwargs['roi_spectra'] = slice(pumped_index, pumped_index + 1)
         kwargs['prop'] = prop
-        # Reset subselect kwargs, to cope with multiple callings of it.
-        kwargs.setdefault('roi_delay', slice(None))
-        kwargs.setdefault('roi_frames', slice(None))
-        kwargs.setdefault('roi_pixel', slice(None))
         return self.select(**kwargs)
 
-    def unpumped(self, prop='normalized', **kwargs):
-        kwargs.setdefault('roi_spectra', [self.unpumped_index])
+    def unpumped(self, prop='normalized', unpumped_index=None, **kwargs):
+        if not unpumped_index:
+            unpumped_index = self.unpumped_index
+        kwargs['roi_spectra'] = slice(unpumped_index, unpumped_index + 1)
         kwargs['prop'] = prop
-        # Reset subselect kwargs, to cope with multiple callings of it.
-        kwargs.setdefault('roi_delay', slice(None))
-        kwargs.setdefault('roi_frames', slice(None))
-        kwargs.setdefault('roi_pixel', slice(None))
         return self.select(**kwargs)
 
-    def bleach(self, opt='rel', prop='normalized', **kwargs):
+    def bleach(self, opt='rel', kwargs_pumped=None, kwargs_unpumped=None, **kwargs):
         """Calculate bleach of property with given operation."""
 
-        kwargs['prop'] = prop
         # Reset subselect kwargs, to cope with multiple callings of it.
-        kwargs.setdefault('roi_delay', slice(None))
-        kwargs.setdefault('roi_frames', slice(None))
-        kwargs.setdefault('roi_pixel', slice(None))
-        pumped = self.pumped(**kwargs)
-        unpumped = self.unpumped(**kwargs)
+        if not kwargs_pumped:
+            kwargs_pumped = {}
+        kwargs_pumped = {**kwargs, kwargs_pumped}
+        kwargs_pumped['prop'] = 'pumped'
+
+        if not kwargs_unpumped:
+            kwargs_unpumped = {}
+        kwargs_unpumped = {**kwargs, kwargs_unpumped}
+        kwargs_unpumped['prop'] = 'unpumped'
+
+        pumped = self.select(**kwargs_pumped)
+        unpumped = self.select(**kwargs_unpumped)
 
         if "relative" in opt or '/' in opt or 'rel' in opt:
             relative = True
@@ -1142,10 +1192,12 @@ class SfgRecord():
     def trace(
             self,
             prop='bleach',
-            kwargs_prop={'opt': 'rel', 'prop': 'basesubed'},
+            kwargs_prop=None,
             roi_wavenumber=None,
             roi_delay=None,
             shift_neg_time=False,
+            y_only=False,
+            yerr_only=False,
             **kwargs
     ):
         """Shortcut to get trace.
@@ -1158,6 +1210,8 @@ class SfgRecord():
             This corrects the while data set in such a way, that the given number of
             shift neg time points is used to move the complete data set such that it
             is around 1 there.
+        y_only: lets this function only return the y data.
+        yerr_only: return only yerror
         **kwargs get passed to `SfRecord.select()`:
 
         """
@@ -1167,11 +1221,12 @@ class SfgRecord():
             roi_pixel = kwargs.get('roi_pixel')
             if not roi_pixel:
                 roi_pixel = self.roi_x_pixel_spec
+        if not kwargs_prop:
+            kwargs_prop = {'opt': 'rel', 'prop': 'basesubed'}
         x = self.select(prop='pp_delays', roi_delay=roi_delay)
 
         kwargs['pixel_mean'] = True
         kwargs['roi_delay'] = roi_delay
-        kwargs.setdefault('frame_med', True)
         kwargs.setdefault('roi_pixel', roi_pixel)
 
         y = self.select(
@@ -1189,7 +1244,18 @@ class SfgRecord():
             kwargs_prop=kwargs_prop,
             **kwargs
         )
+        if y_only:
+            return y
+        if yerr_only:
+            return yerr
         return x, y, yerr
+
+    def traceE(self, *args, **kwargs):
+        """Return traces error"""
+        kwargs['yerr_only'] = True
+        kwargs['y_only'] = False
+        return self.trace(*args, **kwargs)
+
 
     def time_domain(self, **kwargs):
         """
@@ -1247,15 +1313,9 @@ class SfgRecord():
                         ret.shape[FRAME_AXIS_INDEX], np.shape(shift))
                     )
                 for j in range(ret.shape[FRAME_AXIS_INDEX]):
-                    #ret[:, j] = np.abs(ret[:, j]) * np.exp(
-                    #     1j * (np.angle(ret[:, j]) + np.pi * shift[j])
-                    #)
                     ret[:, j] = ret[:, j] * np.exp(1j * np.pi * shift[j])
                     print('Shifting with: ', np.exp(1j * np.pi * shift[j]))
             else:
-                #ret = np.abs(ret) * np.exp(
-                #    1j * (np.angle(ret) + np.pi * shift)
-                #)
                 ret = ret * np.exp(1j * np.pi * shift)
                 print('Shifting with: ', np.exp(1j * np.pi * shift))
 
@@ -1411,6 +1471,7 @@ class SfgRecord():
             imp = imported['data']
             for key, value in self.saveable.items():
                 if key in imp.keys():
+                    # There are some male formatted arrays
                     setattr(self, value, imp[key])
                     this = getattr(self, value)
                     rshape = getattr(this, 'shape')
@@ -1491,7 +1552,6 @@ class SfgRecord():
         If you want to know what is saved, then you can open the saved
         result with e.g. 7.zip and inspect its content."""
         kwargs = {key: getattr(self, value) for key, value in self.saveable.items()}
-        print(kwargs['zero_time_selec'])
         np.savez_compressed(
             file,
             **kwargs
@@ -1734,15 +1794,16 @@ class Record2d():
           Array of index positions, that effectively match the value."""
         return abs(self.pp_delays_corrected-value).argmin(1)
 
-    def bleach(self, opt='rel'):
+    def bleach(self, opt='rel', **kwargs):
+        pumped = self.select('pumped', **kwargs)
+        unpumped = self.select('unpumped'**kwargs)
+
         if opt is 'rel':
-            relative = True
-            bleach = self.pumped / self.unpumped
+            bleach = pumped / unpumped
         elif opt is 'abs':
-            relative = False
-            bleach = self.pumped - self.unpumped
+            bleach = pumped - unpumped
         else:
-            raise IOError(
+            raise ValueError(
                 "Must enter valid opt {} is invalid".format(opt)
             )
         if self.zero_time_subtraction:
@@ -1750,7 +1811,7 @@ class Record2d():
             bleach -= zero_time
             # Recorretion for zero_time offset needed because
             # data is expected to be at 1 for negative times.
-            if relative:
+            if opt is 'rel':
                 bleach += 1
                 self.zero_time_rel = zero_time
             else:
@@ -1783,7 +1844,7 @@ class Record2d():
             self,
             delay,
             prop='bleach',
-            kwargs_prop={},
+            kwargs_prop=None,
             roi_pixel=slice(None),
             medfilt_kernel=None,
             resample_freqs=0,
@@ -1814,6 +1875,8 @@ class Record2d():
         2d Numpy array with pump vs probe orientation.
 
         """
+        if not kwargs_prop:
+          kwargs_prop = {}
         z_raw = getattr(self, prop)(**kwargs_prop)
         if shift_zero_time_offset:
             time = self.pp_delays[delay]
