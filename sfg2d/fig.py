@@ -45,7 +45,12 @@ def multiplot(
         kwargs_subplot=None,
         setters_fig=None,
         setters_axis=None,
-        legend=False
+        legend=False,
+        ticks_right=False,
+        title=None,
+        kwargs_subplots_adjust=None,
+        xticks=None,
+        yticks=None,
 ):
     if not kwargs_figure:
         kwargs_figure = {}
@@ -54,8 +59,12 @@ def multiplot(
     fig = plt.figure(**kwargs_figure)
     ax = fig.add_subplot(*args_subplot, **kwargs_subplot)
     ax.cla()
-
-    #plt.ion()
+    if kwargs_subplots_adjust:
+        plt.subplots_adjust(**kwargs_subplots_adjust)
+    if title:
+        plt.title(title)
+    if ticks_right:
+        ax.yaxis.tick_right()
 
     if setters_fig:
         for setter_name, setter_value in setters_fig.items():
@@ -69,11 +78,17 @@ def multiplot(
         plot_func = getattr(sfg2d.plot, plot_func_name)
 
         record = plot_config['record']
-        print(plot_config['kwargs_select_y'])
+        print('Select y data with: ', plot_config['kwargs_select_y'])
         ydata = record.select(**plot_config['kwargs_select_y'])
+        print('Select x data with:', plot_config['kwargs_select_x'])
         xdata = record.select(**plot_config['kwargs_select_x'])
-
         kwargs_plot = plot_config.get('kwargs_plot', {})
+
+        kwargs_select_yerr = plot_config.get('kwargs_select_yerr')
+        if kwargs_select_yerr:
+           yerr = record.sem(**kwargs_select_yerr)
+           kwargs_plot['yerr'] = yerr
+
         plot_func(xdata, ydata, **kwargs_plot)
 
     if setters_axis:
@@ -85,7 +100,15 @@ def multiplot(
                 setter_func(setter_value)
 
     if legend:
-        ax.legend()
+        if isinstance(legend, dict):
+            ax.legend(**legend)
+        else:
+            ax.legend()
+
+    if xticks:
+        plt.xticks(xticks)
+    if yticks:
+        plt.yticks(yticks)
     return fig, ax
 
 def spectrum(
