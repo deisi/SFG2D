@@ -400,6 +400,7 @@ lines.linewidth   : 2     # line width in points
 ### Legend
 #legend.loc           : best
 #legend.frameon       : True     # if True, draw the legend on a background patch
+legend.frameon       : False     # if True, draw the legend on a background patch
 #legend.framealpha    : 0.8      # legend patch transparency
 #legend.facecolor     : inherit  # inherit from axes.facecolor; or color spec
 #legend.edgecolor     : 0.8      # background patch boundary color
@@ -443,6 +444,8 @@ figure.dpi       : 180      # figure dots per inch
 # The figure subplot parameters.  All dimensions are a fraction of the
 #figure.subplot.left    : 0.125  # the left side of the subplots of the figure
 #figure.subplot.right   : 0.9    # the right side of the subplots of the figure
+figure.subplot.left    : 0.13  # the left side of the subplots of the figure
+figure.subplot.right   : 0.87    # the right side of the subplots of the figure
 #figure.subplot.bottom  : 0.11    # the bottom of the subplots of the figure
 figure.subplot.bottom: 0.16
 #figure.subplot.top     : 0.88    # the top of the subplots of the figure

@@ -6,8 +6,13 @@ from scipy.special import erf, erfc
 from scipy.stats import norm, skewnorm
 from iminuit import Minuit
 import sys
+import yaml
 thismodule = sys.modules[__name__]
 
+def read_fit_results(fname):
+    with open(fname) as ifile:
+        fit_results = yaml.load(ifile)
+    return fit_results
 
 def make_model_fit(
         model_name,
@@ -54,7 +59,7 @@ def fit_model(model, minos=False, print_matrix=True):
         model.minuit.print_matrix()
 
 
-def normalize_trace(model, shift_mu=False, scale_amp=False, shift_heat=False):
+def normalize_trace(model, shift_mu=False, scale_amp=False, shift_heat=False, scale_x=None):
     """Normalize trace.
 
     model: model to work on
@@ -82,6 +87,9 @@ def normalize_trace(model, shift_mu=False, scale_amp=False, shift_heat=False):
     yerr = model.yerr/scale
     xsample = model.xsample - mu
     yfit_sample = (model.yfit_sample+offset-1)/scale+1
+    if scale_x:
+        xdata = scale_x * xdata
+        xsample = scale_x * xsample
     return xdata, ydata, yerr, xsample, yfit_sample
 
 class Fitter():
@@ -196,6 +204,7 @@ class Fitter():
         elif len(np.shape(value)) != 1:
             raise IndexError('Shappe of yerr is not of dim 1')
         if np.any(value==0):
+            raise ValueError('Cant handle 0 errors')
             from warnings import warn
             warn('Passed uncertainty has a 0 value\nIgnoring errorbars.\n{}'.format(value))
             self._sigma = value
@@ -462,6 +471,7 @@ class FourLevelMolKinM(Fitter):
           - **t1**: Livetime of first state
           - **t2**: livetime of second(intermediate) state
           - **c**: Coefficient of third(Heat) state
+          - **mu**: Position of pump pulse, the zero.
 
 
         **Returns**
@@ -531,7 +541,8 @@ class Crosspeak(FourLevelMolKinM):
         return dNdt
 
     def fit_func(self, t, t1, teq, tup, tdown, mu, gSigma, s, c):
-        """Function that is used for fitting the data."""
+        """Function that is used for fitting the data.
+        """
         N = self.population(
             t,
             t1,
@@ -599,6 +610,7 @@ class Crosspeak(FourLevelMolKinM):
         if isinstance(value, type(None)):
             self._sigma = np.ones_like(self._ydata)
         if np.any(value == 0):
+            raise ValueError('Cant handle 0 errors')
             from warnings import warn
             warn('Passed uncertainty has a 0 value\nIgnoring errorbars.\n{}'.format(value))
             self._sigma = value

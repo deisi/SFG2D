@@ -170,6 +170,7 @@ def trace(
     if not ax:
         ax = plt.gca()
 
+
     # Transpose because we want the delay axis to be the last axis
     # of the array.
     kwargs.setdefault('marker', 'o')
