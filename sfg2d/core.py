@@ -5,6 +5,7 @@ import numpy as np
 import scipy.fftpack as fft
 from scipy.signal import medfilt
 from scipy.stats import sem
+import dpath.util
 
 from .io import import_data
 from .utils import (
@@ -150,9 +151,9 @@ class SfgRecord():
     shift: shift heterodyne singal by given angle in radiant.
     norm_het_shift: Shift heterodyne quartz by given angle in radiants.
     """
-    def __init__(self, fname=None, rawData=np.zeros((1, 1, 1, PIXEL)),
+    def __init__(self, fname=None, rawData=None,
                  base=None, norm=None, baseline_offset=0, wavelength=None,
-                 wavenumber=None, roi_x_pixel_spec=slice(0, PIXEL), het_shift=None,
+                 wavenumber=None, roi_x_pixel_spec=None, het_shift=None,
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None):
 
@@ -160,29 +161,23 @@ class SfgRecord():
         #np.seterr(divide='ignore')
         #np.seterr(invalid='ignore')
 
-        # 1d Array of pump-probe delay values
-        self.pp_delays = np.array([0])
-
-        # Dicitionary of metadata
-        self.metadata = {}
-
-        # Set and format and test filenames
+        # Set format and test filenames
         self.fname = fname
 
-        # 4d array of raw data
-        self._rawData = rawData
+        # List of dates the spectra were recorded at.
+        self._dates = None
+
+        # PumpProbe delays
+        self.pp_delays = np.array([0])
 
         # Error of raw data
-        self._rawDataE = None
+        self._rawDataE = np.zeros((1, 1, 1, PIXEL))
 
         # 4d buffer array of processed data
         self._data = None
 
         # 4d array of baseline/background data
         self._base = None
-
-        # Constant offset for baseline
-        self._baseline_offset = baseline_offset
 
         # error of base
         self._baseE = None
@@ -217,28 +212,18 @@ class SfgRecord():
         # type of data file
         self.type = 'unknown'
 
-        # 1d array with wavelength values
-        self._wavelength = wavelength
-        if not isinstance(wavelength, type(None)):
-            self._setted_wavelength = True
-        else:
-            self._setted_wavelength = False
+        # Dicitionary of metadata
+        self.metadata = {}
 
-        # 1d array with wavenumber values
-        self._wavenumber = wavenumber
-        if not isinstance(wavenumber, type(None)):
-            self._setted_wavenumber = True
-        else:
-            self._setted_wavenumber = False
+        # Placeholderf for setted wavenumbers and wavelength
+        self._setted_wavelength = None
+        self._setted_wavenumber = None
 
         # y-pixel/spectra index of pumped data
         self._pumped_index = 0
 
         # index of unpumped data
         self._unpumped_index = 1
-
-        # List of dates the spectra were recorded at.
-        self._dates = None
 
         # Boolean to toggle default zero_time subtraction
         self._zero_time_subtraction = True
@@ -258,19 +243,14 @@ class SfgRecord():
         # 4d array of values for the static drift correction.
         self._static_corr = None
 
-        # Region of interest for the x_spec
-        self.roi_x_pixel_spec = roi_x_pixel_spec
+        #roi_x_pixel_spec
+        self.roi_x_pixel_spec = slice(0, PIXEL)
 
         # Region of interest x_pixel
         self.rois_x_pixel_trace = [slice(0, PIXEL)]
 
         # Region of interest y_pixel/spectra
-        self.roi_spectra = slice(0, None)
-
-        # Region of interest frames
-        if not roi_frames:
-            roi_frames = slice(None)
-        self.roi_frames = roi_frames
+        self.roi_spectra = slice(None)
 
         # Region of interest pp_delays
         self.roi_delay = slice(0, None)
@@ -293,48 +273,69 @@ class SfgRecord():
         # A Nice Latex Version of the name of the recrod
         self._lname = None
 
+
+        #### Import data if given
+        if fname:
+            self._readData(self.fname)
+        #########################################################################
+        # Here come properties that can overwrite the filename results after import
+
+        # 4d array of raw data
+        if rawData:
+            self._rawData = rawData
+
+        # Constant offset for baseline
+        if baseline_offset:
+            self._baseline_offset = baseline_offset
+
+        # 1d array with wavelength values
+        if wavelength:
+            self.wavelength = wavelength
+
+        # 1d array with wavenumber values
+        if wavenumber:
+            self.wavenumber = wavenumber
+
+        # Region of interest for the x_spec
+        if roi_x_pixel_spec:
+            self.roi_x_pixel_spec = roi_x_pixel_spec
+
+        # Region of interest frames
+        if roi_frames:
+            self.roi_frames = roi_frames
+
         # Default time_domain start cutoff
-        self.het_start = het_start
+        if het_start:
+            self.het_start = het_start
 
         # Default time_domain stop cutoff
-        self.het_stop = het_stop
+        if het_stop:
+            self.het_stop = het_stop
 
         # Default shift of the heterodyne signal
-        self.het_shift = het_shift
+        if het_shift:
+            self.het_shift = het_shift
 
         # Default amount to shift heterodyne normalization with
-        self.norm_het_shift = norm_het_shift
+        if norm_het_shift:
+            self.norm_het_shift = norm_het_shift
 
         # Default time_domain start cutoff for heterodyne normalization signal
-        self.norm_het_start = norm_het_start
+        if norm_het_start:
+            self.norm_het_start = norm_het_start
 
         # Default time_domain stop cutoff for heterodyne normalization signal
-        self.norm_het_stop = norm_het_stop
+        if norm_het_stop:
+            self.norm_het_stop = norm_het_stop
 
-        if isinstance(fname, type(None)):
-            return
+        if base:
+            base = SfgRecord(base).data
+            self.base = base
 
-        self._dates = None
+        if norm:
+            norm = SfgRecord(norm).data
+            self.norm = norm
 
-        self._readData(self.fname)
-
-        if isinstance(base, type(None)):
-            base = BASE_SPEC
-        else:
-            if isinstance(base, str):
-                base = SfgRecord(base).data
-                self.base = base
-            else:
-                self.base = base
-
-        if isinstance(norm, type(None)):
-            norm = NORM_SPEC
-        else:
-            if isinstance(norm, str):
-                norm = SfgRecord(norm).data
-                self.norm = norm
-            else:
-                self.norm = norm
 
     def __repr__(self):
         msg = '# ppelays: {}\n'.format(self.number_of_pp_delays)
@@ -413,7 +414,7 @@ class SfgRecord():
             frame_med=False, delay_mean=False, spectra_mean=False,
             pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
             attribute=None, scale=None, abs=False, square=False, sqrt=False,
-            offset=None,
+            offset=None, roi_wavenumber=None,
             **kwargs
     ):
         """Central Interface to select data.
@@ -441,6 +442,7 @@ class SfgRecord():
           - **square**: Boolean to calculate square with
           - **sqrt**: Boolean to calculate square-root with
           - **offset**: Offset to add to result
+          - **roi_wavenumber**: roi to calculate trace over in wavenumbers.
 
         **kwargs**:
           Combined into *kwargs_prop*
@@ -462,7 +464,10 @@ class SfgRecord():
             roi_spectra = slice(None)
         # This is wrong for traces
         if not roi_pixel:
-            roi_pixel = self.roi_x_pixel_spec
+            if roi_wavenumber:
+                roi_pixel = self.wavenumber2pixelSlice(roi_wavenumber)
+            else:
+                roi_pixel = self.roi_x_pixel_spec
 
         # Some prop must ignore spectra settings
         #if isinstance(roi_spectra, type(None)):
@@ -575,21 +580,6 @@ class SfgRecord():
             ret = np.square(ret)
         if sqrt:
             ret = np.sqrt(ret)
-        return ret
-
-    def selectE(
-            self,
-            prop,
-            **kwargs
-    ):
-        """Select errors of properties."""
-
-        ret = getattr(self, prop)
-        # Infired properties are functions and need to be called with kwargs
-        ## TODO select could be written in the same way
-        if prop in ('traceE', ):
-            ret = ret(**kwargs)
-
         return ret
 
     def sem(self, prop, **kwargs):
@@ -1110,16 +1100,19 @@ class SfgRecord():
     def bleach(self, opt='rel', kwargs_pumped=None, kwargs_unpumped=None, **kwargs):
         """Calculate bleach of property with given operation."""
 
-        # Reset subselect kwargs, to cope with multiple callings of it.
         if not kwargs_pumped:
             kwargs_pumped = {}
-        kwargs_pumped = {**kwargs, kwargs_pumped}
+        kwargs_pumped = {**kwargs, **kwargs_pumped}
         kwargs_pumped['prop'] = 'pumped'
-
         if not kwargs_unpumped:
             kwargs_unpumped = {}
-        kwargs_unpumped = {**kwargs, kwargs_unpumped}
+        kwargs_unpumped = {**kwargs, **kwargs_unpumped}
         kwargs_unpumped['prop'] = 'unpumped'
+
+        if opt == 'rel':
+            # Use basesubed instead of norm. This does not update, but only creates new
+            dpath.util.new(kwargs_pumped, 'kwargs_prop/prop', 'basesubed')
+            dpath.util.new(kwargs_unpumped, 'kwargs_prop/prop', 'basesubed')
 
         pumped = self.select(**kwargs_pumped)
         unpumped = self.select(**kwargs_unpumped)
@@ -1193,7 +1186,6 @@ class SfgRecord():
             self,
             prop='bleach',
             kwargs_prop=None,
-            roi_wavenumber=None,
             roi_delay=None,
             shift_neg_time=False,
             y_only=False,
@@ -1204,7 +1196,6 @@ class SfgRecord():
 
         prop: property to calculate the trace from
         kwargs_prop: additional kwargs of the property
-        roi_wavenumber: roi to calculate trace over in wavenumbers.
         roi_delay: pp_delay roi to use as x axis.
         shift_neg_time: The Zero_time_subtraction can lead to an not 1 negative time.
             This corrects the while data set in such a way, that the given number of
@@ -1215,19 +1206,12 @@ class SfgRecord():
         **kwargs get passed to `SfRecord.select()`:
 
         """
-        if roi_wavenumber:
-            roi_pixel = self.wavenumber2pixelSlice(roi_wavenumber)
-        else:
-            roi_pixel = kwargs.get('roi_pixel')
-            if not roi_pixel:
-                roi_pixel = self.roi_x_pixel_spec
         if not kwargs_prop:
             kwargs_prop = {'opt': 'rel', 'prop': 'basesubed'}
         x = self.select(prop='pp_delays', roi_delay=roi_delay)
 
         kwargs['pixel_mean'] = True
         kwargs['roi_delay'] = roi_delay
-        kwargs.setdefault('roi_pixel', roi_pixel)
 
         y = self.select(
             prop=prop,
