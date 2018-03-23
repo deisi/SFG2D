@@ -1,26 +1,32 @@
 """Module to read raw data and produce records with."""
 from pylab import *
+import pip
 import sys
-import yaml
 import os
 import numpy as np
 import sfg2d.core as core
 import sfg2d.fig as fig
+import sfg2d.models
 import dpath.util
+import logging
+from . import myyaml as yaml
+import pandas as pd
 plt.ion()
 
+logging.basicConfig(level=logging.DEBUG)
 gitversion = '.gitversion'
 
 def main(config_file='./raw_config.yaml'):
-    global records, figures, configuration
+    global records, figures, configuration, models
     records = {}
     figures = {}
     configuration = {}
+    models = {}
     config_file = os.path.expanduser(config_file)
     dir = os.path.split(os.path.abspath(config_file))[0]
     cur_dir = os.getcwd()
     os.chdir(dir)
-    print('Changing to: ', dir)
+    logging.info('Changing to: {}'.format(dir))
 
     # Import the configuration
     with open(config_file) as ifile:
@@ -33,6 +39,12 @@ def main(config_file='./raw_config.yaml'):
 
     # Import and configure data
     records = import_records(configuration['records'])
+
+    # Make Models
+    config_models = configuration.get('models')
+    if config_models:
+        logging.info('Making Models...')
+        models = make_models(config_models)
 
     # Make figures
     figures_config = configuration.get('figures')
@@ -51,14 +63,13 @@ def main(config_file='./raw_config.yaml'):
         sha = repo.head.object.hexsha
         with open(dir + '/' + gitversion, 'r+') as ofile:
             if sha not in ofile.read():
-                print('Appending {} to {}'.format(
+                logging.info('Appending {} to {}'.format(
                     sha, os.path.abspath(gitversion)))
                 ofile.write(sha + '\n')
     except InvalidGitRepositoryError:
-        print('Cant Save gitversion because no repo available.')
+        logging.warning('Cant Save gitversion because no repo available.')
 
     # Write down all installed python modules
-    import pip
     installed_packages = pip.get_installed_distributions()
     installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
          for i in installed_packages])
@@ -80,16 +91,11 @@ def read_options(options):
         calib_pixel = np.loadtxt(file_calib)
         try:
             wavelength = calib_pixel.T[1]
-            #dpath.util.set(
-            #    configuration,
-            #    'records/*/kwargs_record/wavelength',
-            #    wavelength
-            #)
             for config_record in configuration['records']:
                 dpath.util.new(
                     config_record, 'kwargs_record/wavelength', wavelength)
         except IndexError:
-            print("Cant find wavelength in calib file %s".format(
+            logging.warning("Cant find wavelength in calib file %s".format(
                 file_calib))
         try:
             wavenumber = calib_pixel.T[2]
@@ -102,7 +108,7 @@ def read_options(options):
                 dpath.util.new(
                     config_record, 'kwargs_record/wavenumber', wavenumber)
         except IndexError:
-            print('Cant find wavenumber in calib file %s'.format(
+            logging.warning('Cant find wavenumber in calib file %s'.format(
                     file_calib))
 
     cache_dir = options.get('cache_dir', './cache')
@@ -114,7 +120,7 @@ def import_records(config_records):
     """Import records"""
     records = {}
     for record_entrie in config_records:
-        print('Importing {}'.format(record_entrie['name']))
+        logging.info('Importing {}'.format(record_entrie['name']))
         fpath = record_entrie['fpath']
         kwargs_record = record_entrie.get('kwargs_record', {})
         base_dict = record_entrie.get('base')
@@ -142,11 +148,52 @@ def import_records(config_records):
 
         # Save cached version of record
         fname = record_entrie['cache_dir'] + '/' + record_entrie['name'] + '.npz'
-        print('Saving cached record in ', os.path.abspath(fname))
+        logging.info('Saving cached record in {}'.format(os.path.abspath(fname)))
         #record.save(fname)
 
     return records
 
+def make_models(config_models):
+    """Make data models, aka. fits.
+
+    **Returns:**
+    list of model objects.
+    """
+    models = {}
+    for model_name in sort(list(config_models.keys())):
+        logging.info('Working on model {}'.format(model_name))
+        this_model_config = config_models[model_name]
+        # Replace record string with real record becuse real records contain the data
+        record_name = this_model_config['record']
+        this_model_config['record'] = records[record_name]
+
+        model = sfg2d.models.model_fit_record(**this_model_config)
+        models[model_name] = model
+
+        # Update kwargs with fit results so the results are available
+        dpath.util.set(this_model_config, 'kwargs_model/fitarg', model.fitarg)
+        #setback record name to string
+        this_model_config['record'] = record_name
+
+    # Update models on disk because we want the fit results to be saved
+    fname_models_file = 'models.yaml'
+    with open(fname_models_file, 'r') as models_file:
+        old_models = yaml.load(models_file)
+
+    try:
+       new_models = {**old_models, **config_models}
+    except TypeError:
+        logging.warn('Replacing old models with new models due to error')
+        new_models = config_models
+
+    with open(fname_models_file, 'w') as models_file:
+        logging.info('Saving models to {}'.format(os.path.abspath(fname_models_file)))
+        yaml.dump(new_models, models_file)
+
+    # Update config_models with fit results
+    config_models = new_models
+
+    return models
 
 def make_figures(config_figures):
     """Make the figures.
@@ -163,8 +210,7 @@ def make_figures(config_figures):
     for fig_config in config_figures:
         # Name is equal the configuration key, so it must be stripped
         fig_name, fig_config = list(fig_config.items())[0]
-        print('********************************************')
-        print('Making: {}'.format(fig_name))
+        logging.info('Making: {}'.format(fig_name))
         fig_type = fig_config['type']
         kwargs_fig = fig_config['kwargs'].copy()
 
@@ -173,8 +219,17 @@ def make_figures(config_figures):
             kwargs_fig, '**/record', yielded=True
         )
         for path, record_name in found_records:
-            print("Configuring {} with {}".format(path, record_name))
+            logging.info("Configuring {} with {}".format(path, record_name))
             dpath.util.set(kwargs_fig, path, records[record_name])
+
+        # Replace model strings with real models
+        found_models = dpath.util.search(
+            kwargs_fig, '**/model', yielded=True
+        )
+        for path, model_name in found_models:
+            logging.info("Configuring {} with {}".format(path, model_name))
+            dpath.util.set(kwargs_fig, path, models[model_name])
+
 
         fig_func = getattr(fig, fig_type)
         # Use fig_name as default figure num
@@ -188,3 +243,18 @@ def make_figures(config_figures):
 
         figures[fig_name] = fig_func(**kwargs_fig)
     return figures
+
+
+def get_pd_fitargs():
+    """Return fitargs as DataFrame with model names."""
+    serach_res = dpath.util.search(
+        configuration['models'],
+        '*/kwargs_model/fitarg',
+        yielded=True
+    )
+    models = [path.split('/')[0] for path, _ in serach_res]
+    datas = [fitarg for _, fitarg in serach_res]
+
+    df = pd.DataFrame.from_dict(data)
+    df['model'] = models
+    return df

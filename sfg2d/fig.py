@@ -7,6 +7,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import sfg2d
+import logging
 
 from .plot import fit_model
 
@@ -35,7 +36,7 @@ def save_figs_to_multipage_pdf(figs, fpath):
         for fig in figs:
             pdf.savefig(fig)
 
-    print("Saved figure to: {}".format(os.path.abspath(fpath)))
+    logging.info("Saved figure to: {}".format(os.path.abspath(fpath)))
 
 
 def multiplot(
@@ -76,20 +77,29 @@ def multiplot(
         # Therefore it must be stripped
         plot_func_name, plot_config = list(plot_config.items())[0]
         plot_func = getattr(sfg2d.plot, plot_func_name)
-
-        record = plot_config['record']
-        print('Select y data with: ', plot_config['kwargs_select_y'])
-        ydata = record.select(**plot_config['kwargs_select_y'])
-        print('Select x data with:', plot_config['kwargs_select_x'])
-        xdata = record.select(**plot_config['kwargs_select_x'])
         kwargs_plot = plot_config.get('kwargs_plot', {})
 
-        kwargs_select_yerr = plot_config.get('kwargs_select_yerr')
-        if kwargs_select_yerr:
-           yerr = record.sem(**kwargs_select_yerr)
-           kwargs_plot['yerr'] = yerr
+        # This becomes spagetty code
+        record = plot_config.get('record')
+        model = plot_config.get('model')
+        if record:
+            logging.info('Select y data with: {}'.format( plot_config['kwargs_select_y'] ))
+            ydata = record.select(**plot_config['kwargs_select_y'])
+            logging.info('Select x data with: {}'.format( plot_config['kwargs_select_x'] ))
+            xdata = record.select(**plot_config['kwargs_select_x'])
 
-        plot_func(xdata, ydata, **kwargs_plot)
+            kwargs_select_yerr = plot_config.get('kwargs_select_yerr')
+            if kwargs_select_yerr:
+               yerr = record.sem(**kwargs_select_yerr)
+               kwargs_plot['yerr'] = yerr
+
+            plot_func(xdata, ydata, **kwargs_plot)
+
+        elif model:
+            logging.info('Making model bases plot')
+            plot_func(model, **kwargs_plot)
+        else:
+            raise NotImplementedError('Uknown data type for this figure function')
 
     if setters_axis:
         for setter_name, setter_value in setters_axis.items():
@@ -189,9 +199,9 @@ def spectrum(
     if not fname:
         fname = 'figures/{}_static.pdf'.format(record.name)
     if save:
-        print('Saving to: {}'.format(fname))
+        logging.info('Saving to: {}'.format(fname))
         plt.savefig(fname)
-        print("saved")
+        logging.info("saved")
     return fig, ax
 
 def figure(
@@ -265,9 +275,9 @@ def hot_and_cold(
     if ylim:
         plt.ylim(*ylim)
     if save:
-        print('Saving to: ', os.path.abspath(fname))
+        logging.info('Saving to: {}'.format(os.path.abspath(fname)))
         plt.savefig(fname)
-        print('DONE')
+        logging.info('DONE')
 
     if legend:
         plt.legend()
@@ -316,9 +326,9 @@ def heat_diff(
     if ylim:
         plt.ylim(*ylim)
     if save:
-        print('Saving to: ', os.path.abspath(fname))
+        logging.info('Saving to: {}'.format( os.path.abspath(fname) ))
         plt.savefig(fname)
-        print('DONE')
+        logging.info('DONE')
 
     if legend:
         plt.legend()
@@ -373,7 +383,7 @@ def pump_probe(
     Figure object.
     """
     if skip:
-        print("Skipping...")
+        logging.info("Skipping...")
         return
 
     fig, ax = plt.subplots(**kwargs_subplots)
@@ -408,9 +418,9 @@ def pump_probe(
         fname = 'figures/pump_probe.pdf'
 
     if savefig:
-        print('Saving to:', fname)
+        logging.info('Saving to: {}'.format( fname ))
         plt.savefig(fname)
-        print('DONE')
+        logging.info('DONE')
 
     if close:
         plt.close(fig)
@@ -520,9 +530,9 @@ def trace(
         )
 
     if save:
-        print('Saving to: ', os.path.abspath(fname))
+        logging.info('Saving to: {}'.format(os.path.abspath(fname)))
         plt.savefig(fname)
-        print('DONE')
+        logging.info('DONE')
 
     if close:
         plt.close(fig)
@@ -585,9 +595,9 @@ def trace_model(
         fname = 'figures/trace_model.pdf'
 
     if save:
-        print('Saving to: ', fname)
+        logging.info('Saving to: {}'.format( fname ))
         plt.savefig(fname)
-        print('DONE')
+        logging.info('DONE')
 
     if close:
         plt.close()
@@ -620,9 +630,9 @@ def models(
     plt.legend()
 
     if fname:
-        print('Saving to: ', fname)
+        logging.info('Saving to: {}'.format(fname))
         plt.savefig(fname)
-        print('DONE')
+        logging.info('DONE')
 
     return fig, ax
 
@@ -642,7 +652,7 @@ def record_models(record, model_names, modekwargs_legend_plot=None):
     for model, model_plot_kwg in zip(models, modekwargs_legend_plot):
         # Catch when model was not created
         if model:
-            print(model_plot_kwg)
+            logging.debug(model_plot_kwg)
             sfg2d.plot.model(model, **model_plot_kwg)
     plt.legend()
     plt.xlabel('Time in fs')

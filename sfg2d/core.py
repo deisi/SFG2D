@@ -1,5 +1,6 @@
 
 import warnings
+import logging
 
 import numpy as np
 import scipy.fftpack as fft
@@ -78,9 +79,9 @@ def import_sfgrecord(
         norm = SfgRecord(norm)
         try:
             norm.base = baseline.select(**kwargs_select_baseline)
-            print('Warning: Using record baseline as normalization baseline.')
+            logging.debug('Warning: Using record baseline as normalization baseline.')
         except AttributeError:
-            print('Warning: No baseline for normalization found.')
+            logging.warn('Warning: No baseline for normalization found.')
 
     if norm:
         kwargs_select_norm.setdefault('prop', 'basesubed')
@@ -155,7 +156,9 @@ class SfgRecord():
                  base=None, norm=None, baseline_offset=0, wavelength=None,
                  wavenumber=None, roi_x_pixel_spec=None, het_shift=None,
                  het_start=None, het_stop=None, norm_het_shift=None,
-                 norm_het_start=None, norm_het_stop=None, roi_frames=None):
+                 norm_het_start=None, norm_het_stop=None, roi_frames=None,
+                 zero_time_select=None, pump_freq=None, name=None,
+    ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
         #np.seterr(divide='ignore')
@@ -258,6 +261,9 @@ class SfgRecord():
         # Subreions of interest for pump probe
         self.rois_delays_pump_probe = [slice(0, None)]
 
+        # Default roir frames
+        self.roi_frames = slice(None)
+
         # Buffer for traces. kwg is binning and then [X, Y, Yerr]
         self.traces = {}
 
@@ -268,32 +274,39 @@ class SfgRecord():
         self.figures = {}
 
         # A short name for the record
-        self.name = ''
+        if not name:
+            self.name = ''
+        else:
+            self.name = name
 
         # A Nice Latex Version of the name of the recrod
         self._lname = None
 
+        #
+        self._pump_freq = pump_freq
 
-        #### Import data if given
+        #
+        self.het_shift = 0
+
+        #### Import data from hdd
         if fname:
             self._readData(self.fname)
         #########################################################################
         # Here come properties that can overwrite the filename results after import
 
         # 4d array of raw data
-        if rawData:
+        if hasattr(rawData, '__iter__'):
             self._rawData = rawData
 
         # Constant offset for baseline
-        if baseline_offset:
-            self._baseline_offset = baseline_offset
+        self._baseline_offset = baseline_offset
 
         # 1d array with wavelength values
-        if wavelength:
+        if hasattr(wavelength, '__iter__'):
             self.wavelength = wavelength
 
         # 1d array with wavenumber values
-        if wavenumber:
+        if hasattr(wavenumber, '__iter__'):
             self.wavenumber = wavenumber
 
         # Region of interest for the x_spec
@@ -328,16 +341,26 @@ class SfgRecord():
         if norm_het_stop:
             self.norm_het_stop = norm_het_stop
 
-        if base:
+        # Update zero time select
+        if zero_time_select:
+            self.zero_time_selec = zero_time_select
+
+        if isinstance(base, str):
             base = SfgRecord(base).data
             self.base = base
+        elif hasattr(base, '__iter__'):
+            self.base = base
 
-        if norm:
+        print('Nomr: ', norm)
+        if isinstance(norm, str):
             norm = SfgRecord(norm).data
+            self.norm = norm
+        elif hasattr(norm, '__iter__'):
             self.norm = norm
 
 
-    def __repr__(self):
+    @property
+    def info(self):
         msg = '# ppelays: {}\n'.format(self.number_of_pp_delays)
         msg += '# frames: {}\n'.format(self.number_of_frames)
         msg += '# y-pixel: {}\n'.format(self.number_of_y_pixel)
@@ -349,7 +372,7 @@ class SfgRecord():
         msg += 'Baseline @ {}\n'.format(self.base.mean((0, 1, 3)))
         msg += 'Norm with {}\n'.format(self.norm.mean((0, 1, 3)))
         msg += 'Metadata is {}\n'.format(self.metadata)
-        return msg
+        print(msg)
 
     @property
     def saveable(self):
@@ -394,19 +417,7 @@ class SfgRecord():
 
     @fname.setter
     def fname(self, fname):
-
         self._fname = fname
-        #if isinstance(fname, str):
-        #    self._fname = [fname]
-        #else:
-        #    self._fname = fname
-
-        #if isinstance(self._fname, type(None)):
-        #    return
-
-        #for fname in self.fname:
-        #    if not path.isfile(fname):
-        #        raise ValueError("File {} doesn't exist".format(fname))
 
     def select(
             self, prop="normalized", kwargs_prop=None,
@@ -414,7 +425,7 @@ class SfgRecord():
             frame_med=False, delay_mean=False, spectra_mean=False,
             pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
             attribute=None, scale=None, abs=False, square=False, sqrt=False,
-            offset=None, roi_wavenumber=None,
+            offset=None, roi_wavenumber=None, debug=False,
             **kwargs
     ):
         """Central Interface to select data.
@@ -510,18 +521,18 @@ class SfgRecord():
         elif prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2'):
             ret = getattr(self, prop)
             # Only Real properties get cut down
-            print('Prop: ', prop)
-            print('Selecting Delay', roi_delay)
-            print('Selecting Frames:', roi_frames)
-            print('Selecting Spectra', roi_spectra)
-            print('Selecting Pixels: ', roi_pixel)
+            logging.debug('Prop: {}'.format( prop ))
+            logging.debug('Selecting Delay {}'.format( roi_delay ))
+            logging.debug('Selecting Frames:'.format( roi_frames ))
+            logging.debug('Selecting Spectra'.format( roi_spectra ))
+            logging.debug('Selecting Pixels: '.format( roi_pixel ))
             ret = ret[
                     roi_delay,
                     roi_frames,
                     roi_spectra,
                     roi_pixel,
                    ]
-            print('After slicing: ', ret.shape)
+            logging.debug('After slicing: '.format( ret.shape ))
 
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
@@ -547,8 +558,8 @@ class SfgRecord():
         else:
             raise ValueError("Don't know prop: {}".format(prop))
 
-        print('Prop: ', prop)
-        print('ret.shape: ',ret.shape)
+        logging.debug('Prop: {}'.format( prop ))
+        logging.debug('ret.shape: {}'.format( ret.shape ))
         if prop in ('normalize_het', 'norm_het', 'signal_het') and frame_med:
             ret = np.mean(ret, axis=FRAME_AXIS_INDEX, keepdims=1)
             frame_med = None
@@ -570,7 +581,7 @@ class SfgRecord():
         if offset:
             if np.any(np.iscomplex(ret)):
                 offset = np.complex(offset, offset)
-            print('Using offset: ', offset)
+            logging.debug('Using offset: {}'.format( offset ))
             ret += offset
         if attribute:
             ret = getattr(ret, attribute)
@@ -903,11 +914,15 @@ class SfgRecord():
 
     @property
     def pump_freq(self):
-        return self.metadata.get('pump_freq')
+        if self._pump_freq:
+            return self._pump_freq
+        else:
+            return self.metadata.get('pump_freq')
 
     @pump_freq.setter
     def pump_freq(self, value):
         self.metadata['pump_freq'] = value
+        self._pump_freq = value
 
     @property
     def wavenumber(self):
@@ -1251,7 +1266,7 @@ class SfgRecord():
         """
 
         kwargs.setdefault('prop', 'basesubed')
-        print('time_domain kwargs: ', kwargs)
+        logging.debug('time_domain kwargs: {}'.format( kwargs ))
         ret = self.select(**kwargs)
         ret = fft.ifft(ret)
         return ret
@@ -1269,7 +1284,7 @@ class SfgRecord():
         """
         #frame_med = None
         if isinstance(shift, type(None)):
-            print('Using default shift, ', self.het_shift)
+            logging.debug('Using default shift, {}'.format( self.het_shift ))
             shift = self.het_shift
 
         time_domain = self.time_domain(**kwargs)
@@ -1278,8 +1293,6 @@ class SfgRecord():
                 'Must define start {} and stop {}'.format(start, stop)
             )
         # Filter out undesired times.
-        #time_domain[:, :, :, 0: start] = 0
-        #time_domain[:, :, :, stop: None] = 0
         filter_mask = np.zeros_like(time_domain)
         x = np.arange(filter_mask.shape[-1])
         filter_mask[:, :, :] = 1/(1+(np.exp((start-x)/0.0025)))-1/(1+(np.exp((stop-x)/0.0025)))
@@ -1298,10 +1311,10 @@ class SfgRecord():
                     )
                 for j in range(ret.shape[FRAME_AXIS_INDEX]):
                     ret[:, j] = ret[:, j] * np.exp(1j * np.pi * shift[j])
-                    print('Shifting with: ', np.exp(1j * np.pi * shift[j]))
+                    logging.debug('Shifting with: {}'.format( np.exp(1j * np.pi * shift[j]) ))
             else:
                 ret = ret * np.exp(1j * np.pi * shift)
-                print('Shifting with: ', np.exp(1j * np.pi * shift))
+                logging.debug('Shifting with: {}'.format( np.exp(1j * np.pi * shift) ))
 
         return ret
 
@@ -1330,12 +1343,12 @@ class SfgRecord():
         kwargs.setdefault('start', self.het_start)
         kwargs.setdefault('stop', self.het_stop)
         if not isinstance(shift, type(None)):
-            print('setting shift: ', shift)
+            logging.debug('setting shift: {}'.format( shift ))
             kwargs['shift'] = shift
         return self.frequency_domain(**kwargs)
 
     def normalize_het(self, kwargs_frequency_domain=None, kwargs_norm_het=None,
-                      shift=None):
+                      shift=None, **kwargs):
         """Normalize heterodyne SFG measurment.
 
         kwargs_frequency_domain:
@@ -1343,20 +1356,16 @@ class SfgRecord():
           construct the real and imag part of the chi2 signal.
         shift: Shift the signal in units of radiant after normalization
         frame_med: Calculate frame mean after normalization
+        **kwargs**: Get passes to both, the norm and the signal.
         """
         if not kwargs_frequency_domain:
             kwargs_frequency_domain = {}
         if not kwargs_norm_het:
             kwargs_norm_het = {}
-        #kwargs_frequency_domain.setdefault('start', self.het_start)
-        #kwargs_frequency_domain.setdefault('stop', self.het_stop)
-        #if not isinstance(shift, type(None)):
-        #    print('setting shift: ', shift)
-        #    kwargs_frequency_domain['shift'] = shift
-        signal = self.signal_het(**kwargs_frequency_domain)
-        norm = self.norm_het(**kwargs_norm_het)
-        print('signal shape: ', signal.shape)
-        print('Norm Shape: ', norm.shape)
+        signal = self.signal_het(**kwargs_frequency_domain, **kwargs)
+        norm = self.norm_het(**kwargs_norm_het, **kwargs)
+        logging.debug('signal shape: {}'.format( signal.shape ))
+        logging.debug('Norm Shape: {}'.format( norm.shape ))
         chi2 = signal/norm
 
         self.chi2 = chi2
@@ -1865,7 +1874,7 @@ class Record2d():
         if shift_zero_time_offset:
             time = self.pp_delays[delay]
             best_delay_indeces = self.find_delay_index(time)
-            print('Combining ', time, ' as: ' ,self.pp_delays[self.find_delay_index(time)])
+            logging.debug('Combining {} as {}'.format(time, self.pp_delays[self.find_delay_index(time)]))
             z = z_raw[best_delay_indeces, range(self.number_of_pump_freqs), roi_pixel].T
         else:
             z = z_raw[delay, :, roi_pixel].T
@@ -1905,7 +1914,7 @@ class Record2d():
             static_chi=self.static_chi,
             zero_time_offset=self.zero_time_offset
         )
-        print('Saving to {}'.format(path.abspath(file)))
+        logging.debug('Saving to {}'.format(path.abspath(file)))
         np.savez_compressed(
             file,
             **kwargs
@@ -1939,7 +1948,7 @@ def concatenate_list_of_SfgRecords(list_of_records):
             if attribute == '_wavelength':
                 ret._setted_wavelength = True
         else:
-            print('Not concatenating {}'.format(attribute))
+            logging.debug('Not concatenating {}'.format(attribute))
 
     # Concatenate unlistable attributes
     concatable_attributes = (

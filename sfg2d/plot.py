@@ -48,7 +48,13 @@ def fit_model(
         model.draw_text_box(box_coords)
     return model
 
-def model(model, kwargs_errorbar=None, kwargs_line_plot=None):
+
+def model_plot(
+        model,
+        kwargs_errorbar=None, kwargs_line_plot=None,
+        shift_x=None, shift_y=None,  scale_y=None,
+        normalize=False,
+):
     if not kwargs_errorbar:
         kwargs_errorbar = {}
     if not kwargs_line_plot:
@@ -56,13 +62,37 @@ def model(model, kwargs_errorbar=None, kwargs_line_plot=None):
 
     kwargs_errorbar.setdefault('marker', 'o')
     kwargs_errorbar.setdefault('linestyle', 'None')
+
+    xdata = model.xdata
+    xsample = model.xsample
+    if shift_x:
+        xdata =  xdata+ shift_x
+        xsample = xsample + shift_x
+
+    ydata = model.ydata
+    ysample = model.yfit_sample
+    yerr = model.yerr
+    if shift_y:
+        ydata = ydata + shift_y
+        ysample = ysample + shift_y
+
+    if scale_y:
+        ydata = ydata * scale_y
+        ysample = ysample * scale_y
+        yerr = yerr * scale_y
+
+    if normalize:
+        factor = 1 - ysample.min()
+        ydata = (ydata - 1) / factor + 1
+        ysample = (ysample - 1) / factor + 1
+        yerr = yerr / factor
+
+
     plotline, capline, barline = plt.errorbar(
-        model.xdata, model.ydata.T, model.yerr.T, **kwargs_errorbar
+        xdata, ydata, yerr, **kwargs_errorbar
     )
-    print(plotline.get_color())
     kwargs_line_plot.setdefault('color', plotline.get_color())
-    print(kwargs_line_plot)
-    plt.plot(model.xsample, model.yfit_sample.T, **kwargs_line_plot)
+    plt.plot(xsample, ysample, **kwargs_line_plot)
 
 def points_modeled(x, y, yerr=None, xline=None, yline=None, kwargs_point={}, kwargs_line={}):
     """Plot points and line."""

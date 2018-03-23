@@ -7,6 +7,7 @@ from scipy.stats import norm, skewnorm
 from iminuit import Minuit
 import sys
 import yaml
+import logging
 thismodule = sys.modules[__name__]
 
 def read_fit_results(fname):
@@ -14,8 +15,57 @@ def read_fit_results(fname):
         fit_results = yaml.load(ifile)
     return fit_results
 
+def model_fit_record(
+        model,
+        record,
+        kwargs_select_y,
+        kwargs_select_x,
+        kwargs_select_yerr=None,
+        kwargs_model=None,
+        run=False,
+):
+    """Make a model using selected data from SfgRecrod.
+
+    **Parameters**:
+      - **model**: String, Class name of the model to use
+      - **record**: SfgRecord obj to select data from
+      - **kwargs_ydata**: kwargs to select y data with
+      - **kwargs_xdata**: kwargs to select x data with
+      - **kwargs_model**: kwargs to pass to model
+      - **kwargs_yerr**: kwargs to select yerr with
+
+    **Keywords:**
+      - **run**: Actually run the fit
+
+    **Returns:**
+    A model obj for the fit.
+    """
+    if not kwargs_model:
+        kwargs_model = {}
+    if not kwargs_select_yerr:
+        raise NotImplementedError('Models without errorbar not implemented yet')
+    logging.debug('Selecting model data from record with:')
+    logging.debug('ydata :{}'.format(kwargs_select_y))
+    xdata = record.select(**kwargs_select_x).squeeze()
+    ydata = record.select(**kwargs_select_y).squeeze()
+    yerr = record.sem(**kwargs_select_yerr).squeeze()
+
+    logging.debug('Setting model with:')
+    logging.debug('xdata: {}'.format(xdata))
+    logging.debug('ydata: {}'.format(ydata))
+    logging.debug('yerr: {}'.format(yerr))
+    logging.debug('kwargs_module: {}'.format(kwargs_model))
+    model = getattr(thismodule, model)(xdata, ydata, yerr, **kwargs_model)
+    if run:
+        fit_model(
+            model,# print_matrix=print_matrix
+        )
+
+    return model
+
+
 def make_model_fit(
-        model_name,
+        model,
         xdata,
         ydata,
         yerr=None,
@@ -25,7 +75,7 @@ def make_model_fit(
 ):
     """Generig interface for model fits.
     **Arguments:**
-      - **model_name**: String describing the name of the model
+      - **model**: String name of model class
       - **xdata**: x-data to the model
       - **ydata**: y-data to model
 
@@ -35,7 +85,7 @@ def make_model_fit(
       - **model_kwargs**: Keywords passed to model during creation
     """
 
-    model = getattr(thismodule, model_name)(xdata, ydata, yerr, **model_kwargs)
+    model = getattr(thismodule, model)(xdata, ydata, yerr, **model_kwargs)
     if fit:
         fit_model(
             model, print_matrix=print_matrix
@@ -132,9 +182,9 @@ class Fitter():
         self.figures = {}
         kwargs.setdefault('pedantic', False)
         # Minuit is used for fitting. This makes self.chi2 the fit function
-        print(self.chi2)
-        print(fitarg)
-        print(kwargs)
+        logging.info(self.chi2)
+        logging.info(fitarg)
+        logging.info(kwargs)
         self.minuit = Minuit(self.chi2, **fitarg, **kwargs)
 
     @property
@@ -150,11 +200,11 @@ class Fitter():
             box_coords = self.box_coords
         text(*box_coords, self.box_str, **kwargs)
 
-
     @property
     def p(self):
         """Parameters of the Fit."""
-        return self.minuit.args
+        #return self.minuit.args
+        return [self.minuit.fitarg[param] for param in self.minuit.parameters]
 
     @property
     def box_str(self):
@@ -245,6 +295,26 @@ class Fitter():
     @property
     def fitarg(self):
         return self.minuit.fitarg
+
+    def plot(self, kwargs_data=None, kwargs_fit=None):
+        """Function to easily look at a plot. Not very flexible."""
+        import matplotlib.pyplot as plt
+        if not kwargs_data:
+            kwargs_data = {}
+        kwargs_data.setdefault('x', self.xdata)
+        kwargs_data.setdefault('y', self.ydata)
+        kwargs_data.setdefault('yerr', self.yerr)
+        kwargs_data.setdefault('fmt', 'o')
+
+        if not kwargs_fit:
+            kwargs_fit = {}
+        kwargs_fit.setdefault('x', self.xsample)
+        kwargs_fit.setdefault('y', self.yfit_sample)
+        kwargs_fit.setdefault('color', 'r')
+
+        plt.errorbar(**kwargs_data)
+        plt.plot(**kwargs_fit)
+
 
 
 class GaussianModelM(Fitter):
@@ -512,6 +582,7 @@ class FourLevelMolKinM(Fitter):
            'N0': self.N0,
         }
         super().__save__(fname, parameter_dict)
+
 
 class Crosspeak(FourLevelMolKinM):
     def __init__(
