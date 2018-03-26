@@ -753,7 +753,7 @@ def bleach_pdf(
         ylim=None,
         x_prop='wavenumber',
         num_base='bl{}',
-        xlabel='Wavenumber in 1/cm',
+        xlabel='Wavenumber/cm$^{-1}$',
         ylabel=None,
         kwargs_legend={"loc": "lower left"},
         title_prefix=None,
@@ -787,6 +787,7 @@ def bleach_pdf(
 
     kwargs_select_y = dict(**kwargs_selects)
     kwargs_select_y.setdefault('prop', 'bleach')
+    # Improves perfromance in the case of relative bleach
     kwargs_select_y.setdefault('kwargs_prop', {'prop': 'basesubed'})
     kwargs_select_y.setdefault('frame_med', True)
     kwargs_select_y.setdefault('medfilt_pixel', 5)
@@ -795,10 +796,12 @@ def bleach_pdf(
         fig, ax = plt.subplots(num=num_base.format(index))
         figs.append(fig)
 
+        # Index must be selected after data selection,
+        # else zero_time_subtractionn doesnt work
         y = record.select(
-            roi_delay=slice(index, index+1),
             **kwargs_select_y,
-        )
+        )[slice(index, index+1)]
+
         x = record.select(prop=x_prop)
         sfg2d.plot.spectrum(x, scale*y, ax=ax, **kwargs_plot)
 

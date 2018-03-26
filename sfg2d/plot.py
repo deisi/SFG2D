@@ -5,7 +5,7 @@
 
 import matplotlib.pyplot as plt
 import sfg2d
-from numpy import transpose
+from numpy import transpose, where
 
 def fit_model(
         x,
@@ -52,9 +52,13 @@ def fit_model(
 def model_plot(
         model,
         kwargs_errorbar=None, kwargs_line_plot=None,
-        shift_x=None, shift_y=None,  scale_y=None,
-        normalize=False,
+        shift_x=None, shift_y=None, scale_y=None,
+        normalize=False, xsample_slice=(0, 1),
 ):
+    """
+    **Kwargs:**
+      - **xsample_slice**: Tuple with x start and x stop for finding normalization minimun
+    """
     if not kwargs_errorbar:
         kwargs_errorbar = {}
     if not kwargs_line_plot:
@@ -82,7 +86,8 @@ def model_plot(
         yerr = yerr * scale_y
 
     if normalize:
-        factor = 1 - ysample.min()
+        x_mask = where((xsample > xsample_slice[0]) & (xsample < xsample_slice[1]))
+        factor = 1 - ysample[x_mask].min()
         ydata = (ydata - 1) / factor + 1
         ysample = (ysample - 1) / factor + 1
         yerr = yerr / factor

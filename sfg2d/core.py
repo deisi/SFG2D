@@ -157,7 +157,7 @@ class SfgRecord():
                  wavenumber=None, roi_x_pixel_spec=None, het_shift=None,
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
-                 zero_time_select=None, pump_freq=None, name=None,
+                 zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None,
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
@@ -345,13 +345,16 @@ class SfgRecord():
         if zero_time_select:
             self.zero_time_selec = zero_time_select
 
+        # Update zero time subtraction boolean
+        if zero_time_subtraction:
+            self.zero_time_subtraction = zero_time_subtraction
+
         if isinstance(base, str):
             base = SfgRecord(base).data
             self.base = base
         elif hasattr(base, '__iter__'):
             self.base = base
 
-        print('Nomr: ', norm)
         if isinstance(norm, str):
             norm = SfgRecord(norm).data
             self.norm = norm
