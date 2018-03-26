@@ -14,9 +14,24 @@ import pandas as pd
 plt.ion()
 
 logging.basicConfig(level=logging.DEBUG)
-gitversion = '.gitversion'
+### Constants for configurations and options
+class Options():
+    options = 'options'
+    records = 'records'
+    model = 'model'
+    models = 'models'
+    figures = 'figures'
+    gitversion = '.gitversion'
+    config_file = './raw_config.yaml'
+    installed_packages = '.installed_packages'
+    model_file = './models.yaml'
+    figure_file = ('figure_file', './figures.pdf')
+    mplstyle = ('mplstyle', '/home/malte/sfg2d/styles/presentation.mplstyle')
+    file_calib = ('file_calib', None)
+    cache_dir = ('cache_dir', './cache')
 
-def main(config_file='./raw_config.yaml'):
+
+def main(config_file=Options.config_file):
     global records, figures, configuration, models
     records = {}
     figures = {}
@@ -32,28 +47,29 @@ def main(config_file='./raw_config.yaml'):
     with open(config_file) as ifile:
         configuration = yaml.load(ifile)
 
-    options = configuration.get('options')
+    options = configuration.get(Options.options)
     # Import global options for this data set
     if options:
         read_options(options)
 
     # Import and configure data
-    records = import_records(configuration['records'])
+    records = import_records(configuration[Options.records])
 
     # Make Models
-    config_models = configuration.get('models')
+    config_models = configuration.get(Options.models)
     if config_models:
         logging.info('Making Models...')
         models = make_models(config_models)
 
     # Make figures
-    figures_config = configuration.get('figures')
+    figures_config = configuration.get(Options.figures)
     if figures_config:
         figures = make_figures(figures_config)
 
     # Export a pdf with all figures
+    figure_file = options.get(*Options.figure_file)
     list_of_figures = [figures[key][0] for key in sorted(figures.keys())]
-    fig.save_figs_to_multipage_pdf(list_of_figures, './figures_all.pdf')
+    fig.save_figs_to_multipage_pdf(list_of_figures, figure_file)
 
     # Write down the used git version so we can go back
     try:
@@ -61,10 +77,10 @@ def main(config_file='./raw_config.yaml'):
         module_path = core.__file__
         repo = Repo(module_path, search_parent_directories=True)
         sha = repo.head.object.hexsha
-        with open(dir + '/' + gitversion, 'r+') as ofile:
+        with open(dir + '/' + Options.gitversion, 'r+') as ofile:
             if sha not in ofile.read():
                 logging.info('Appending {} to {}'.format(
-                    sha, os.path.abspath(gitversion)))
+                    sha, os.path.abspath(Options.gitversion)))
                 ofile.write(sha + '\n')
     except InvalidGitRepositoryError:
         logging.warning('Cant Save gitversion because no repo available.')
@@ -73,25 +89,25 @@ def main(config_file='./raw_config.yaml'):
     installed_packages = pip.get_installed_distributions()
     installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
          for i in installed_packages])
-    with open(dir + '/.installed_packages', 'w') as ofile:
+    with open(dir + '/' + Options.installed_packages, 'w') as ofile:
         for package in installed_packages_list:
             ofile.write(package+'\n')
 
 
 def read_options(options):
     """Read and apply options."""
-    #global configuration
-    mplstyle = options.get('mplstyle')
+    mplstyle = options.get(Options.mplstyle)
     if mplstyle:
         import matplotlib.pyplot as plt
+        logging.info('Applying mplstyle {}'.format(mplstyle))
         plt.style.use(mplstyle)
 
-    file_calib = options.get('file_calib')
+    file_calib = options.get(*Options.file_calib)
     if file_calib:
         calib_pixel = np.loadtxt(file_calib)
         try:
             wavelength = calib_pixel.T[1]
-            for config_record in configuration['records']:
+            for config_record in configuration[Options.records]:
                 dpath.util.new(
                     config_record, 'kwargs_record/wavelength', wavelength)
         except IndexError:
@@ -104,16 +120,16 @@ def read_options(options):
             #    'records/*/kwargs_record/wavenumber',
             #    wavenumber
             #)
-            for config_record in configuration['records']:
+            for config_record in configuration[Options.records]:
                 dpath.util.new(
                     config_record, 'kwargs_record/wavenumber', wavenumber)
         except IndexError:
             logging.warning('Cant find wavenumber in calib file %s'.format(
                     file_calib))
 
-    cache_dir = options.get('cache_dir', './cache')
-    for config_record in configuration['records']:
-        config_record.setdefault('cache_dir', cache_dir)
+    cache_dir = options.get(*Options.cache_dir)
+    for config_record in configuration[Options.records]:
+        config_record.setdefault(Options.cache_dir[0], cache_dir)
 
 
 def import_records(config_records):
@@ -147,7 +163,7 @@ def import_records(config_records):
         records[record_entrie['name']] = record
 
         # Save cached version of record
-        fname = record_entrie['cache_dir'] + '/' + record_entrie['name'] + '.npz'
+        fname = record_entrie[Options.cache_dir[0]] + '/' + record_entrie['name'] + '.npz'
         logging.info('Saving cached record in {}'.format(os.path.abspath(fname)))
         #record.save(fname)
 
@@ -176,8 +192,8 @@ def make_models(config_models):
         this_model_config['record'] = record_name
 
     # Update models on disk because we want the fit results to be saved
-    fname_models_file = 'models.yaml'
-    with open(fname_models_file, 'r') as models_file:
+    old_models = {}
+    with open(Options.model_file, 'r') as models_file:
         old_models = yaml.load(models_file)
 
     try:
@@ -186,8 +202,8 @@ def make_models(config_models):
         logging.warn('Replacing old models with new models due to error')
         new_models = config_models
 
-    with open(fname_models_file, 'w') as models_file:
-        logging.info('Saving models to {}'.format(os.path.abspath(fname_models_file)))
+    with open(Options.model_file, 'w') as models_file:
+        logging.info('Saving models to {}'.format(os.path.abspath(Options.model_file)))
         yaml.dump(new_models, models_file)
 
     # Update config_models with fit results
@@ -247,14 +263,15 @@ def make_figures(config_figures):
 
 def get_pd_fitargs():
     """Return fitargs as DataFrame with model names."""
-    serach_res = dpath.util.search(
+    serach_res = list(dpath.util.search(
         configuration['models'],
         '*/kwargs_model/fitarg',
         yielded=True
-    )
+    ))
     models = [path.split('/')[0] for path, _ in serach_res]
     datas = [fitarg for _, fitarg in serach_res]
 
-    df = pd.DataFrame.from_dict(data)
+    df = pd.DataFrame.from_dict(datas)
     df['model'] = models
     return df
+
