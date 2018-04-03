@@ -542,10 +542,10 @@ def trace(
 
 def trace_model(
         model,
-        kwargs_subplots={},
+        kwargs_subplots=None,
         title=None,
-        errorbar_kwargs={},
-        linekwargs_plot={},
+        errorbar_kwargs=None,
+        linekwargs_plot=None,
         xlim=None,
         ylim=None,
         xlabel="Time in fs",
@@ -567,6 +567,12 @@ def trace_model(
       - **title**: Title string of the figure
       - **error_kwargs**: Dictonary to configure the errorbar plot with.
     """
+    if not kwargs_subplots:
+        kwargs_subplots = {}
+    if not errorbar_kwargs:
+        errorbar_kwargs = {}
+    if not linekwargs_plot:
+        linekwargs_plot = {}
     fig, ax = plt.subplots(**kwargs_subplots)
     if clf:
         fig.clf()

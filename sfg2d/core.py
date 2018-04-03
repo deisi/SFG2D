@@ -157,7 +157,7 @@ class SfgRecord():
                  wavenumber=None, roi_x_pixel_spec=None, het_shift=None,
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
-                 zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None,
+                 zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None, roi_delay=None,
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
@@ -348,6 +348,10 @@ class SfgRecord():
         # Update zero time subtraction boolean
         if zero_time_subtraction:
             self.zero_time_subtraction = zero_time_subtraction
+
+        # Roi Delay
+        if roi_delay:
+            self.roi_delay = roi_delay
 
         if isinstance(base, str):
             base = SfgRecord(base).data
@@ -1208,6 +1212,7 @@ class SfgRecord():
             shift_neg_time=False,
             y_only=False,
             yerr_only=False,
+            squeeze=False,
             **kwargs
     ):
         """Shortcut to get trace.
@@ -1215,12 +1220,13 @@ class SfgRecord():
         prop: property to calculate the trace from
         kwargs_prop: additional kwargs of the property
         roi_delay: pp_delay roi to use as x axis.
-        shift_neg_time: The Zero_time_subtraction can lead to an not 1 negative time.
-            This corrects the while data set in such a way, that the given number of
+        shift_neg_time: Zero_time_subtraction can lead to negative time not beeing 1.
+            This corrects the data set in such a way, that the given number of
             shift neg time points is used to move the complete data set such that it
             is around 1 there.
         y_only: lets this function only return the y data.
         yerr_only: return only yerror
+        squeeze: Allows to squeeze the y and yerr result
         **kwargs get passed to `SfRecord.select()`:
 
         """
@@ -1246,6 +1252,9 @@ class SfgRecord():
             kwargs_prop=kwargs_prop,
             **kwargs
         )
+        if squeeze:
+            y = y.squeeze()
+            yerr = yerr.squeeze()
         if y_only:
             return y
         if yerr_only:
