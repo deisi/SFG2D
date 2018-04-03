@@ -13,7 +13,7 @@ from . import myyaml as yaml
 import pandas as pd
 plt.ion()
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 ### Constants for configurations and options
 class Options():
     options = 'options'
@@ -169,13 +169,19 @@ def import_records(config_records):
 
     return records
 
-def make_models(config_models):
+def make_models(config_models=None, save_models=True):
     """Make data models, aka. fits.
+
+    **kwargs:**
+      - **config_models**: Optional, dict with configuration for models
+      - **save_models**: Optional, update models file on hdd with result
 
     **Returns:**
     list of model objects.
     """
     models = {}
+    if not config_models:
+        config_models = configuration.get(Options.models)
     for model_name in sort(list(config_models.keys())):
         logging.info('Working on model {}'.format(model_name))
         this_model_config = config_models[model_name]
@@ -202,9 +208,10 @@ def make_models(config_models):
         logging.warn('Replacing old models with new models due to error')
         new_models = config_models
 
-    with open(Options.model_file, 'w') as models_file:
-        logging.info('Saving models to {}'.format(os.path.abspath(Options.model_file)))
-        yaml.dump(new_models, models_file)
+    if save_models:
+        with open(Options.model_file, 'w') as models_file:
+            logging.info('Saving models to {}'.format(os.path.abspath(Options.model_file)))
+            yaml.dump(new_models, models_file)
 
     # Update config_models with fit results
     config_models = new_models
@@ -263,15 +270,19 @@ def make_figures(config_figures):
 
 def get_pd_fitargs():
     """Return fitargs as DataFrame with model names."""
-    serach_res = list(dpath.util.search(
+    search_res = list(dpath.util.search(
         configuration['models'],
         '*/kwargs_model/fitarg',
         yielded=True
     ))
-    models = [path.split('/')[0] for path, _ in serach_res]
-    datas = [fitarg for _, fitarg in serach_res]
+    model_names = [path.split('/')[0] for path, _ in search_res]
+    datas = [fitarg for _, fitarg in search_res]
+    record_names = [configuration['models'][model_name]['record'] for model_name in model_names]
+    roi = [configuration['models'][model_name]['kwargs_select_yerr']['roi_wavenumber'] for model_name in model_names]
 
     df = pd.DataFrame.from_dict(datas)
-    df['model'] = models
+    df['model_name'] = model_names
+    df['record_name'] = record_names
+    df['roi'] = roi
     return df
 
