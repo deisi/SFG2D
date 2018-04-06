@@ -506,7 +506,7 @@ class FourLevelMolKinM(Fitter):
         """
 
         ret = odeint(
-            func=self.dgl,  # the DGL of the 3 level water system
+            func=self.dgl,  # the DGL of the 4 level water system
             y0=self.N0,  # Starting conditions of the DGL
             t=t,  # Time as parameter
             args=args,  # Aguments of the dgl

@@ -551,7 +551,7 @@ def trace_model(
         xlabel="Time in fs",
         ylabel="Bleach",
         fname=None,
-        save=True,
+        save=False,
         close=False,
         clf=True,
         ):

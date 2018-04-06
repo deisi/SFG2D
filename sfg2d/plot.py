@@ -5,7 +5,7 @@
 
 import matplotlib.pyplot as plt
 import sfg2d
-from numpy import transpose, where
+from numpy import transpose, where, linspace
 
 def fit_model(
         x,
@@ -51,13 +51,20 @@ def fit_model(
 
 def model_plot(
         model,
-        kwargs_errorbar=None, kwargs_line_plot=None,
-        shift_x=None, shift_y=None, scale_y=None,
-        normalize=False, xsample_slice=(0, 1),
+        kwargs_errorbar=None,
+        kwargs_line_plot=None,
+        shift_x=None,
+        shift_y=None,
+        scale_y=None,
+        normalize=False,
+        xsample_slice=(0, 1),
+        kwargs_textbox=None,
+        show_roi=True,
 ):
     """
     **Kwargs:**
       - **xsample_slice**: Tuple with x start and x stop for finding normalization minimun
+      - **kwargs_textbox**: If kwargs textbox given, then a textbox with fitresults is drawn
     """
     if not kwargs_errorbar:
         kwargs_errorbar = {}
@@ -67,15 +74,16 @@ def model_plot(
     kwargs_errorbar.setdefault('marker', 'o')
     kwargs_errorbar.setdefault('linestyle', 'None')
 
-    xdata = model.xdata
-    xsample = model.xsample
+    xdata = model._xdata
+    ydata = model._ydata
+    yerr = model._sigma
+    xsample = linspace(xdata[0], xdata[-1], model._xsample_num)
+    ysample = model.fit_res(xsample)
+
     if shift_x:
-        xdata =  xdata+ shift_x
+        xdata =  xdata + shift_x
         xsample = xsample + shift_x
 
-    ydata = model.ydata
-    ysample = model.yfit_sample
-    yerr = model.yerr
     if shift_y:
         ydata = ydata + shift_y
         ysample = ysample + shift_y
@@ -98,6 +106,21 @@ def model_plot(
     )
     kwargs_line_plot.setdefault('color', plotline.get_color())
     plt.plot(xsample, ysample, **kwargs_line_plot)
+
+    if show_roi:
+        xx = xdata[model.roi]
+        yy = ydata[model.roi]
+        x = xx[0], xx[-1]
+        y = yy[0], yy[-1]
+        plt.scatter(x, y, marker='x', color='r')
+
+    if isinstance(kwargs_textbox, dict):
+        fig = plt.gcf()
+        kwargs_textbox.setdefault('x', .6)
+        kwargs_textbox.setdefault('y', .12)
+        kwargs_textbox.setdefault('s', model.box_str)
+        kwargs_textbox.setdefault('transform', fig.transFigure)
+        plt.text(**kwargs_textbox)
 
 def points_modeled(x, y, yerr=None, xline=None, yline=None, kwargs_point={}, kwargs_line={}):
     """Plot points and line."""
