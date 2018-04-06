@@ -461,19 +461,30 @@ class FourLevelMolKinM(Fitter):
         dNdt = A.dot(N)
         return dNdt
 
-    def jac(self, N, t, ext_func, s, t1, t2):
-        """Jacobean matrix of the DGL."""
-        # In this case the Jacobean Matrix is euqal the
-        # Consturcting matrix of the DGL.
-        # So it doesn't help much. It just speeds up the thing
-        # a little.
-        A = np.array([
-            [-s * ext_func(t), s * ext_func(t), 0, 0],
-            [s * ext_func(t), -s * ext_func(t) - 1/t1, 0, 0],
-            [0, 1 / t1, -1 / t2, 0],
-            [0, 0, 1 / t2, 0],
-        ], dtype=np.float64)
-        return A
+    def fit_func(self, t, s, t1, t2, c, mu):
+        """
+        Function we use to fit.
+
+        **Arguments:**
+          - **t**: time
+          - **s**: Gaussian Amplitude
+          - **t1**: Livetime of first state
+          - **t2**: livetime of second(intermediate) state
+          - **c**: Coefficient of third(Heat) state
+          - **mu**: Position of pump pulse, the zero.
+
+
+        **Returns**
+          The bleach of the water model
+          and the Matrix with the populations"""
+        N = self.population(
+            t,
+            lambda t: self.ext_gaus(t, mu, self.gSigma),
+            s,
+            t1,
+            t2
+        ).T
+        return ((N[0] - N[1]+ N[2] + c * N[3])**2) / (self.N0[0]**2)
 
     def population(self, t, *args, **kwargs):
         """Numerical solution to the 4 Level DGL-Water system.
@@ -511,6 +522,20 @@ class FourLevelMolKinM(Fitter):
 
         return ret
 
+    def jac(self, N, t, ext_func, s, t1, t2):
+        """Jacobean matrix of the DGL."""
+        # In this case the Jacobean Matrix is euqal the
+        # Consturcting matrix of the DGL.
+        # So it doesn't help much. It just speeds up the thing
+        # a little.
+        A = np.array([
+            [-s * ext_func(t), s * ext_func(t), 0, 0],
+            [s * ext_func(t), -s * ext_func(t) - 1/t1, 0, 0],
+            [0, 1 / t1, -1 / t2, 0],
+            [0, 0, 1 / t2, 0],
+        ], dtype=np.float64)
+        return A
+
     def fit_populations(self, t):
         s, t1, t2, c1, mu = self.p
         return self.population(
@@ -530,31 +555,6 @@ class FourLevelMolKinM(Fitter):
             t1,
             t2
         )
-
-    def fit_func(self, t, s, t1, t2, c, mu):
-        """
-        Function we use to fit.
-
-        **Arguments:**
-          - **t**: time
-          - **s**: Gaussian Amplitude
-          - **t1**: Livetime of first state
-          - **t2**: livetime of second(intermediate) state
-          - **c**: Coefficient of third(Heat) state
-          - **mu**: Position of pump pulse, the zero.
-
-
-        **Returns**
-          The bleach of the water model
-          and the Matrix with the populations"""
-        N = self.population(
-            t,
-            lambda t: self.ext_gaus(t, mu, self.gSigma),
-            s,
-            t1,
-            t2
-        ).T
-        return ((N[0] + N[2] + c * N[3] - N[1])**2) / (self.N0[0]**2)
 
     def chi2(self, s, t1, t2, c, mu):
         """Chi2 to be minimized by minuit.
@@ -920,3 +920,30 @@ class ThreeLevelMolkin(Fitter):
             )**2
         )
 
+
+class DoubleDecay(Fitter):
+    def __init__(
+            self,
+            *args,
+            **kwargs
+    ):
+        Fitter.__init__(self, *args, **kwargs)
+
+    def fit_func(self, x, Amp, Aheat, t1, t2, offs, pwidth, mu):
+        aux0=(np.exp((0.5*((t2**-2.)*((pwidth**2)+((-2.*(x*t2))+(2.*(mu*t2))))\
+        ))))*(erfc(((((2.**-0.5)*(((pwidth**2)+(mu*t2))-(x*t2)))/t2)/pwidth)));
+        aux1=(np.exp((0.5*((t1**-2.)*((pwidth**2)+((-2.*(x*t1))+(2.*(mu*t1))))\
+        ))))*(erfc(((((2.**-0.5)*(((pwidth**2)+(mu*t1))-(x*t1)))/t1)/pwidth)));
+        aux2=Amp*(((offs+(offs*(erf((((2.**-0.5)*(x-mu))/pwidth)))))-(Aheat*\
+        aux0))-aux1);
+        output=0.5*aux2;
+        return output+1
+
+    def chi2(self, Amp, Aheat, t1, t2, offs, pwidth, mu):
+        """Chi2 to be minimized by minuit."""
+        return np.sum(
+            (
+                (self.ydata - self.fit_func(self.xdata, Amp, Aheat, t1, t2, offs, pwidth, mu)) /
+                self.sigma
+            )**2
+        )
