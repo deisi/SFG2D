@@ -287,6 +287,14 @@ class SfgRecord():
 
         #
         self.het_shift = 0
+        self.het_start = None
+        self.het_stop = None
+
+        self.norm_het_shift = 0
+        self.norm_het_start = None
+        self.norm_het_stop = None
+
+
 
         #### Import data from hdd
         if fname:

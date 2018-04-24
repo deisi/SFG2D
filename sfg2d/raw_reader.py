@@ -43,30 +43,55 @@ class Analyser():
         os.chdir(self.dir)
         logging.info('Changing to: {}'.format(self.dir))
 
-    def __call__(self):
+    def __call__(
+            self,
+            get_configuration=True,
+            apply_options=True,
+            import_records=True,
+            make_models=True,
+            save_cache=True,
+            make_figures=True,
+            save_figures=True,
+            save_gitversion=True,
+            save_packages=True,
+    ):
+        """General anlysis call."""
+
         # Import the configuration
-        self._configuration = self.get_configuration()
+        if get_configuration:
+            self._configuration = self.get_configuration()
 
         # Import global options for this data set
-        self.apply_options()
+        if apply_options:
+            self.apply_options()
 
         # Import and configure data
-        self._records = self.import_records()
+        if import_records:
+            self._records = self.import_records()
 
         # Make Models
-        self._models = self.make_models()
+        if make_models:
+            self._models = self.make_models()
+
+        # Save cached version of records
+        if save_cache:
+            self.cache_records()
 
         # Make figures
-        self._figures = self.make_figures()
+        if make_figures:
+            self._figures = self.make_figures()
 
         # Export a pdf with all figures
-        self.save_figs()
+        if save_figures:
+            self.save_figs()
 
         # Writing down the used gitversion helps runing code later.
-        self.save_gitversion()
+        if save_gitversion:
+            self.save_gitversion()
 
         # Write down all installed python modules
-        self.save_packages()
+        if save_packages:
+            self.save_packages()
 
     @property
     def configuration(self):
@@ -193,12 +218,6 @@ class Analyser():
             # Update record name with its real record
             records[record_entrie['name']] = record
 
-            # Save cached version of record
-            #print(record_entrie)
-            #fname = record_entrie[CACHE_DIR[0]] + '/' + record_entrie['name'] + '.npz'
-            #logging.info('Saving cached record in {}'.format(os.path.abspath(fname)))
-            #record.save(fname)
-
         return records
 
     def make_models(self, save_models=True):
@@ -254,6 +273,20 @@ class Analyser():
         config_models = new_models
 
         return models
+
+    def cache_records(self):
+        """Save a cached version of the records in .npz files in cache folder."""
+        try:
+            os.mkdir(self.cache_dir)
+            logging.info('Create cachedir: {}'.format(self.cache_dir))
+        except FileExistsError:
+            pass
+
+        for key, record in self.records.items():
+            fname = self.cache_dir + '/' + key
+            logging.debug('Saving cached record to {}'.format(fname))
+            record.save(fname)
+
 
     def make_figures(self):
         """Make the figures.
