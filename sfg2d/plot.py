@@ -60,6 +60,7 @@ def model_plot(
         xsample_slice=(0, 1),
         kwargs_textbox=None,
         show_roi=True,
+        show_modeled_only=True,
 ):
     """
     **Kwargs:**
@@ -74,19 +75,21 @@ def model_plot(
     kwargs_errorbar.setdefault('marker', 'o')
     kwargs_errorbar.setdefault('linestyle', 'None')
 
-    xdata = model._xdata
-    ydata = model._ydata
-    yerr = model._sigma
+    if show_modeled_only:
+        xdata = model.xdata
+        ydata = model.ydata
+        yerr = model.sigma
+    else:
+        xdata = model._xdata
+        ydata = model._ydata
+        yerr = model._sigma
+
     xsample = linspace(xdata[0], xdata[-1], model._xsample_num)
     ysample = model.fit_res(xsample)
 
     if shift_x:
         xdata =  xdata + shift_x
         xsample = xsample + shift_x
-
-    if shift_y:
-        ydata = ydata + shift_y
-        ysample = ysample + shift_y
 
     if scale_y:
         ydata = ydata * scale_y
@@ -99,6 +102,10 @@ def model_plot(
         ydata = (ydata - 1) / factor + 1
         ysample = (ysample - 1) / factor + 1
         yerr = yerr / factor
+
+    if shift_y:
+        ydata = ydata + shift_y
+        ysample = ysample + shift_y
 
 
     plotline, capline, barline = plt.errorbar(

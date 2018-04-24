@@ -487,27 +487,7 @@ class SfgRecord():
             else:
                 roi_pixel = self.roi_x_pixel_spec
 
-        # Some prop must ignore spectra settings
-        #if isinstance(roi_spectra, type(None)):
-        #    only_one_spec = ('bleach', 'pumped', 'unpumped')
-        #    if any([teststr in prop for teststr in only_one_spec]):
-        #        roi_spectra = [0]
-        #    else:
-        #        roi_spectra = self.roi_spectra
-
-        # Some prop must ignore roi_pixel settings
-        # This allows for better singal to noise because
-        # these properties rely on an fft of the raw data
-        # that works better if no 0 data is at the beginning and
-        # end.
-        #if isinstance(roi_pixel, type(None)):
-        #    if prop in ('time_domain', 'frequency_domain',
-        #                'normalize_het', 'norm_het', 'signal_het'):
-        #        roi_pixel = slice(None)
-        #    else:
-        #        roi_pixel = self.roi_x_pixel_spec
-
-        # Usually X-Axis properties.
+        # Usually X-Axis properties that dont need extra treatment
         if prop in ('pixel', 'wavenumber', 'wavelength', 'pp_delays', 'frames', 'pp_delays_ps'):
             ret = getattr(self, prop)
             if prop in ('pixel', 'wavenumber', 'wavelength'):
@@ -568,7 +548,7 @@ class SfgRecord():
         logging.debug('Prop: {}'.format( prop ))
         logging.debug('ret.shape: {}'.format( ret.shape ))
         if prop in ('normalize_het', 'norm_het', 'signal_het') and frame_med:
-            ret = np.mean(ret, axis=FRAME_AXIS_INDEX, keepdims=1)
+            ret = np.mean(ret, axis=FRAME_AXIS_INDEX, keepdims=True)
             frame_med = None
         if frame_med:
             ret = np.median(ret, FRAME_AXIS_INDEX, keepdims=True)

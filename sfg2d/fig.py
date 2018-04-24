@@ -52,6 +52,7 @@ def multiplot(
         kwargs_subplots_adjust=None,
         xticks=None,
         yticks=None,
+        tight_layout=False,
 ):
     if not kwargs_figure:
         kwargs_figure = {}
@@ -119,6 +120,9 @@ def multiplot(
         plt.xticks(xticks)
     if yticks:
         plt.yticks(yticks)
+
+    if tight_layout:
+        fig.tight_layout()
     return fig, ax
 
 def spectrum(
