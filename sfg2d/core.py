@@ -364,13 +364,13 @@ class SfgRecord():
         if isinstance(base, str):
             base = SfgRecord(base).data
             self.base = base
-        elif hasattr(base, '__iter__'):
+        elif not isinstance(base, type(None)):
             self.base = base
 
         if isinstance(norm, str):
             norm = SfgRecord(norm).data
             self.norm = norm
-        elif hasattr(norm, '__iter__'):
+        elif not isinstance(norm, type(None)):
             self.norm = norm
 
 
@@ -496,7 +496,7 @@ class SfgRecord():
                 roi_pixel = self.roi_x_pixel_spec
 
         # Usually X-Axis properties that dont need extra treatment
-        if prop in ('pixel', 'wavenumber', 'wavelength', 'pp_delays', 'frames', 'pp_delays_ps'):
+        if prop in ('pixel', 'wavenumber', 'wavelength', 'pp_delays', 'frames', 'pp_delays_ps', 'times'):
             ret = getattr(self, prop)
             if prop in ('pixel', 'wavenumber', 'wavelength'):
                 ret = ret[roi_pixel]
@@ -532,7 +532,7 @@ class SfgRecord():
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
                       'time_domain', 'frequency_domain', 'normalize_het',
-                      'norm_het', 'signal_het'):
+                      'norm_het', 'signal_het', 'track'):
             # rois get passed down to inferior properties
             kwargs_prop['roi_delay'] = roi_delay
             kwargs_prop['roi_frames'] = roi_frames
@@ -1255,6 +1255,14 @@ class SfgRecord():
         kwargs['y_only'] = False
         return self.trace(*args, **kwargs)
 
+    def track(self, prop='basesubed', kwargs_prop=None, **kwargs):
+        """Time track.
+
+        A time track is one number from each spectrum vs its recorded time point.
+        """
+        y = self.select(prop=prop, kwargs_prop=kwargs_prop, **kwargs)
+        y = y.sum(X_PIXEL_INDEX)
+        return y
 
     def time_domain(self, **kwargs):
         """
@@ -1457,7 +1465,10 @@ class SfgRecord():
             self.rawData = rawData.reshape(1, *rawData.shape)
             if not self._setted_wavelength:
                 self.wavelength = sps[0].wavelength
-            self.calib_poly = sps[0].calib_poly
+            try:
+                self.calib_poly = sps[0].calib_poly
+            except AttributeError:
+                pass
             # TODO Update internal properties
 
         elif self.type == "npz":
