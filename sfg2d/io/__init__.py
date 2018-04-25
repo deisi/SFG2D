@@ -70,7 +70,16 @@ def import_data(fname, type=None):
             header = read_header(fname)
             metadata = {**metadata, **translate_header_to_metadata(header)}
             return {'data': get_from_victor_controller(fname), 'type': type, 'metadata':  metadata,}
-        raise NotImplementedError('List implementation for victor files not implemented')
+        # A list of files was passed
+        else:
+            header = read_header(fname[0])
+            metadata = {**metadata, **translate_header_to_metadata(header)}
+            raw_data, pp_delays = get_from_victor_controller(fname[0])
+            for name in fname[1:]:
+                r, p = get_from_victor_controller(name)
+                raw_data = np.append(raw_data, r, axis=1)
+            return {'data': (raw_data, pp_delays), 'type': type, 'metadata':  metadata,}
+
 
     msg = "I cannot understand the datatype of {}".format(fname)
     raise NotImplementedError(msg)
