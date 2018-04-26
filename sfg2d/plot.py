@@ -183,9 +183,8 @@ def spectrum(
 
 
 def track(
-        ydata,
-        *args,
         xdata=None,
+        ydata=None,
         ax=None,
         xlabel="RunNumber",
         ylabel='SFG Intensity',
@@ -201,18 +200,17 @@ def track(
     """
     if not ax:
         ax = plt.gca()
-    delays, frames, spectra, pixel = ydata.shape
-    if pixel != 1:
-        raise IOError
 
-    if delays != 1:
-        raise IOError
+    print(ydata.shape)
+    delays, frames, spectra = ydata.shape
+    ydata = ydata.reshape(delays*frames, spectra)
 
-    data = ydata[0, :, :, 0]
-    if isinstance(xdata, type(None)):
-        plt.plot(data, *args, **kwargs)
-    else:
-        plt.plot(xdata, data, *args, **kwargs)
+    for ispectrum in range(spectra):
+        data = ydata[:, ispectrum]
+        if isinstance(xdata, type(None)):
+            plt.plot(data, **kwargs)
+        else:
+            plt.plot(xdata, data, **kwargs)
 
 
 def trace(

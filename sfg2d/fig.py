@@ -86,8 +86,12 @@ def multiplot(
         if record:
             logging.info('Select y data with: {}'.format( plot_config['kwargs_select_y'] ))
             ydata = record.select(**plot_config['kwargs_select_y'])
-            logging.info('Select x data with: {}'.format( plot_config['kwargs_select_x'] ))
-            xdata = record.select(**plot_config['kwargs_select_x'])
+
+            kwargs_select_x = plot_config.get('kwargs_select_x')
+            xdata = None
+            if kwargs_select_x:
+                logging.info('Select x data with: {}'.format( plot_config['kwargs_select_x'] ))
+                xdata = record.select(**kwargs_select_x)
 
             kwargs_select_yerr = plot_config.get('kwargs_select_yerr')
             if kwargs_select_yerr:

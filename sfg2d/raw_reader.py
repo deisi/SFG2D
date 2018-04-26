@@ -185,16 +185,18 @@ class Analyser():
             kwargs_record = record_entrie.get('kwargs_record', {})
             base_dict = record_entrie.get('base')
             if base_dict:
-                print(base_dict)
                 # Allows to only define the name of the base as entry
                 if isinstance(base_dict, str):
                     base = records[base_dict]
+                    kwargs_base = {'frame_med': True}
                 # Allows to define the base as dictionary with base key
                 else:
                     base = records[base_dict['name']]
+                    kwargs_base = base_dict.get('kwargs', {})
+                    kwargs_base.setdefault('frame_med', True)
                 base = base.select(
                     prop='rawData',
-                    frame_med=True
+                    **kwargs_base
                 )
                 kwargs_record['base'] = base
 
