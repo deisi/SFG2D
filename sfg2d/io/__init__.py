@@ -48,7 +48,10 @@ def import_data(fname, type=None):
         metadata['date'] = sp.date
         metadata['tempSet'] = sp.tempSet
         metadata['wavelength'] = sp.wavelength
-        metadata['calib_poly'] = sp.calib_poly
+        try:
+            metadata['calib_poly'] = sp.calib_poly
+        except AttributeError:
+            pass
         #metadata['NumFrames'] = sp.NumFrames
         #metadata['ydim'] = sp.ydim
         #metadata['xdim'] = sp.xdim
