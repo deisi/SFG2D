@@ -201,9 +201,10 @@ def track(
     if not ax:
         ax = plt.gca()
 
-    print(ydata.shape)
     delays, frames, spectra = ydata.shape
-    ydata = ydata.reshape(delays*frames, spectra)
+    # oder F, because ppelays is the first index and that
+    # changes fastest
+    ydata = ydata.reshape(delays*frames, spectra, order='F')
 
     for ispectrum in range(spectra):
         data = ydata[:, ispectrum]

@@ -254,7 +254,7 @@ class Fitter():
         elif len(np.shape(value)) != 1:
             raise IndexError('Shappe of yerr is not of dim 1')
         if np.any(value==0):
-            raise ValueError('Cant handle 0 errors')
+            raise ValueError('Cant handle 0 values in uncertainty')
             from warnings import warn
             warn('Passed uncertainty has a 0 value\nIgnoring errorbars.\n{}'.format(value))
             self._sigma = value

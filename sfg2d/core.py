@@ -157,7 +157,8 @@ class SfgRecord():
                  wavenumber=None, roi_x_pixel_spec=None, het_shift=None,
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
-                 zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None, roi_delay=None,
+                 zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None,
+                 roi_delay=None, pumped_index=0, unpumped_index=1, roi_spectra=None, vis_wl=None,
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
@@ -223,10 +224,10 @@ class SfgRecord():
         self._setted_wavenumber = None
 
         # y-pixel/spectra index of pumped data
-        self._pumped_index = 0
+        self._pumped_index = pumped_index
 
         # index of unpumped data
-        self._unpumped_index = 1
+        self._unpumped_index = unpumped_index
 
         # Boolean to toggle default zero_time subtraction
         self._zero_time_subtraction = True
@@ -354,12 +355,20 @@ class SfgRecord():
             self.zero_time_selec = zero_time_select
 
         # Update zero time subtraction boolean
-        if zero_time_subtraction:
-            self.zero_time_subtraction = zero_time_subtraction
+        if not isinstance(zero_time_subtraction, type(None)):
+            self._zero_time_subtraction = zero_time_subtraction
 
         # Roi Delay
         if roi_delay:
             self.roi_delay = roi_delay
+
+        #
+        if roi_spectra:
+            self.roi_spectra = roi_spectra
+
+        # vis_wl
+        if vis_wl:
+            self.vis_wl = vis_wl
 
         if isinstance(base, str):
             base = SfgRecord(base).data
@@ -487,7 +496,7 @@ class SfgRecord():
         if not roi_frames:
             roi_frames = self.roi_frames
         if not roi_spectra:
-            roi_spectra = slice(None)
+            roi_spectra = self.roi_spectra
         # This is wrong for traces
         if not roi_pixel:
             if roi_wavenumber:

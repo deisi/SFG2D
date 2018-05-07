@@ -30,6 +30,7 @@ FILE_CALIB = ('file_calib', None)
 MPLSTYLE = ('mplstyle', '/home/malte/sfg2d/styles/presentation.mplstyle')
 CACHE_DIR = ('cache_dir', './cache')
 FIGURE_FILE = ('figure_file', './figures.pdf')
+VIS_WL = ('vis_wl', None)
 
 
 class Analyser():
@@ -133,7 +134,12 @@ class Analyser():
     def update_configuration(self):
         self._configuration = self.get_configuration()
 
+    def update_models(self, *args):
+        self.update_configuration()
+        self._models = self.make_models(*args)
+
     def update_figures(self):
+        self.update_configuration()
         self._figures = self.make_figures()
 
     def apply_options(self):
@@ -172,6 +178,13 @@ class Analyser():
             except IndexError:
                 logging.warning('Cant find wavenumber in calib file %s'.format(
                         file_calib))
+
+        # Makes it possible to define a default vis_wl for all records
+        vis_wl = options.get(*VIS_WL)
+        if vis_wl:
+            for config_record in self.configuration[RECORDS]:
+                dpath.util.new(
+                    config_record, 'kwargs_record/vis_wl', vis_wl)
 
 
     def import_records(self):
@@ -269,7 +282,7 @@ class Analyser():
         if save_models:
             with open(MODEL_FILE, 'w') as models_file:
                 logging.info('Saving models to {}'.format(os.path.abspath(MODEL_FILE)))
-                yaml.dump(new_models, models_file)
+                yaml.dump(new_models, models_file, default_flow_style=False)
 
         # Update config_models with fit results
         config_models = new_models
@@ -302,8 +315,7 @@ class Analyser():
 
         """
 
-        # Needs depcopy because otherwiese dicts get referenced and
-        # overwritten in an unanttanded way
+        # Deepcopy to allow for independent nested dicts
         config_figures = deepcopy(self.configuration.get(FIGURES))
         figures = {}
         if not config_figures:

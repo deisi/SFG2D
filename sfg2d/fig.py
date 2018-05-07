@@ -234,6 +234,7 @@ def figure(
 
     return fig, ax
 
+
 def hot_and_cold(
         record_cold,
         record_hot,
