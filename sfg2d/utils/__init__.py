@@ -78,3 +78,20 @@ def nm_to_pixel(x, central_wl):
     if len(params) < 2:
         warnings.Warn("Can't use constant calibration")
     return x - params[1] - central_wl + calib_cw/params[0]
+
+def get_dataframe(record, seconds, kwargs_track=None):
+    """Creates a dataframe from track and time data.
+    seconds: number of paused seconds between frames. This is not saved by spe file
+
+    the difference of frame time is read from .spe metadata information.
+    """
+    import pandas as pd
+    from datetime import timedelta
+
+    if not kwargs_track:
+        kwargs_track = {}
+    ydata = record.track(**kwargs_track).squeeze()
+    start_time = record.metadata['date']
+    measurment_time = [start_time + timedelta(seconds=seconds)*i for i in range(len(ydata))]
+    df = pd.DataFrame(ydata, index=measurment_time)
+    return df

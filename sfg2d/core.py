@@ -1,4 +1,3 @@
-
 import warnings
 import logging
 
@@ -1264,13 +1263,19 @@ class SfgRecord():
         kwargs['y_only'] = False
         return self.trace(*args, **kwargs)
 
-    def track(self, prop='basesubed', kwargs_prop=None, **kwargs):
+    def track(self, prop='basesubed', kwargs_prop=None, percent=False, **kwargs):
         """Time track.
+        kwargs_prop: get passed to select as kwargs_prop,
+        percecnt: if true, return is normalized to 100%
+        additional kwargs are passed to select
+
 
         A time track is one number from each spectrum vs its recorded time point.
         """
         y = self.select(prop=prop, kwargs_prop=kwargs_prop, **kwargs)
         y = y.sum(X_PIXEL_INDEX)
+        if percent:
+            y = y / y.max() * 100
         return y
 
     def time_domain(self, **kwargs):
