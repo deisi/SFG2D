@@ -448,7 +448,9 @@ class SfgRecord():
             frame_med=False, delay_mean=False, spectra_mean=False,
             pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
             attribute=None, scale=None, abs=False, square=False, sqrt=False,
-            offset=None, roi_wavenumber=None, debug=False,
+            offset=None, roi_wavenumber=None, imag=False, real=False,
+            sum=False,
+            debug=False,
             **kwargs
     ):
         """Central Interface to select data.
@@ -473,9 +475,12 @@ class SfgRecord():
           - **attribute**: Attribute to get at the end
           - **scale**: A factor to scale results with
           - **abs**: Boolean to get absolute with
+          - **imag**:  Boolean to get imaginary part
+          - **real**: Boolean to get real part
           - **square**: Boolean to calculate square with
           - **sqrt**: Boolean to calculate square-root with
           - **offset**: Offset to add to result
+          - **sum**: sum up spectra
           - **roi_wavenumber**: roi to calculate trace over in wavenumbers.
 
         **kwargs**:
@@ -590,6 +595,10 @@ class SfgRecord():
             ret = getattr(ret, attribute)
         if abs:
             ret = np.absolute(ret)
+        if imag:
+            ret = np.imag(ret)
+        if real:
+            ret = np.real(ret)
         if square:
             ret = np.square(ret)
         if sqrt:

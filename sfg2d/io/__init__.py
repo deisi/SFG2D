@@ -214,3 +214,32 @@ def load_fitarg_minuit_chi2(fp, fit_func, x, y, migrad=True, **kwargs):
         **kwargs
     )
     return fitarg, minuit, chi2
+
+
+def ac_data_hj(fname, **kwargs):
+    """Function to read humidity and temperature data from hansjoerg"""
+    from pandas import read_csv, to_datetime
+
+    return read_csv(
+        fname, sep=';',
+        index_col=0,
+        decimal=',',
+        parse_dates=True,
+        date_parser=lambda dt: to_datetime(dt, format='%d.%m.%Y %H:%M:%S'),
+        **kwargs
+       )
+
+
+def ac_data_vic(fname, **kwargs):
+    """Read data from viktor temperature and humidity controller."""
+    import pandas as pd
+
+    return pd.read_csv(
+        fname,
+        index_col=1,
+        parse_dates=True,
+        names=['Temperature\Humidity Graph', 'Time', 'Temp', 'High Alarm',
+               'Low Alarm', 'Hum', 'High Alarm rh', 'Low Alarm rh',
+               'dew point', 'High Alarm dew', 'Low Alarm dew'],
+        skiprows=12,
+        )
