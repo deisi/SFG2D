@@ -449,7 +449,7 @@ class SfgRecord():
             pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
             attribute=None, scale=None, abs=False, square=False, sqrt=False,
             offset=None, roi_wavenumber=None, imag=False, real=False,
-            sum=False,
+            sum_pixel=False,
             debug=False,
             **kwargs
     ):
@@ -480,7 +480,7 @@ class SfgRecord():
           - **square**: Boolean to calculate square with
           - **sqrt**: Boolean to calculate square-root with
           - **offset**: Offset to add to result
-          - **sum**: sum up spectra
+          - **sum_pixel**: sum up pixels
           - **roi_wavenumber**: roi to calculate trace over in wavenumbers.
 
         **kwargs**:
@@ -603,6 +603,8 @@ class SfgRecord():
             ret = np.square(ret)
         if sqrt:
             ret = np.sqrt(ret)
+        if sum_pixel:
+            ret = np.sum(ret, axis=X_PIXEL_INDEX, keepdims=True)
         return ret
 
     def sem(self, prop, **kwargs):

@@ -5,7 +5,7 @@
 
 import matplotlib.pyplot as plt
 import sfg2d
-from numpy import transpose, where, linspace
+from numpy import transpose, where, linspace, all, array
 
 def fit_model(
         x,
@@ -174,7 +174,14 @@ def spectrum(
     for delay in ydata:
         for frame in delay:
             for spec in frame:
-                ax.plot(xdata, spec.T, *args, **kwargs)
+               # We need a scatter like plot if its just one point
+                if all(array(spec.shape) == 1):
+                    kwargs.setdefault('marker', 'o')
+
+                if isinstance(xdata, type(None)):
+                    ax.plot(spec.T, *args, **kwargs)
+                else:
+                    ax.plot(xdata, spec.T, *args, **kwargs)
 
     if xlabel:
         ax.set_xlabel(xlabel)
