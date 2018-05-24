@@ -5,7 +5,6 @@ from .veronica import get_from_veronika
 from .victor_controller import (
     get_from_victor_controller,
     read_header,
-    translate_header_to_metadata
 )
 from ..utils.metadata import get_metadata_from_filename
 
@@ -16,7 +15,7 @@ import numpy as np
 
 def import_data(fname, type=None):
     """Import the data."""
-    # Pick import function according to data type automatically.
+    # Pick import function according to data type.
     metadata = {}
     if isinstance(fname, str):
         one_file = fname
@@ -26,10 +25,9 @@ def import_data(fname, type=None):
     if not type:
         type = type_data(one_file)
 
+    # TODO Refactor this so the try is not needed
     try:
         metadata = get_metadata_from_filename(one_file)
-    # TODO Refactor this, if I would program better this
-    # would not happen
     except ValueError:
         msg ='ValueError while trying to extract metadata from filepath.'\
             '/nSkipping'
@@ -40,21 +38,10 @@ def import_data(fname, type=None):
             sps = [PrincetonSPEFile3(fname)]
         else:
             sps = [PrincetonSPEFile3(name) for name in fname]
+        # Metadata is read of the first file, because ther is no clear mapping
         sp = sps[0]
-        metadata['central_wl'] = sp.central_wl
-        metadata['exposure_time'] = sp.exposureTime
-        metadata['gain'] = sp.gain
+        metadata = {**metadata, **sp.metadata}
         metadata['sp_type'] = 'spe'
-        metadata['date'] = sp.date
-        metadata['tempSet'] = sp.tempSet
-        metadata['wavelength'] = sp.wavelength
-        try:
-            metadata['calib_poly'] = sp.calib_poly
-        except AttributeError:
-            pass
-        #metadata['NumFrames'] = sp.NumFrames
-        #metadata['ydim'] = sp.ydim
-        #metadata['xdim'] = sp.xdim
         return {'data': sps, 'metadata':  metadata, 'type': type}
 
     if type == "npz":
@@ -70,19 +57,16 @@ def import_data(fname, type=None):
     if type == "victor":
         # Read metadata from file header.
         if isinstance(fname, str):
-            header = read_header(fname)
-            metadata = {**metadata, **translate_header_to_metadata(header)}
+            metadata = {**metadata, **read_header(fname)}
             return {'data': get_from_victor_controller(fname), 'type': type, 'metadata':  metadata,}
         # A list of files was passed
         else:
-            header = read_header(fname[0])
-            metadata = {**metadata, **translate_header_to_metadata(header)}
+            metadata = {**metadata, **read_header(fname[0])}
             raw_data, pp_delays = get_from_victor_controller(fname[0])
             for name in fname[1:]:
                 r, p = get_from_victor_controller(name)
                 raw_data = np.append(raw_data, r, axis=1)
             return {'data': (raw_data, pp_delays), 'type': type, 'metadata':  metadata,}
-
 
     msg = "I cannot understand the datatype of {}".format(fname)
     raise NotImplementedError(msg)

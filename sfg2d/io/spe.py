@@ -116,71 +116,57 @@ class PrincetonSPEFile3():
 
     def _readSize(self):
         """ Reads size of the data."""
-        self.xdim = self._readFromHeader('H', 42)[0]
-        self.ydim = self._readFromHeader('H', 656)[0]
-        self.datatype = self._readFromHeader('h', 108)[0]
-        self.NumFrames = self._readFromHeader("i", 1446)[0]
-        self.xDimDet = self._readFromHeader("H", 6)[0]
-        self.yDimDet = self._readFromHeader("H", 18)[0]
-        self.metadata['xdim'] = self.xdim
-        self.metadata['ydim'] = self.ydim
-        self.metadata['datatype'] = self.datatype
-        self.metadata["NumFrames"] = self.NumFrames
-        self.metadata['xDimDet'] = self.xDimDet
-        self.metadata['yDimDet'] = self.yDimDet
+        self.metadata['xdim'] = self._readFromHeader('H', 42)[0]
+        self.metadata['ydim'] = self._readFromHeader('H', 656)[0]
+        self.metadata['datatype'] = self._readFromHeader('h', 108)[0]
+        self.metadata["NumFrames"] = self._readFromHeader("i", 1446)[0]
+        self.metadata['xDimDet'] = self._readFromHeader("H", 6)[0]
+        self.metadata['yDimDet'] = self._readFromHeader("H", 18)[0]
 
     def _read_v2_header(self):
         """Read calibrations parameters and calculate wavelength as it
         was done in pre v3 .spe time."""
 
         # General meta data
-        self.exposureTime = timedelta(
+        self.metadata['exposureTime'] = timedelta(
             seconds=self._readFromHeader('f', 10)[0]  # in seconds
         )
         date = self._readFromHeader('9s', 20)[0].decode('utf-8')
-        self.tempSet = self._readFromHeader('f', 36)[0]
+        self.metadata['tempSet'] = self._readFromHeader('f', 36)[0]
         timeLocal = self._readFromHeader('6s', 172)[0].decode('utf-8')
         timeUTC = self._readFromHeader('6s', 179)[0].decode('utf-8')
 
         # Try statement is a workaround, because sometimes date seems to be
         # badly formatted and the program cant deal with it.
         try:
-            self.date = datetime.strptime(
+            self.metadata['date'] = datetime.strptime(
                 date + timeLocal, "%d%b%Y%H%M%S"
             )
-            self.timeUTC = datetime.strptime(
+            self.metadata['timeUTC'] = datetime.strptime(
                 date + timeUTC, "%d%b%Y%H%M%S"
             )
-            self.metadata['date'] = self.date
         except ValueError:
             if debug:
                 print('Malformated date in %s' % self._fname)
                 print('date string is: %s' % date)
-            self.date = datetime.now()
-            self.timeUTC = datetime.now()
-        self.gain = self._readFromHeader('I', 198)[0]
-        self.comments = self._readFromHeader('400s', 200)[0].decode('utf-8')
-        self.central_wl = self._readFromHeader('f', 72)[0] # in nm
 
-        self.metadata['gain'] = self.gain
-        # Long and empty. Never seen this used
-        #self.metadata['comments'] = self.comments
-        self.metadata['central_wl'] = self.central_wl
+        self.metadata['gain'] = self._readFromHeader('I', 198)[0]
+        # Central Wavelength is in nm
+        self.metadata['central_wl'] = self._readFromHeader('f', 72)[0]
 
         # Lets allways have a wavelength array
         # in worst case its just pixels
         # Read calib data
-        self.wavelength = np.arange(self.xdim)
+        self.wavelength = np.arange(self.metadata['xdim'])
         if self.headerVersion >= 3:
             return
-        self.poly_coeff = np.array(self._readFromHeader('6d', 3263))
+        poly_coeff = np.array(self._readFromHeader('6d', 3263))
         # numpy needs polynomparams in reverse oder
-        params = self.poly_coeff[np.where( self.poly_coeff != 0 )][::-1]
+        params = poly_coeff[np.where(poly_coeff != 0)][::-1]
         if len(params) > 1:
             self.calib_poly = np.poly1d(params)
             self.wavelength = self.calib_poly(np.arange(self.xdim))
-            self.metadata['calib_poly'] = self.calib_poly
-        self.metadata['poly_coeff'] = self.poly_coeff
+        self.metadata['poly_coeff'] = poly_coeff
 
     def _readData(self):
         """Reads the actual data from the binary file.
@@ -189,14 +175,18 @@ class PrincetonSPEFile3():
         doesn't support the new fancy data footer features from the
         Version 3 spe file format.
         """
-        nPixels = self.xdim * self.ydim
+        xdim = self.metadata['xdim']
+        ydim = self.metadata['ydim']
+        datatype = self.metadata['datatype']
+
+        nPixels = xdim * ydim
 
         # fileheader datatypes translated into struct fromatter
         # This tells us what the format of the actual data is
-        fmtStr, bytesPerPixel, npfmtStr = self.dataTypeDict[self.datatype]
-        fmtStr = str(self.xdim * self.ydim) + fmtStr
+        fmtStr, bytesPerPixel, npfmtStr = self.dataTypeDict[datatype]
+        fmtStr = str(xdim * ydim) + fmtStr
         if self._verbose:
-            print( "fmtStr = ", fmtStr)
+            print("fmtStr = ", fmtStr)
 
         # Bytes per frame
         nBytesPerFrame = nPixels * bytesPerPixel
@@ -212,17 +202,17 @@ class PrincetonSPEFile3():
         self._spe.seek(nBytesHeader)
         self.data = []
         # Todo read until footer here
-        #self._data = self._spe.read()
-        for ii in range(self.NumFrames):
+        # self._data = self._spe.read()
+        for ii in range(self.metadata['NumFrames']):
             data = self._spe.read(nBytesPerFrame)
             if self._verbose:
                 print(ii)
 
             dataArr = np.array(
                 struct.unpack_from('='+fmtStr, data, offset=0),
-                dtype = npfmtStr
+                dtype=npfmtStr
             )
-            dataArr.resize((self.ydim, self.xdim))
+            dataArr.resize((ydim, xdim))
             self.data.append(dataArr)
         self.data = np.array(self.data)
         return self.data
@@ -240,20 +230,13 @@ class PrincetonSPEFile3():
             self._footer["SpeFormat"]["Calibrations"]["WavelengthMapping"]['Wavelength']['#text'],
             sep=","
         )
-        self.central_wl = float(
+        self.metadata['central_wl'] = float(
             self._footer["SpeFormat"]["DataHistories"]['DataHistory']["Origin"]["Experiment"]["Devices"]['Spectrometers']["Spectrometer"]["Grating"]["CenterWavelength"]['#text']
             )
-        self.grating = self._footer["SpeFormat"]["DataHistories"]['DataHistory']["Origin"]["Experiment"]["Devices"]['Spectrometers']["Spectrometer"]["Grating"]['Selected']['#text']
+        self.metadata['grating'] = self._footer["SpeFormat"]["DataHistories"]['DataHistory']["Origin"]["Experiment"]["Devices"]['Spectrometers']["Spectrometer"]["Grating"]['Selected']['#text']
         # expusure Time in ms
-        self.exposureTime = float(self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ShutterTiming']['ExposureTime']['#text'])
+        self.metadata['exposureTime'] = float(self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ShutterTiming']['ExposureTime']['#text'])
         temp = self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['Sensor']['Temperature']
-        self.tempSet = int(temp['SetPoint']['#text'])
-        self.tempRead = int(temp['Reading']['#text'])
-        self.roi = self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ReadoutControl']['RegionsOfInterest']['Result']['RegionOfInterest']
-
-        self.metadata['central_wl'] = self.central_wl
-        self.metadata['grating'] = self.grating
-        self.metadata['exposureTime'] = self.exposureTime
-        self.metadata['tempSet'] = self.tempSet
-        self.metadata['tempRead'] = self.tempRead
-        self.metadata['roi'] = self.roi
+        self.metadata['tempSet'] = int(temp['SetPoint']['#text'])
+        self.metadata['tempRead'] = int(temp['Reading']['#text'])
+        self.metadata['roi'] = self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ReadoutControl']['RegionsOfInterest']['Result']['RegionOfInterest']

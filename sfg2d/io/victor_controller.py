@@ -62,53 +62,57 @@ def read_header(fpath):
             name, value = line.split("=")
             # Strip newline
             ret[name] = value[:-1]
-    return ret
 
+    # To have some compatibility between spe veronica and viktor files,
+    # we further unify some of the namings
+    ret['gain'] = ret.get('Gain')
 
-def translate_header_to_metadata(header_dict):
-    """Translate the header dictionary to metadata dictionary."""
-    ret = {}
-    for key in header_dict:
-        value = header_dict[key]
-        if 'Gain' == key:
-            ret['gain'] = value
+    exp_time = ret.get('ExposureTime [s]')
+    if exp_time:
+        ret['exposure_time'] = datetime.timedelta(seconds=float(exp_time))
 
-        elif "Output Amplifier" == key:
-            ret['output amplifier'] = value
+    hbin = ret.get('HBin')
+    if hbin:
+        ret['hbin'] = {'ON': True}.get(value, False)
 
-        elif "HS_speed" in key:
-            unit = get_unit_from_string(key)
-            ret['hs_speed'] = (value, unit)
+    cw = ret.get('Central-Wavelength')
+    if cw:
+        ret['central_wl'] = float(cw)
 
-        elif 'ExposureTime' in key:
-            _, unit = key.split(" ")
-            if "[s]" in unit:
-                unit = "seconds"
-            ret["exposure_time"] = datetime.timedelta(**{unit : float(value)})
+    vis_wl = ret.get('vis-Wavelength')
+    if vis_wl:
+        ret['vis_wl'] = vis_wl
 
-        elif 'HBin' == key:
-            ret['hbin'] = {'ON': True}.get(value, False)
+    syringe_pos = ret.get('Syringe Pos')
+    if syringe_pos:
+        ret['syringe_pos'] = int(syringe_pos)
 
-        # Wavelength => CentralWaveleng
-        elif "Central-Wavelength" == key:
-            ret["central_wl"] = float(value)
+    cursor = ret.get("Cursor")
+    if cursor:
+        ret['cursor'] = tuple([int(elm) for elm in cursor.split('\t')])
 
-        elif "vis-Wavelength" == key:
-            ret["vis_wl"] = float(value)
+    x_mirror = ret.get('x-mirror')
+    if x_mirror:
+        ret['x_mirror'] = {'ON': True}.get(x_mirror, False)
 
-        elif 'Syringe Pos' in key:
-            ret["syringe_pos"] = int(value)
+    calib_coeff = ret.get('calib Coeff')
+    if calib_coeff:
+        ret['calib Coeff'] = tuple([float(elm) for elm in calib_coeff.split('\t')])
 
-        elif "Timefile" in key:
-            ret["timefile"] = value
+    scan_start_time = ret.get('Scan Start time')
+    if scan_start_time:
+        ret['date'] = datetime.datetime.strptime(scan_start_time, '%d.%m.%Y  %H:%M:%S')
 
-        elif "Cursor" == key:
-            ret['cursor'] = tuple([int(elm) for elm in value.split('\t')])
+    scan_stop_time = ret.get('Scan Stop time')
+    if scan_stop_time:
+        ret['date_stop'] = datetime.datetime.strptime(scan_stop_time, '%d.%m.%Y  %H:%M:%S')
 
-        elif 'x-mirror' == key:
-            ret['x-mirror'] = {'ON': True}.get(value, False)
+    timedelay = ret.get('Timedelay')
+    if timedelay:
+        ret['timedelay'] = np.array([int(elm) for elm in timedelay.split('\t')])
 
-        elif 'calib Coeff' == key:
-            ret['calib Coeff'] = tuple([float(elm) for elm in value.split('\t')])
+    timedelay_pos= ret.get('Timedelay Pos')
+    if timedelay_pos:
+        ret['timedel_pos'] = np.array([int(elm) for elm in timedelay_pos.split('\t')])
 
     return ret
