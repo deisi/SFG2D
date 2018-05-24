@@ -91,10 +91,10 @@ def translate_header_to_metadata(header_dict):
 
         # Wavelength => CentralWaveleng
         elif "Central-Wavelength" == key:
-            ret["central_wl"] = int(value)
+            ret["central_wl"] = float(value)
 
         elif "vis-Wavelength" == key:
-            ret["vis_wl"] = int(value)
+            ret["vis_wl"] = float(value)
 
         elif 'Syringe Pos' in key:
             ret["syringe_pos"] = int(value)

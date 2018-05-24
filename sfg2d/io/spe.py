@@ -89,6 +89,7 @@ class PrincetonSPEFile3():
 
         self._spe = open(fname, 'rb')
         self._fname = fname
+        self.metadata = {}
         self.readData()
 
     def readData(self):
@@ -121,6 +122,12 @@ class PrincetonSPEFile3():
         self.NumFrames = self._readFromHeader("i", 1446)[0]
         self.xDimDet = self._readFromHeader("H", 6)[0]
         self.yDimDet = self._readFromHeader("H", 18)[0]
+        self.metadata['xdim'] = self.xdim
+        self.metadata['ydim'] = self.ydim
+        self.metadata['datatype'] = self.datatype
+        self.metadata["NumFrames"] = self.NumFrames
+        self.metadata['xDimDet'] = self.xDimDet
+        self.metadata['yDimDet'] = self.yDimDet
 
     def _read_v2_header(self):
         """Read calibrations parameters and calculate wavelength as it
@@ -144,6 +151,7 @@ class PrincetonSPEFile3():
             self.timeUTC = datetime.strptime(
                 date + timeUTC, "%d%b%Y%H%M%S"
             )
+            self.metadata['date'] = self.date
         except ValueError:
             if debug:
                 print('Malformated date in %s' % self._fname)
@@ -153,6 +161,11 @@ class PrincetonSPEFile3():
         self.gain = self._readFromHeader('I', 198)[0]
         self.comments = self._readFromHeader('400s', 200)[0].decode('utf-8')
         self.central_wl = self._readFromHeader('f', 72)[0] # in nm
+
+        self.metadata['gain'] = self.gain
+        # Long and empty. Never seen this used
+        #self.metadata['comments'] = self.comments
+        self.metadata['central_wl'] = self.central_wl
 
         # Lets allways have a wavelength array
         # in worst case its just pixels
@@ -166,6 +179,8 @@ class PrincetonSPEFile3():
         if len(params) > 1:
             self.calib_poly = np.poly1d(params)
             self.wavelength = self.calib_poly(np.arange(self.xdim))
+            self.metadata['calib_poly'] = self.calib_poly
+        self.metadata['poly_coeff'] = self.poly_coeff
 
     def _readData(self):
         """Reads the actual data from the binary file.
@@ -235,3 +250,10 @@ class PrincetonSPEFile3():
         self.tempSet = int(temp['SetPoint']['#text'])
         self.tempRead = int(temp['Reading']['#text'])
         self.roi = self._footer['SpeFormat']['DataHistories']['DataHistory']['Origin']['Experiment']['Devices']['Cameras']['Camera']['ReadoutControl']['RegionsOfInterest']['Result']['RegionOfInterest']
+
+        self.metadata['central_wl'] = self.central_wl
+        self.metadata['grating'] = self.grating
+        self.metadata['exposureTime'] = self.exposureTime
+        self.metadata['tempSet'] = self.tempSet
+        self.metadata['tempRead'] = self.tempRead
+        self.metadata['roi'] = self.roi
