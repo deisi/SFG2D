@@ -81,7 +81,7 @@ def read_header(fpath):
 
     vis_wl = ret.get('vis-Wavelength')
     if vis_wl:
-        ret['vis_wl'] = vis_wl
+        ret['vis_wl'] = float(vis_wl)
 
     syringe_pos = ret.get('Syringe Pos')
     if syringe_pos:
