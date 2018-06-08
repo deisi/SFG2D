@@ -1238,8 +1238,9 @@ class SfgRecord():
 
         """
         if not kwargs_prop:
-            kwargs_prop = {'opt': 'rel', 'prop': 'basesubed'}
-        x = self.select(prop='pp_delays', roi_delay=roi_delay)
+            kwargs_prop = {}
+        kwargs_prop.setdefault('opt', 'rel')
+        kwargs_prop.setdefault('prop', 'basesubed')
 
         kwargs['pixel_mean'] = True
         kwargs['roi_delay'] = roi_delay
@@ -1249,6 +1250,7 @@ class SfgRecord():
             kwargs_prop=kwargs_prop,
             **kwargs
         )
+        x = self.select(prop='pp_delays', roi_delay=roi_delay)
 
         if shift_neg_time:
             y += 1 - y[:shift_neg_time].mean()
