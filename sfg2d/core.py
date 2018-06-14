@@ -150,6 +150,9 @@ class SfgRecord():
         4 d normalized array
     shift: shift heterodyne singal by given angle in radiant.
     norm_het_shift: Shift heterodyne quartz by given angle in radiants.
+    replace_pixels: Give list of tuples of
+        ((pixel0, odd_number), (pixel1, ...)) to replace pixel with
+        the median of the region definded by odd_number.
     """
     def __init__(self, fname=None, rawData=None,
                  base=None, norm=None, baseline_offset=0, wavelength=None,
@@ -380,6 +383,12 @@ class SfgRecord():
             self.norm = norm
         elif not isinstance(norm, type(None)):
             self.norm = norm
+
+        if not isinstance(replace_pixels, type(None)):
+            for pixel, region in replace_pixels:
+                self._rawData[:, :, :, pixel] = np.median(
+                    self._rawData[:, :, :, pixel-region: pixel+region], -1
+                       )
 
 
     @property
