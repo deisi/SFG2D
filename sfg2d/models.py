@@ -58,7 +58,7 @@ def model_fit_record(
     model = getattr(thismodule, model)(xdata, ydata, yerr, **kwargs_model)
     if run:
         fit_model(
-            model,# print_matrix=print_matrix
+            model, # print_matrix=print_matrix
         )
 
     return model
@@ -106,7 +106,10 @@ def fit_model(model, minos=False, print_matrix=True):
         model.minuit.minos()
         model.minuit.migrad()
     if print_matrix:
-        model.minuit.print_matrix()
+        try:
+            model.minuit.print_matrix()
+        except ValueError:
+            pass
 
 
 def normalize_trace(model, shift_mu=False, scale_amp=False, shift_heat=False, scale_x=None):
@@ -254,11 +257,10 @@ class Fitter():
         elif len(np.shape(value)) != 1:
             raise IndexError('Shappe of yerr is not of dim 1')
         if np.any(value==0):
-            raise ValueError('Cant handle 0 values in uncertainty')
-            from warnings import warn
-            warn('Passed uncertainty has a 0 value\nIgnoring errorbars.\n{}'.format(value))
-            self._sigma = value
-            self.ignore_errors = True
+            logging.warn('Zero value within ucertainty. Ignoring errorbars.')
+            logging.warn('Errors passed were {}'.format(value))
+            self._sigma = np.zeros_like(self._ydata)
+            #self.ignore_errors = True
         self._sigma = value
 
     @property
@@ -283,6 +285,10 @@ class Fitter():
     @property
     def xsample(self):
         return np.linspace(self.xdata[0], self.xdata[-1], self._xsample_num)
+
+    @property
+    def ysample(self):
+        return self.yfit_sample
 
     @property
     def y_fit(self):

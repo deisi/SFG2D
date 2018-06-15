@@ -151,8 +151,10 @@ class SfgRecord():
     shift: shift heterodyne singal by given angle in radiant.
     norm_het_shift: Shift heterodyne quartz by given angle in radiants.
     replace_pixels: Give list of tuples of
-        ((pixel0, odd_number), (pixel1, ...)) to replace pixel with
+        ((pixel0, value0), (pixel1, ...)) to replace pixel with
         the median of the region definded by odd_number.
+    average_pixels: like replace, but instead of value, a region is given.
+        the median of that region then replaces the pixel value.
     """
     def __init__(self, fname=None, rawData=None,
                  base=None, norm=None, baseline_offset=0, wavelength=None,
@@ -160,7 +162,7 @@ class SfgRecord():
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
                  zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None,
-                 roi_delay=None, pumped_index=0, unpumped_index=1, roi_spectra=None, vis_wl=None,
+                 roi_delay=None, pumped_index=0, unpumped_index=1, roi_spectra=None, vis_wl=None, replace_pixels=None, average_pixels=None
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
@@ -235,7 +237,7 @@ class SfgRecord():
         self._zero_time_subtraction = True
 
         # list/slice of delay indexes for zero_time_subtraction
-        self._zero_time_selec = [0]
+        self._zero_time_selec = [0, 1]
 
         # array of bleach value at negative time
         self.zero_time_abs = None
@@ -385,7 +387,12 @@ class SfgRecord():
             self.norm = norm
 
         if not isinstance(replace_pixels, type(None)):
-            for pixel, region in replace_pixels:
+            for pixel, value in replace_pixels:
+                self._rawData[:, :, :, pixel] = value
+
+
+        if not isinstance(average_pixels, type(None)):
+            for pixel, region in average_pixels:
                 self._rawData[:, :, :, pixel] = np.median(
                     self._rawData[:, :, :, pixel-region: pixel+region], -1
                        )
@@ -440,6 +447,7 @@ class SfgRecord():
             'norm_het_stop': 'norm_het_stop',
             'wavenumber': 'wavenumber',
             'wavelength': 'wavelength',
+            'pump_freq': 'pump_freq',
         }
 
     @property
@@ -504,14 +512,14 @@ class SfgRecord():
         # For historic reasons kwargs_prop and kwargs are not the same
         kwargs_prop = {**kwargs, **kwargs_prop}
 
-        if not roi_delay:
+        if isinstance(roi_delay, type(None)):
             roi_delay = self.roi_delay
-        if not roi_frames:
+        if isinstance(roi_frames, type(None)):
             roi_frames = self.roi_frames
-        if not roi_spectra:
+        if isinstance(roi_spectra, type(None)):
             roi_spectra = self.roi_spectra
         # This is wrong for traces
-        if not roi_pixel:
+        if isinstance(roi_pixel, type(None)):
             if roi_wavenumber:
                 roi_pixel = self.wavenumber2pixelSlice(roi_wavenumber)
             else:
@@ -627,6 +635,7 @@ class SfgRecord():
         if 'trace' in prop:
             kwargs['pixel_mean'] = True
         return sem(self.select(**kwargs), FRAME_AXIS_INDEX)
+
 
     @property
     def rawData(self):

@@ -1,6 +1,5 @@
 """Module to read raw data and produce records with."""
 from pylab import *
-import pip
 import sys
 import os
 import numpy as np
@@ -10,8 +9,10 @@ import sfg2d.models
 import dpath.util
 import logging
 from copy import deepcopy
+from pip._internal.utils.misc import get_installed_distributions
 from . import myyaml as yaml
 import pandas as pd
+from glob import glob
 plt.ion()
 
 logging.basicConfig(level=logging.INFO)
@@ -198,31 +199,38 @@ class Analyser():
             kwargs_record = record_entrie.get('kwargs_record', {})
             base_dict = record_entrie.get('base')
             if base_dict:
-                # Allows to only define the name of the base as entry
+                # Allows for easy definition of base by passing {base: name}
                 if isinstance(base_dict, str):
-                    base = records[base_dict]
-                    kwargs_base = {'frame_med': True}
-                # Allows to define the base as dictionary with base key
-                else:
-                    base = records[base_dict['name']]
-                    kwargs_base = base_dict.get('kwargs', {})
-                    kwargs_base.setdefault('frame_med', True)
+                    base_dict = {'name': base_dict}
+
+                # Pop base name, so the rest can be passed to select
+                base_name = base_dict.pop('name')
+
+                base_dict.setdefault('frame_med', True)
+                base_dict.setdefault('prop', 'rawData')
+
+                base = records[base_name]
                 base = base.select(
-                    prop='rawData',
-                    **kwargs_base
+                    **base_dict
                 )
                 kwargs_record['base'] = base
 
             norm_dict = record_entrie.get('norm')
             if norm_dict:
+                # Allows to have the simple config with norm: name
                 if isinstance(norm_dict, str):
-                    norm = records[norm_dict]
-                else:
-                    norm = records[norm_dict['name']]
+                    norm_dict = {'name': norm_dict}
 
+                # pop name so we use it to select the record
+                norm_record = norm_dict.pop('name')
+
+                # Set default kwargs for the select
+                norm_dict.setdefault('prop', 'basesubed')
+                norm_dict.setdefault('frame_med', True)
+
+                norm = records[norm_record]
                 norm = norm.select(
-                    prop='basesubed',
-                    frame_med=True
+                    **norm_dict
                 )
                 kwargs_record['norm'] = norm
 
@@ -380,7 +388,7 @@ class Analyser():
             logging.warning('Cant Save gitversion because no repo available.')
 
     def save_packages(self):
-        installed_packages = pip.get_installed_distributions()
+        installed_packages = get_installed_distributions()
         installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
             for i in installed_packages])
         with open(self.dir + '/' + INSTALLED_PACKAGES, 'w') as ofile:
@@ -406,3 +414,150 @@ def get_pd_fitargs(analyser):
     df['roi'] = roi
     return df
 
+
+def read_yaml(fpath):
+    with open(fpath) as ifile:
+        configuration = yaml.load(ifile)
+    return configuration
+
+def import_records(config_records):
+    """Import records"""
+
+    records = {}
+    for record_entrie in config_records:
+        logging.info('Importing {}'.format(record_entrie['name']))
+        fpath = record_entrie['fpath']
+        kwargs_record = record_entrie.get('kwargs_record', {})
+        base_dict = record_entrie.get('base')
+        if base_dict:
+            # Allows for easy definition of base by passing {base: name}
+            if isinstance(base_dict, str):
+                base_dict = {'name': base_dict}
+
+            # Pop base name, so the rest can be passed to select
+            base_name = base_dict.pop('name')
+
+            base_dict.setdefault('frame_med', True)
+            base_dict.setdefault('prop', 'rawData')
+
+            base = records[base_name]
+            base = base.select(
+                **base_dict
+            )
+            kwargs_record['base'] = base
+
+        norm_dict = record_entrie.get('norm')
+        if norm_dict:
+            # Allows to have the simple config with norm: name
+            if isinstance(norm_dict, str):
+                norm_dict = {'name': norm_dict}
+
+            # pop name so we use it to select the record
+            norm_record = norm_dict.pop('name')
+
+            # Set default kwargs for the select
+            norm_dict.setdefault('prop', 'basesubed')
+            norm_dict.setdefault('frame_med', True)
+
+            norm = records[norm_record]
+            norm = norm.select(
+                **norm_dict
+            )
+            kwargs_record['norm'] = norm
+
+        #kwargs_record.setdefault('wavelength', wavelength)
+        #kwargs_record.setdefault('wavenumber', wavenumber)
+
+        record = core.SfgRecord(fpath, **kwargs_record)
+        # Update record name with its real record
+        records[record_entrie['name']] = record
+
+    return records
+
+
+def make_models(config_models, records, save_models=True, config_models_path='./models.yaml'):
+    """Make data models, aka. fits.
+    **Arguments:**
+    - **config_models**: dict with configuration for models
+    - **records**: Dict of records that models are piked from
+
+    **kwargs:**
+    - **save_models**: Optional, update models file on hdd with result
+
+    **Returns:**
+    list of model objects.
+    """
+    models = {}
+
+    logging.info('Making Models...')
+    for model_name in sort(list(config_models.keys())):
+        logging.info('Working on model {}'.format(model_name))
+        this_model_config = config_models[model_name]
+        # Replace record string with real record becuse real records contain the data
+        record_name = this_model_config['record']
+        this_model_config['record'] = records[record_name]
+
+        model = sfg2d.models.model_fit_record(**this_model_config)
+        models[model_name] = model
+
+        # Update kwargs with fit results so the results are available
+        dpath.util.set(this_model_config, 'kwargs_model/fitarg', model.fitarg)
+        #setback record name to string
+        this_model_config['record'] = record_name
+
+    # Update models on disk because we want the fit results to be saved
+    old_models = {}
+    with open(MODEL_FILE, 'r') as models_file:
+        old_models = yaml.load(models_file)
+
+    try:
+        new_models = {**old_models, **config_models}
+    except TypeError:
+        logging.warn('Replacing old models with new models due to error')
+        new_models = config_models
+
+    if save_models:
+        with open(config_models_path, 'w') as models_file:
+            logging.info('Saving models to {}'.format(
+                os.path.abspath(config_models_path))
+            )
+            yaml.dump(new_models, models_file, default_flow_style=False)
+
+    # Update config_models with fit results
+    config_models = new_models
+
+    return models
+
+
+def cache_records(records, cache_dir=CACHE_DIR[1]):
+    """Save a cached version of the records in .npz files in cache folder."""
+    try:
+        os.mkdir(cache_dir)
+        logging.info('Create cachedir: {}'.format(cache_dir))
+    except FileExistsError:
+        pass
+
+    for key, record in records.items():
+        fname = cache_dir + '/' + key
+        logging.debug('Saving cached record to {}'.format(fname))
+        record.save(fname)
+
+
+def read_cache(cache_dir=CACHE_DIR[1]):
+    """Read all the .npz files in cache_dir and return dict of them.
+
+    **Kwargs:**
+      - **cache_dir**: String with dir to read files from
+
+    **Returns:**
+    Dictinary with read spectra. The filenames are used as keys.
+    """
+
+    fnames = glob(cache_dir + '/*.npz')
+    if len(fnames) <= 0:
+        raise ValueError('{} contains no .npz files.'.format(cache_dir))
+    ret = {}
+    for fname in fnames:
+        key = os.path.basename(fname).split('.')[0]
+        ret[key] = sfg2d.SfgRecord(fname)
+    return ret

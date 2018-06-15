@@ -73,10 +73,20 @@ def multiplot(
             setter_func = getattr(fig, setter_name)
             setter_func(**setter_value)
 
-    for plot_config in plots:
+    for plot_config_raw in plots:
         # name of the plot config is plot function name.
         # Therefore it must be stripped
-        plot_func_name, plot_config = list(plot_config.items())[0]
+        plot_func_name = plot_config_raw.get('name')
+        if plot_func_name:
+            plot_config = plot_config_raw.copy()
+            plot_config.pop('name')
+        else:
+            # This is the legcy mode where each plot_config_raw hat to
+            # be a one entry dictionary so that plot_func_name was
+            # guranteed to be the first (and onnly) entry name
+            logging.warn('Deprecated form of plot_config. Use "name" key to\
+            define function name and remove one level of indentation.')
+            plot_func_name, plot_config = list(plot_config_raw.items())[0]
         plot_func = getattr(sfg2d.plot, plot_func_name)
         kwargs_plot = plot_config.get('kwargs_plot', {})
 
