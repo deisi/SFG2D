@@ -2,8 +2,11 @@
 import datetime
 import numpy as np
 
-from sfg2d.utils import PIXEL, SPECS
-from sfg2d.utils.metadata import get_unit_from_string
+from sfg2d.utils.config import CONFIG
+
+
+PIXEL = CONFIG['PIXEL']
+SPECS = CONFIG['SPECS']
 
 
 def get_from_victor_controller(fpath, **kwargs):

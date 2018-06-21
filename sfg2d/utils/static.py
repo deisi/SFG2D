@@ -6,7 +6,11 @@ from scipy.stats import norm
 #                   zeros_like, sum, argmax, argmin, e, where, resize, shape,
 #                   zeros, exp, convolve, where, ndarray, all)
 from scipy.interpolate import interp1d
-from .consts import STEPSIZE, XE, XG
+from sfg2d.utils.config import CONFIG
+
+STEPSIZE = CONFIG['STEPSIZE']
+XE = CONFIG['XE']
+XG = CONFIG['XG']
 
 
 def wavenumbers_to_nm(wavenumbers):

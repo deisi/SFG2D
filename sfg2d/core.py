@@ -9,12 +9,23 @@ import dpath.util
 
 from .io import import_data
 from .utils import (
-    nm_to_ir_wavenumbers, nm_to_wavenumbers, X_PIXEL_INDEX, Y_PIXEL_INDEX,
-    FRAME_AXIS_INDEX, PIXEL, PP_INDEX, SPEC_INDEX, find_nearest_index, pixel_to_nm
+    nm_to_ir_wavenumbers, nm_to_wavenumbers,  find_nearest_index, pixel_to_nm,
 )
-from .utils.consts import (VIS_WL, PUMP_FREQ, NORM_SPEC, BASE_SPEC,
-                           FRAME_AXIS_INDEX_P,  PP_INDEX_P)
+from sfg2d.utils.config import CONFIG
 from .utils.filter import double_resample
+
+VIS_WL = CONFIG['VIS_WL']
+PUMP_FREQ = CONFIG['PUMP_FREQ']
+NORM_SPEC = CONFIG['NORM_SPEC']
+BASE_SPEC = CONFIG['BASE_SPEC']
+FRAME_AXIS_INDEX_P = CONFIG['FRAME_AXIS_INDEX_P']
+PP_INDEX_P = CONFIG['PP_INDEX_P']
+X_PIXEL_INDEX = CONFIG['X_PIXEL_INDEX']
+Y_PIXEL_INDEX = CONFIG['Y_PIXEL_INDEX']
+FRAME_AXIS_INDEX = CONFIG['FRAME_AXIS_INDEX']
+PIXEL = CONFIG['PIXEL']
+PP_INDEX = CONFIG['PP_INDEX']
+SPEC_INDEX = CONFIG['SPEC_INDEX']
 
 
 def import_sfgrecord(

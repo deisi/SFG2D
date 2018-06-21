@@ -7,11 +7,13 @@ from .victor_controller import (
     read_header,
 )
 from ..utils.metadata import get_metadata_from_filename
+from sfg2d.utils.config import CONFIG
 
 from os import path
 import warnings
 import numpy as np
 
+SPECS = CONFIG['SPECS']
 
 def import_data(fname, type=None):
     """Import the data."""
@@ -96,25 +98,14 @@ def type_data(fname):
     # first view lines, we can see if that is a readable file
     # and what function is needed to read it.
     start_of_data = np.genfromtxt(fname, max_rows=3, dtype="long")
-    if start_of_data.shape[1] == 4:
-        return 'victor'
-
-    elif start_of_data.shape[1] == 6:
-        return 'veronica'
-    else:
-        # Check if we have a header.
-        # Only data from victor_controller has # started header.
-        with open(fname) as f:
-            line = f.readline()
-            if line[0] == "#":
-                # First line is pixel then 3 spectra repeating
-                if (start_of_data.shape[1] - 1) % 3 == 0:
-                    return 'victor'
-            else:
-                if start_of_data.shape[1] % 6 == 0:
-                    return 'veronica'
-    raise IOError("Cant understand data in %f" % fname)
-
+    with open(fname) as f:
+        line = f.readline()
+        if line[0] == "#":
+            # First line is pixel then 3 spectra repeating
+            if (start_of_data.shape[1] - 1) % 3 == 0:
+                return 'victor'
+        else:
+            return 'veronica'
 
 
 def load_fitarg(fp):

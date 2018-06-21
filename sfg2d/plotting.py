@@ -6,7 +6,6 @@ from scipy.signal import medfilt
 import numpy as np
 
 from .utils.filter import double_resample
-from .utils.consts import x_property2_label
 
 
 def ioff(func):

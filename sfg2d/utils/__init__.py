@@ -7,11 +7,7 @@ from .static import (
     wavenumbers_to_nm, nm_to_wavenumbers, nm_to_ir_wavenumbers,
     ir_wavenumbers_to_nm, savefig, get_interval_index, find_nearest_index
 )
-from .consts import (
-    X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX,
-    PP_INDEX, PIXEL, FRAME_AXIS_INDEX,
-    PIXEL, SPECS, CALIB_PARAMS, CALIB_CW
-)
+from sfg2d.utils.config import CONFIG
 
 from .filter import double_resample, replace_pixel
 
@@ -49,7 +45,7 @@ def pixel_to_nm(
         If None given, a default is loaded.
     """
 
-    pixel_to_nm = poly1d(CALIB_PARAMS) + central_wl - CALIB_CW
+    pixel_to_nm = poly1d(CONFIG['CALIB_PARAMS']) + central_wl - CONFIG['CALIB_CW']
     return pixel_to_nm(x)
 
 def nm_to_pixel(x, central_wl):

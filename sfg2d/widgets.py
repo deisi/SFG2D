@@ -12,8 +12,14 @@ from traitlets import validate
 from ipywidgets import IntRangeSlider
 
 from .core import SfgRecord, concatenate_list_of_SfgRecords
-from .utils.consts import (X_PIXEL_INDEX, Y_PIXEL_INDEX, SPEC_INDEX,
-                           FRAME_AXIS_INDEX, PP_INDEX, PIXEL)
+from sfg2d.utils.config import CONFIG
+
+X_PIXEL_INDEX = CONFIG['X_PIXEL_INDEX']
+Y_PIXEL_INDEX = CONFIG['Y_PIXEL_INDEX']
+SPEC_INDEX = CONFIG['SPEC_INDEX']
+FRAME_AXIS_INDEX = CONFIG['FRAME_AXIS_INDEX']
+PP_INDEX = CONFIG['PP_INDEX']
+PIXEL = CONFIG['PIXEL']
 
 debug = 0
 
