@@ -195,6 +195,7 @@ def track(
         ax=None,
         xlabel="RunNumber",
         ylabel='SFG Intensity',
+        show_hlines=False,
         **kwargs
 ):
     """A Track is a Time wise plot of the data.
@@ -203,6 +204,7 @@ def track(
       - **ydata**: 4d Numpy array to create plot from
 
     **Keywords:**
+      - **show_vlines**: Boolean to show vertical lines after each scan.
 
     """
     if not ax:
@@ -219,6 +221,8 @@ def track(
             plt.plot(data, **kwargs)
         else:
             plt.plot(xdata, data, **kwargs)
+    if show_hlines:
+        plt.vlines([delays*frame for frame in range(frames)], ydata.min(), ydata.max())
 
 
 def trace(
@@ -257,4 +261,26 @@ def trace(
             else:
                 plt.errorbar(xdata, spec[0], yerr[:, j, i], axes=ax, **kwargs)
 
+def contour(
+        xdata,
+        ydata,
+        zdata,
+        ax=None,
+        **kwargs
+):
+    """
+    Makes a contour plot for an SfgRecord.select() return for xdata, ydata and zdata.
+    This makes multiple contour plots on top of each other. Normally more then one makes
+    no sence but it works this way.
+    **Arguments:**
+      - **xdata**: Usually pp_delays
+      - **ydata**: usually wavenumbers
+      - **ydata**: usually bleach
+    """
+    num_pp_delays, num_frames, num_spectra, num_pixel = zdata.shape
+    for index_spectrum in range(num_spectra):
+        for index_frame in range(num_frames):
+            zzdata = zdata[:, index_frame, index_spectrum]
+            print(xdata.shape, ydata.shape, zzdata.T.shape)
+            plt.contourf(xdata, xdata, zzdata.T)
 

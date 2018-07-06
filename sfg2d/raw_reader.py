@@ -243,12 +243,13 @@ class Analyser():
 
         return records
 
-    def make_models(self, save_models=True):
+    def make_models(self, save_models=True, clear=True):
         """Make data models, aka. fits.
 
         **kwargs:**
         - **config_models**: Optional, dict with configuration for models
         - **save_models**: Optional, update models file on hdd with result
+        - **clear**: Clears fitargs from default values
 
         **Returns:**
         list of model objects.
@@ -271,8 +272,11 @@ class Analyser():
             model = sfg2d.models.model_fit_record(**this_model_config)
             models[model_name] = model
 
+            this_fitarg = model.fitarg
+            if clear:
+                this_fitarg = clear_fitarg(this_fitarg)
             # Update kwargs with fit results so the results are available
-            dpath.util.set(this_model_config, 'kwargs_model/fitarg', model.fitarg)
+            dpath.util.set(this_model_config, 'kwargs_model/fitarg', this_fitarg)
             #setback record name to string
             this_model_config['record'] = record_name
 
@@ -475,7 +479,7 @@ def import_records(config_records):
     return records
 
 
-def make_models(config_models, records, save_models=True, config_models_path='./models.yaml'):
+def make_models(config_models, records, save_models=True, config_models_path='./models.yaml', clear=True):
     """Make data models, aka. fits.
     **Arguments:**
     - **config_models**: dict with configuration for models
@@ -483,6 +487,7 @@ def make_models(config_models, records, save_models=True, config_models_path='./
 
     **kwargs:**
     - **save_models**: Optional, update models file on hdd with result
+    - **clear**: clear fitargs fromd default values
 
     **Returns:**
     list of model objects.
@@ -500,8 +505,13 @@ def make_models(config_models, records, save_models=True, config_models_path='./
         model = sfg2d.models.model_fit_record(**this_model_config)
         models[model_name] = model
 
+        # Clear fitargs from default values. They do no harm but clutter update
+        # the models file and make it hard to read.
+        this_fitarg = model.fitarg
+        if clear:
+            this_fitarg = clear_fitarg(this_fitarg)
         # Update kwargs with fit results so the results are available
-        dpath.util.set(this_model_config, 'kwargs_model/fitarg', model.fitarg)
+        dpath.util.set(this_model_config, 'kwargs_model/fitarg', this_fitarg)
         #setback record name to string
         this_model_config['record'] = record_name
 
@@ -560,4 +570,15 @@ def read_cache(cache_dir=CACHE_DIR[1]):
     for fname in fnames:
         key = os.path.basename(fname).split('.')[0]
         ret[key] = sfg2d.SfgRecord(fname)
+    return ret
+
+
+def clear_fitarg(fitarg):
+    """Clear default values from fitarg dict."""
+    ret = fitarg.copy()
+    for key, value in fitarg.items():
+        if key.startswith('limit_') and value==None:
+            ret.pop(key)
+        if key.startswith('fix_') and value==False:
+            ret.pop(key)
     return ret

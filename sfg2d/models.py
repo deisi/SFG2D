@@ -4,7 +4,7 @@ import numpy as np
 from scipy.integrate import odeint
 from scipy.special import erf, erfc
 from scipy.stats import norm, skewnorm
-from iminuit import Minuit
+from iminuit import Minuit, describe
 import sys
 import yaml
 import logging
@@ -169,7 +169,7 @@ class Fitter():
         """
         self.xdata = xdata
         self.ydata = ydata
-        self.sigma = sigma  # 1/y-errors.
+        self.sigma = sigma  # y-errors.
         self.cov = None  # The covariance of the fit
         # Coordinates of the fit result box in fig coordinates
         self._box_coords = box_coords
@@ -185,13 +185,32 @@ class Fitter():
         self.figures = {}
         kwargs.setdefault('pedantic', False)
         # Minuit is used for fitting. This makes self.chi2 the fit function
-        logging.info(self.chi2)
+        #logging.info(self.chi2)
+        kwargs['forced_parameters'] = self.parameters
         logging.info(fitarg)
         logging.info(kwargs)
         self.minuit = Minuit(self.chi2, **fitarg, **kwargs)
 
+    def chi2(self, *args, **kwargs):
+        """Sum of distance of data and fit. Weighted by uncertainty of data."""
+        return np.sum(
+            (
+                (self.ydata - self.fit_func(self.xdata, *args, **kwargs)) /
+                self.sigma
+            )**2
+        )
+
+    def fit_func(self):
+        """Fit function that must be implemented by child classes."""
+        raise NotImplementedError
+
+    @property
+    def parameters(self):
+        return describe(self.fit_func)[1:]
+
     @property
     def box_coords(self):
+        """Coordinades for the fit results box."""
         if not self._box_coords:
             return self.xdata.mean(), self.ydata.mean()
         return self._box_coords
@@ -259,7 +278,7 @@ class Fitter():
         if np.any(value==0):
             logging.warn('Zero value within ucertainty. Ignoring errorbars.')
             logging.warn('Errors passed were {}'.format(value))
-            self._sigma = np.zeros_like(self._ydata)
+            self._sigma = np.ones_like(self._ydata)
             #self.ignore_errors = True
         self._sigma = value
 
@@ -284,26 +303,36 @@ class Fitter():
 
     @property
     def xsample(self):
+        """A sampled version of the xdata. `Fitter._xsample_num` is the number
+        of samples.
+        `Fitter.xsample` is used to generate a smooth plot of the fitting curve.
+        """
         return np.linspace(self.xdata[0], self.xdata[-1], self._xsample_num)
 
     @property
     def ysample(self):
+        """Y vales of the fit function sampled with `Fitter.xsample`."""
         return self.yfit_sample
 
     @property
     def y_fit(self):
-        return self.fit_res(self.xsample)
+        """Y vales of the fit function sampled with `Fitter.xsample`."""
+        return self.yfit_sample
 
     @property
     def yfit_sample(self):
+        """Y vales of the fit function sampled with `Fitter.xsample`."""
         return self.fit_res(self.xsample)
 
     @property
     def fitarg(self):
+        """Minuit fitargs."""
         return self.minuit.fitarg
 
     def plot(self, kwargs_data=None, kwargs_fit=None):
-        """Function to easily look at a plot. Not very flexible."""
+        """Function to easily look at a plot. Not very flexible. But usefull during
+        interactive sessions.
+        """
         import matplotlib.pyplot as plt
         if not kwargs_data:
             kwargs_data = {}
@@ -315,7 +344,7 @@ class Fitter():
         if not kwargs_fit:
             kwargs_fit = {}
         kwargs_fit.setdefault('x', self.xsample)
-        kwargs_fit.setdefault('y', self.yfit_sample)
+        kwargs_fit.setdefault('y', self.ysample)
         kwargs_fit.setdefault('color', 'r')
 
         plt.errorbar(**kwargs_data)
@@ -350,16 +379,21 @@ class GaussianModelM(Fitter):
         sigma: std deviation
         c : offset
         """
+
+        # Minuit passes negative values for sigma
+        # and these values lead to failures of the fitting
+        if sigma < 0:
+            return 0
         return A * norm.pdf(x, mu, sigma) + c
 
-    def chi2(self, A, mu, sigma, c):
-        """Chi2 to be minimized by minuit."""
-        return np.sum(
-            (
-                (self.ydata - self.fit_func(self.xdata, A, mu, sigma, c)) /
-                self.sigma
-            )**2
-        )
+    #def chi2(self, A, mu, sigma, c):
+    #    """Chi2 to be minimized by minuit."""
+    #    return np.sum(
+    #        (
+    #            (self.ydata - self.fit_func(self.xdata, A, mu, sigma, c)) /
+    #            self.sigma
+    #        )**2
+    #    )
 
 class SkewedNormal(Fitter):
     def __init__(self, *args, **kwargs):
@@ -368,7 +402,6 @@ class SkewedNormal(Fitter):
 
     def fit_funct(self, x, A, mu, sigma, kurt, c):
         return A * skewnorm.pdf(x, kurt, mu, sigma) + c
-
 
 class FourLevelMolKinM(Fitter):
     def __init__(
@@ -562,22 +595,22 @@ class FourLevelMolKinM(Fitter):
             t2
         )
 
-    def chi2(self, s, t1, t2, c, mu):
-        """Chi2 to be minimized by minuit.
+    #def chi2(self, s, t1, t2, c, mu):
+    #    """Chi2 to be minimized by minuit.
 
-        **Arguments:**
-          - **s**: Gaussian Amplitude of the excitation
-          - **t1**: Livetime of the first state
-          - **t2**: Livetime of the second state
-          - **c**: Coefficient of the heat
+    #    **Arguments:**
+    #      - **s**: Gaussian Amplitude of the excitation
+    #      - **t1**: Livetime of the first state
+    #      - **t2**: Livetime of the second state
+    #      - **c**: Coefficient of the heat
 
-        """
-        return np.sum(
-            (
-                (self.ydata - self.fit_func(self.xdata, s, t1, t2, c, mu)) /
-                self.sigma
-            )**2
-        )
+    #    """
+    #    return np.sum(
+    #        (
+    #            (self.ydata - self.fit_func(self.xdata, s, t1, t2, c, mu)) /
+    #            self.sigma
+    #        )**2
+    #    )
 
     def save(self, fname):
         """Save FourLevelMolKin results."""
@@ -588,6 +621,19 @@ class FourLevelMolKinM(Fitter):
            'N0': self.N0,
         }
         super().__save__(fname, parameter_dict)
+
+#class FourLevelSolution(Fitter):
+#    def __init__(
+#            self,
+#            *args,
+#            N0=[1,0,0,0],
+#            **kwargs
+#    ):
+#    """Model that uses the analytically solution of the 4 LevelSystem.
+#
+#    The Conzept for the solution was taken from: (doi:10.1021/jp003158e) Lock, A. J.; Woutersen, S. & Bakker, H. J.
+#    """
+
 
 
 class Crosspeak(FourLevelMolKinM):
@@ -774,15 +820,15 @@ class SimpleDecay(Fitter):
             erfc((sigma**2 - t * t1 + mu * t1)/(np.sqrt(2) * sigma * t1))
         ) + ofs
 
-    def chi2(self, A, t1, c, mu, ofs, sigma):
-        """Chi2 to be minimized by minuit."""
-        return np.sum(
-            (
-                (self.ydata - self.fit_func(
-                    self.xdata, A, t1, c, mu, ofs, sigma
-                )) / self.sigma
-            )**2
-        )
+    #def chi2(self, A, t1, c, mu, ofs, sigma):
+    #    """Chi2 to be minimized by minuit."""
+    #    return np.sum(
+    #        (
+    #            (self.ydata - self.fit_func(
+    #                self.xdata, A, t1, c, mu, ofs, sigma
+    #            )) / self.sigma
+    #        )**2
+    #    )
 
 
 class ThreeLevelMolkin(Fitter):
@@ -917,39 +963,299 @@ class ThreeLevelMolkin(Fitter):
         ).T
         return ((N[0] + c * N[2] - N[1])**2) / (self.N0[0]**2)
 
-    def chi2(self, s, t1, c, mu):
-        """Chi2 to be minimized by minuit."""
-        return np.sum(
-            (
-                (self.ydata - self.fit_func(self.xdata, s, t1, c, mu)) /
-                self.sigma
-            )**2
-        )
+    #def chi2(self, s, t1, c, mu):
+    #    """Chi2 to be minimized by minuit."""
+    #    return np.sum(
+    #        (
+    #            (self.ydata - self.fit_func(self.xdata, s, t1, c, mu)) /
+    #            self.sigma
+    #        )**2
+    #    )
 
 
-class DoubleDecay(Fitter):
-    def __init__(
-            self,
-            *args,
-            **kwargs
-    ):
+class TwoExponentials(Fitter):
+    def __init__(self, *args, **kwargs):
+        """Two exponentials convoluted with gaussian. Dont use this. Its has
+        a causality problem.
+        """
         Fitter.__init__(self, *args, **kwargs)
+        self.N0 = [1, 0, 0, 0]
 
     def fit_func(self, x, Amp, Aheat, t1, t2, offs, pwidth, mu):
-        aux0=(np.exp((0.5*((t2**-2.)*((pwidth**2)+((-2.*(x*t2))+(2.*(mu*t2))))\
-        ))))*(erfc(((((2.**-0.5)*(((pwidth**2)+(mu*t2))-(x*t2)))/t2)/pwidth)));
-        aux1=(np.exp((0.5*((t1**-2.)*((pwidth**2)+((-2.*(x*t1))+(2.*(mu*t1))))\
-        ))))*(erfc(((((2.**-0.5)*(((pwidth**2)+(mu*t1))-(x*t1)))/t1)/pwidth)));
-        aux2=Amp*(((offs+(offs*(erf((((2.**-0.5)*(x-mu))/pwidth)))))-(Aheat*\
-        aux0))-aux1);
-        output=0.5*aux2;
-        return output+1
+        """Analytical solution to the four level system with gaussian excitation pulse."""
+        e1 = np.exp((0.5*((t2**-2.)*((pwidth**2)+((-2.*(x*t2))+(2.*(mu*t2)))))))
+        e2 = np.exp((0.5*((t1**-2.)*((pwidth**2)+((-2.*(x*t1))+(2.*(mu*t1)))))))
+        er_1 = ((((2.**-0.5)*(((pwidth**2)+(mu*t2))-(x*t2)))/t2)/pwidth)
+        er_2 = ((((2.**-0.5)*(((pwidth**2)+(mu*t1))-(x*t1)))/t1)/pwidth)
+        er_3 = (((2.**-0.5)*(x-mu))/pwidth)
 
-    def chi2(self, Amp, Aheat, t1, t2, offs, pwidth, mu):
-        """Chi2 to be minimized by minuit."""
-        return np.sum(
-            (
-                (self.ydata - self.fit_func(self.xdata, Amp, Aheat, t1, t2, offs, pwidth, mu)) /
-                self.sigma
-            )**2
-        )
+        aux0=(e1)*(erfc(er_1));
+        aux1=(e2)*(erfc(er_2));
+        aux2=Amp*(((offs+(offs*(erf(er_3))))-(Aheat*aux0))-aux1);
+
+        output=0.5*aux2+1
+
+        # Due to exp overflow, nans can occur.
+        # However they result in 1 because they happen at negative times.
+        output[np.isnan(output)] = 1
+        # +1 to have right population
+        return output
+
+
+class FourLevel(Fitter):
+    def __init__(self, *args, **kwargs):
+        Fitter.__init__(self, *args, **kwargs)
+        self.N = 1 # Number of initial oszillators.
+
+    def N(self, t, t1, t2, N10, N20=0, N30=0):
+        """Populations of the solution to the 4 level model.
+        This is only true for t>0.
+        **Parameters:**
+          - **t**: Time points to calculated population of
+          - **t1**: Lifetime of first excited state
+          - **t2**: Lifetime of intermediate (heat) state
+          - **N10**: Fraction of initialy excited oszillators 0<N10<1
+          - **N20**: Fraction of initialy excited oszillators in heated state
+          - **N30**: Fraction if initialy excited oszillators in final state
+
+        **Returns:**
+          Tuple of N0, N1, N2, N3 at times t
+
+        """
+        N1 = np.exp(((-t)/t1))*N10
+        aux0=(np.exp((((-t)/t2)-(t/t1))))*(((np.exp((t/t2)))-(np.exp((t/t1))))\
+        *(N10*t2));
+        N2=((np.exp(((-t)/t2)))*N20)+(aux0/(t1-t2));
+        aux0=(((np.exp(((t/t1)+(t/t2))))*t1)+((np.exp((t/t1)))*t2))-((np.exp((\
+        (t/t1)+(t/t2))))*t2);
+        aux1=((np.exp((((-t)/t2)-(t/t1))))*(N10*(aux0-((np.exp((t/t2)))*t1))))\
+        /(t1-t2);
+        N3=((np.exp(((-t)/t2)))*((-1.+(np.exp((t/t2))))*N20))+(N30+aux1);
+
+        N0 = self.N - N1 - N2 - N3
+        return N0, N1, N2, N3
+
+    def fit_func(self, t, Amp, t1, t2, c, mu, sigma):
+        """Analytical solution to the 4 level system convoluted with gaussian"""
+        pi=np.pi;
+        #a0 = erf((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/sigma))
+        def mysqrt(x): return np.sqrt(x)
+        aux0=sigma*((t1**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma))))));
+        aux1=sigma*((t1**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma))))));
+        aux2=sigma*((t1**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma))))));
+        aux3=(((t1-t2)**2))*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma)))));
+        aux4=sigma*(t1*(t2*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma)))))));
+        aux5=sigma*(t1*(t2*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma)))))));
+        aux6=sigma*(t1*(t2*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma)))))));
+        aux7=sigma*((t2**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma))))));
+        aux8=sigma*((t2**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma))))));
+        aux9=sigma*((t2**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/\
+        sigma))))));
+        aux10=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t1))-(((2.**-0.5)*\
+        t)/sigma);
+        aux11=(np.exp((((0.5*((sigma**2)*(t1**-2.)))+(mu/t1))-(t/t1))))*((\
+        mysqrt((2.*pi)))*(sigma*((t1**2)*(-1.+(erf(aux10))))));
+        aux12=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t1))-(((2.**-0.5)*\
+        t)/sigma);
+        aux13=(np.exp((((0.5*((sigma**2)*(t1**-2.)))+(mu/t1))-(t/t1))))*((\
+        mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux12)))))));
+        aux14=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t1))-(((2.**-0.5)*\
+        t)/sigma);
+        aux15=(np.exp((((0.5*((sigma**2)*(t1**-2.)))+(mu/t1))-(t/t1))))*((\
+        mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux14)))))));
+        aux16=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t1))-(((2.**-0.5)*\
+        t)/sigma);
+        aux17=(np.exp((((0.5*((sigma**2)*(t1**-2.)))+(mu/t1))-(t/t1))))*((\
+        mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf(aux16))))));
+        aux18=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t1))-(((2.**-0.5)*\
+        t)/sigma);
+        aux19=(np.exp((((0.5*((sigma**2)*(t1**-2.)))+(mu/t1))-(t/t1))))*((\
+        mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf(aux18))))));
+        aux20=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t1))-(((2.**-0.5)\
+        *t)/sigma);
+        aux21=(np.exp(((2.*((sigma**2)*(t1**-2.)))+(((2.*mu)/t1)+((-2.*t)/t1))\
+           )))*((mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux20)))))));
+        aux22=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t1))-(((2.**-0.5)\
+        *t)/sigma);
+        aux23=(np.exp(((2.*((sigma**2)*(t1**-2.)))+(((2.*mu)/t1)+((-2.*t)/t1))\
+           )))*((mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux22)))))));
+        aux24=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t1))-(((2.**-0.5)\
+        *t)/sigma);
+        aux25=(np.exp(((2.*((sigma**2)*(t1**-2.)))+(((2.*mu)/t1)+((-2.*t)/t1))\
+           )))*((mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf(aux24))))));
+        aux26=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t2))-(((2.**-0.5)*\
+        t)/sigma);
+        aux27=(np.exp((((0.5*((sigma**2)*(t2**-2.)))+(mu/t2))-(t/t2))))*((\
+        mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux26)))))));
+        aux28=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t2))-(((2.**-0.5)*\
+        t)/sigma);
+        aux29=(np.exp((((0.5*((sigma**2)*(t2**-2.)))+(mu/t2))-(t/t2))))*((\
+        mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf(aux28))))));
+        aux30=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t2))-(((2.**-0.5)*\
+        t)/sigma);
+        aux31=(np.exp((((0.5*((sigma**2)*(t2**-2.)))+(mu/t2))-(t/t2))))*((\
+        mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf(aux30))))));
+        aux32=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t2))-(((2.**-0.5)*\
+        t)/sigma);
+        aux33=(np.exp((((0.5*((sigma**2)*(t2**-2.)))+(mu/t2))-(t/t2))))*((\
+        mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf(aux32))))));
+        aux34=(0.5*((sigma**2)*(t1**-2.)))+((mu/t1)+((0.5*((sigma**2)*(t2**-2.\
+           )))+((mu/t2)+(((sigma**2)/t2)/t1))));
+        aux35=(((2.**-0.5)*mu)/sigma)+((((2.**-0.5)*sigma)/t1)+(((2.**-0.5)*\
+        sigma)/t2));
+        aux36=(mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf((aux35-(((2.**-0.5)*t)/sigma))))))));
+        aux37=(0.5*((sigma**2)*(t1**-2.)))+((mu/t1)+((0.5*((sigma**2)*(t2**-2.\
+           )))+((mu/t2)+(((sigma**2)/t2)/t1))));
+        aux38=(((2.**-0.5)*mu)/sigma)+((((2.**-0.5)*sigma)/t1)+(((2.**-0.5)*\
+        sigma)/t2));
+        aux39=(mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf((aux38-(((2.**-0.5)*t)/sigma)))))));
+        aux40=(0.5*((sigma**2)*(t1**-2.)))+((mu/t1)+((0.5*((sigma**2)*(t2**-2.\
+           )))+((mu/t2)+(((sigma**2)/t2)/t1))));
+        aux41=(((2.**-0.5)*mu)/sigma)+((((2.**-0.5)*sigma)/t1)+(((2.**-0.5)*\
+        sigma)/t2));
+        aux42=(mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf((aux41-(((2.**-0.5)*t)/sigma)))))));
+        aux43=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t2))-(((2.**-0.5)\
+        *t)/sigma);
+        aux44=(np.exp(((2.*((sigma**2)*(t2**-2.)))+(((2.*mu)/t2)+((-2.*t)/t2))\
+           )))*((mysqrt((2.*pi)))*(sigma*((t2**2)*(-1.+(erf(aux43))))));
+        aux45=t1*(t2*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t1))-(t*t1)))/t1)/\
+        sigma))));
+        aux46=(np.exp((0.5*((t1**-2.)*((sigma**2)+((2.*(mu*t1))+(-2.*(t*t1))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux45));
+        aux47=t1*(t2*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t1))-(t*t1)))/t1)/\
+        sigma))));
+        aux48=(np.exp((0.5*((t1**-2.)*((sigma**2)+((2.*(mu*t1))+(-2.*(t*t1))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux47));
+        aux49=(t2**2)*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t1))-(t*t1)))/t1)/\
+        sigma)));
+        aux50=(np.exp((0.5*((t1**-2.)*((sigma**2)+((2.*(mu*t1))+(-2.*(t*t1))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux49));
+        aux51=t1*(t2*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t2))-(t*t2)))/t2)/\
+        sigma))));
+        aux52=(np.exp((0.5*((t2**-2.)*((sigma**2)+((2.*(mu*t2))+(-2.*(t*t2))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux51));
+        aux53=(t2**2)*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t2))-(t*t2)))/t2)/\
+        sigma)));
+        aux54=(np.exp((0.5*((t2**-2.)*((sigma**2)+((2.*(mu*t2))+(-2.*(t*t2))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux53));
+        aux55=(3.*(Amp*aux46))+((Amp*(c*aux48))+((-2.*(Amp*aux50))+((Amp*(c*\
+        aux52))+(Amp*aux54))));
+        aux56=(-2.*((Amp**2)*(c*((np.exp(((aux40-(t/t2))-(t/t1))))*aux42))))+(\
+        ((Amp**2)*(c*aux44))+aux55);
+        aux57=((Amp**2)*((c**2)*((np.exp(((aux34-(t/t2))-(t/t1))))*aux36)))+((\
+        2.*((Amp**2)*((np.exp(((aux37-(t/t2))-(t/t1))))*aux39)))+aux56);
+        aux58=((Amp**2)*aux29)+((-2.*((Amp**2)*(c*aux31)))+(((Amp**2)*((c**2)*\
+        aux33))+aux57));
+        aux59=(2.*((Amp**2)*(c*aux23)))+((-2.*((Amp**2)*aux25))+((2.*((Amp**2)\
+        *(c*aux27)))+aux58));
+        aux60=(-2.*((Amp**2)*aux17))+((2.*((Amp**2)*(c*aux19)))+((2.*((Amp**2)\
+        *aux21))+aux59));
+        aux61=((Amp**2)*((c**2)*aux11))+((3.*((Amp**2)*aux13))+((-2.*((Amp**2)\
+        *(c*aux15)))+aux60));
+        aux62=((Amp**2)*((c**2)*((mysqrt((0.5*pi)))*aux8)))+((Amp*(c*((\
+        mysqrt((2.*pi)))*aux9)))+aux61);
+        aux63=(2.*((Amp**2)*(c*((mysqrt((2.*pi)))*aux6))))+(((Amp**2)*((\
+        mysqrt((0.5*pi)))*aux7))+aux62);
+        aux64=(2.*(Amp*((mysqrt((2.*pi)))*aux4)))+((-2.*(Amp*(c*((mysqrt((\
+        2.*pi)))*aux5))))+aux63);
+        aux65=(Amp*(c*((mysqrt((2.*pi)))*aux2)))+(((mysqrt((0.5*pi)))*(\
+        sigma*aux3))+aux64);
+        aux66=((Amp**2)*((mysqrt((0.5*pi)))*aux0))+(((Amp**2)*((c**2)*((\
+        mysqrt((0.5*pi)))*aux1)))+aux65);
+        aux67=(t2**2)*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t2))-(t*t2)))/t2)/\
+        sigma)));
+        aux68=(np.exp((0.5*((t2**-2.)*((sigma**2)+((2.*(mu*t2))+(-2.*(t*t2))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux67));
+        aux69=t1*(t2*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t2))-(t*t2)))/t2)/\
+        sigma))));
+        aux70=(np.exp((0.5*((t2**-2.)*((sigma**2)+((2.*(mu*t2))+(-2.*(t*t2))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux69));
+        aux71=(t1**2)*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t1))-(t*t1)))/t1)/\
+        sigma)));
+        aux72=(np.exp((0.5*((t1**-2.)*((sigma**2)+((2.*(mu*t1))+(-2.*(t*t1))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux71));
+        aux73=(t1**2)*(erfc(((((2.**-0.5)*(((sigma**2)+(mu*t1))-(t*t1)))/t1)/\
+        sigma)));
+        aux74=(np.exp((0.5*((t1**-2.)*((sigma**2)+((2.*(mu*t1))+(-2.*(t*t1))))\
+           ))))*((mysqrt((2.*pi)))*(sigma*aux73));
+        aux75=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t2))-(((2.**-0.5)\
+        *t)/sigma);
+        aux76=(np.exp(((2.*((sigma**2)*(t2**-2.)))+(((2.*mu)/t2)+((-2.*t)/t2))\
+           )))*((mysqrt((0.5*pi)))*(sigma*((t2**2)*(-1.+(erf(aux75))))));
+        aux77=((((aux66-(Amp*(c*aux68)))-(Amp*aux70))-(Amp*(c*aux72)))-(Amp*\
+        aux74))-((Amp**2)*((c**2)*aux76));
+        aux78=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t2))-(((2.**-0.5)\
+        *t)/sigma);
+        aux79=(np.exp(((2.*((sigma**2)*(t2**-2.)))+(((2.*mu)/t2)+((-2.*t)/t2))\
+           )))*((mysqrt((0.5*pi)))*(sigma*((t2**2)*(-1.+(erf(aux78))))));
+        aux80=(0.5*((sigma**2)*(t1**-2.)))+((mu/t1)+((0.5*((sigma**2)*(t2**-2.)))+((mu/t2)+(((sigma**2)/t2)/t1))));
+        aux81=(((2.**-0.5)*mu)/sigma)+((((2.**-0.5)*sigma)/t1)+(((2.**-0.5)*\
+        sigma)/t2));
+        aux82=(mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf((aux81-(((2.**-0.5)*t)/sigma))))))));
+        aux83=(aux77-((Amp**2)*aux79))-((Amp**2)*((np.exp(((aux80-(t/t2))-(t/\
+        t1))))*aux82));
+        aux84=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t2))-(((2.**-0.5)*\
+        t)/sigma);
+        aux85=(np.exp((((0.5*((sigma**2)*(t2**-2.)))+(mu/t2))-(t/t2))))*((\
+        mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux84)))))));
+        aux86=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t2))-(((2.**-0.5)*\
+        t)/sigma);
+        aux87=(np.exp((((0.5*((sigma**2)*(t2**-2.)))+(mu/t2))-(t/t2))))*((\
+        mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux86)))))));
+        aux88=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t1))-(((2.**-0.5)\
+        *t)/sigma);
+        aux89=(np.exp(((2.*((sigma**2)*(t1**-2.)))+(((2.*mu)/t1)+((-2.*t)/t1))\
+           )))*((mysqrt((2.*pi)))*(sigma*((t1**2)*(-1.+(erf(aux88))))));
+        aux90=((aux83-((Amp**2)*((c**2)*aux85)))-((Amp**2)*aux87))-((Amp**2)*(\
+        c*aux89));
+        aux91=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t1))-(((2.**-0.5)\
+        *t)/sigma);
+        aux92=(np.exp(((2.*((sigma**2)*(t1**-2.)))+(((2.*mu)/t1)+((-2.*t)/t1))\
+           )))*((mysqrt((0.5*pi)))*(sigma*((t1**2)*(-1.+(erf(aux91))))));
+        aux93=((((2.**-0.5)*mu)/sigma)+(((mysqrt(2.))*sigma)/t1))-(((2.**-0.5)\
+        *t)/sigma);
+        aux94=(np.exp(((2.*((sigma**2)*(t1**-2.)))+(((2.*mu)/t1)+((-2.*t)/t1))\
+           )))*((mysqrt((0.5*pi)))*(sigma*((t1**2)*(-1.+(erf(aux93))))));
+        aux95=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t1))-(((2.**-0.5)*\
+        t)/sigma);
+        aux96=(np.exp((((0.5*((sigma**2)*(t1**-2.)))+(mu/t1))-(t/t1))))*((\
+        mysqrt((2.*pi)))*(sigma*(t1*(t2*(-1.+(erf(aux95)))))));
+        aux97=((aux90-((Amp**2)*((c**2)*aux92)))-((Amp**2)*aux94))-((Amp**2)*(\
+        (c**2)*aux96));
+        aux98=((((2.**-0.5)*mu)/sigma)+(((2.**-0.5)*sigma)/t1))-(((2.**-0.5)*\
+        t)/sigma);
+        aux99=(np.exp((((0.5*((sigma**2)*(t1**-2.)))+(mu/t1))-(t/t1))))*((\
+        mysqrt((2.*pi)))*(sigma*((t1**2)*(-1.+(erf(aux98))))));
+        aux100=sigma*((t2**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*\
+        t)/sigma))))));
+        aux101=sigma*((t2**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*\
+        t)/sigma))))));
+        aux102=((aux97-((Amp**2)*aux99))-((Amp**2)*(c*((mysqrt((2.*pi)))*\
+        aux100))))-(Amp*((mysqrt((2.*pi)))*aux101));
+        aux103=sigma*(t1*(t2*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)\
+        /sigma)))))));
+        aux104=sigma*(t1*(t2*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)\
+        /sigma)))))));
+        aux105=(aux102-((Amp**2)*((c**2)*((mysqrt((2.*pi)))*aux103))))-((\
+        Amp**2)*((mysqrt((2.*pi)))*aux104));
+        aux106=sigma*((t1**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*\
+        t)/sigma))))));
+        aux107=sigma*((t1**2)*(1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*\
+        t)/sigma))))));
+        aux108=(aux105-((Amp**2)*(c*((mysqrt((2.*pi)))*aux106))))-(Amp*((\
+        mysqrt((2.*pi)))*aux107));
+        aux109=(((t1-t2)**2))*(-1.-(erf(((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*\
+        t)/sigma)))));
+        aux110=((2.*pi)**-0.5)*(((t1-t2)**-2.)*(aux108-((mysqrt((0.5*pi)\
+           ))*(sigma*aux109))));
+        output=aux110/sigma;
+        return output

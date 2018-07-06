@@ -166,6 +166,8 @@ class SfgRecord():
         the median of the region definded by odd_number.
     average_pixels: like replace, but instead of value, a region is given.
         the median of that region then replaces the pixel value.
+    trim_frames: pass a list of frame index numbers as list. rawData
+        gets trimmed down by these frames.
     """
     def __init__(self, fname=None, rawData=None,
                  base=None, norm=None, baseline_offset=0, wavelength=None,
@@ -173,7 +175,7 @@ class SfgRecord():
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
                  zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None,
-                 roi_delay=None, pumped_index=0, unpumped_index=1, roi_spectra=None, vis_wl=None, replace_pixels=None, average_pixels=None
+                 roi_delay=None, pumped_index=0, unpumped_index=1, roi_spectra=None, vis_wl=None, replace_pixels=None, average_pixels=None, trim_frames=None,
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
@@ -333,13 +335,12 @@ class SfgRecord():
         if hasattr(wavenumber, '__iter__'):
             self.wavenumber = wavenumber
 
+        # Trim frames away
+        self.trim_frames(trim_frames)
+
         # Region of interest for the x_spec
         if roi_x_pixel_spec:
             self.roi_x_pixel_spec = roi_x_pixel_spec
-
-        # Region of interest frames
-        if roi_frames:
-            self.roi_frames = roi_frames
 
         # Default time_domain start cutoff
         if het_start:
@@ -373,26 +374,32 @@ class SfgRecord():
         if not isinstance(zero_time_subtraction, type(None)):
             self._zero_time_subtraction = zero_time_subtraction
 
-        # Roi Delay
+        # Delete unneeded delays
         if roi_delay:
-            self.roi_delay = roi_delay
+            self._rawData = self._rawData[roi_delay]
+            #self.roi_delay = roi_delay
 
-        #
+        # Import only interesting frames
+        if roi_frames:
+            self._rawData = self._rawData[:, roi_frames]
+
+        # Delete unneeded spectra during import to reduce data amount
         if roi_spectra:
-            self.roi_spectra = roi_spectra
+            self._rawData = self._rawData[:, :, roi_spectra]
+            #self.roi_spectra = roi_spectra
 
         # vis_wl
         if vis_wl:
             self.vis_wl = vis_wl
 
         if isinstance(base, str):
-            base = SfgRecord(base).data
+            base = SfgRecord(base).rawData
             self.base = base
         elif not isinstance(base, type(None)):
             self.base = base
 
         if isinstance(norm, str):
-            norm = SfgRecord(norm).data
+            norm = SfgRecord(norm).basesubed
             self.norm = norm
         elif not isinstance(norm, type(None)):
             self.norm = norm
@@ -469,6 +476,14 @@ class SfgRecord():
     @fname.setter
     def fname(self, fname):
         self._fname = fname
+
+    def trim_frames(self, index_list):
+        if isinstance(index_list, type(None)):
+            return
+        logging.warn('Trimming data down with {}'.format(index_list))
+        self._rawData = self._rawData[:, index_list, :, :]
+        #self._base = self._base[:, index_list, :, :]
+        #self._norm = self._norm[:, index_list, :, :]
 
     def select(
             self, prop="normalized", kwargs_prop=None,
@@ -689,7 +704,6 @@ class SfgRecord():
     @base.setter
     def base(self, value):
         if self.isBaselineSubed:
-            self.add_base()
             self.isBaselineSubed = False
         self._base = value * np.ones_like(self.rawData)
         # Reset the dependent properties
