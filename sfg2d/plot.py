@@ -64,8 +64,16 @@ def model_plot(
 ):
     """
     **Kwargs:**
+      - **kwargs_errorbar**: Kwargs passed to errorbar plot. Can be used to change e.g. color of the plot.
+      - **kwargs_line_plot**: Kwargs passed to line plot of the fit line.
+      - **shift_x**: Quick hack to shift the fit plot by x
+      - **shift_y**: Qucick hack to shift the fit by y
+      - **scale_y**: Qucik hack to scale fit by y
+      - **normalize**: Normalize fit height to 1 - 0
       - **xsample_slice**: Tuple with x start and x stop for finding normalization minimun
       - **kwargs_textbox**: If kwargs textbox given, then a textbox with fitresults is drawn
+    - **show_roi**: Mark the roi of the fit
+    - **show_modeled_only**: Show only the fit, not the data.
     """
     if not kwargs_errorbar:
         kwargs_errorbar = {}
@@ -245,7 +253,6 @@ def trace(
     if not ax:
         ax = plt.gca()
 
-
     # Transpose because we want the delay axis to be the last axis
     # of the array.
     kwargs.setdefault('marker', 'o')
@@ -280,7 +287,43 @@ def contour(
     num_pp_delays, num_frames, num_spectra, num_pixel = zdata.shape
     for index_spectrum in range(num_spectra):
         for index_frame in range(num_frames):
-            zzdata = zdata[:, index_frame, index_spectrum]
-            print(xdata.shape, ydata.shape, zzdata.T.shape)
-            plt.contourf(xdata, xdata, zzdata.T)
+            zzdata = zdata[:, index_frame, index_spectrum].T
+            print(xdata.shape, ydata.shape, zzdata.shape)
+            plt.contourf(xdata, ydata, zzdata, **kwargs)
 
+
+def multifig(xdata, ydata, fig_axis=0, kwargs_plot=None, titles=None):
+    """Create multiple figures for ydata, by using the axis of fig_ax.
+
+    **Argument**:
+      - **xdata**: 1D array usually wavenumbers
+      - **ydata**: 4D array as usally.
+
+    **kwargs**:
+      - **fig_axis**: 0-3 and defines the axis of ydata that will be looped
+        over during creation of the figures. Data is then taken from this
+        axis per figure. 0  means 1 figure per pp_delay, 1 means 1 figure per
+        frame and so on.
+      - **kwargs_plot**: kwrges passed to spectrum plot.
+      - **titles**: list of titles must have at least same length as number of figures.
+
+    **Returns**:
+    list of created figures.
+    """
+    if not kwargs_plot:
+        kwargs_plot = {}
+
+    fig_numbers = ydata.shape[fig_axis]
+    figs, axs = [], []
+
+    for i in range(fig_numbers):
+        fig, ax = plt.subplots()
+        figs.append(fig)
+        axs.append(ax)
+        try:
+            plt.title(titles[i])
+        except TypeError:
+            pass
+        yd = ydata.take([i], fig_axis)
+        spectrum(xdata, yd, **kwargs_plot)
+    return figs
