@@ -1172,6 +1172,14 @@ class SfgRecord():
     def bleach(self, opt='rel', kwargs_pumped=None, kwargs_unpumped=None, **kwargs):
         """Calculate bleach of property with given operation."""
 
+        # Must be applied after zero_time_subtraction
+        # Othwerwise zero_time_subtraction fails if
+        # roi_delay is provided
+        try:
+            roi_delay = kwargs.pop('roi_delay')
+        except KeyError:
+            roi_delay = self.roi_delay
+
         if not kwargs_pumped:
             kwargs_pumped = {}
         kwargs_pumped = {**kwargs, **kwargs_pumped}
@@ -1212,6 +1220,7 @@ class SfgRecord():
                 # TODO add the mean of zero_time
                 self.zero_time_abs = zero_time
 
+        bleach = bleach[roi_delay]
         # Correct infs and nans.
         np.nan_to_num(bleach, copy=False)
         return bleach
