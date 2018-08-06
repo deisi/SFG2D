@@ -443,6 +443,8 @@ def import_records(config_records):
 
             base_dict.setdefault('frame_med', True)
             base_dict.setdefault('prop', 'rawData')
+            # Needs to be set so all pixels get set by default.
+            base_dict.setdefault('roi_pixel', slice(None))
 
             base = records[base_name]
             base = base.select(
@@ -462,6 +464,8 @@ def import_records(config_records):
             # Set default kwargs for the select
             norm_dict.setdefault('prop', 'basesubed')
             norm_dict.setdefault('frame_med', True)
+            # Using all pixels will make it allways work if same camera is used.
+            norm_dict.setdefault('roi_pixel', slice(None))
 
             norm = records[norm_record]
             norm = norm.select(
@@ -517,7 +521,7 @@ def make_models(config_models, records, save_models=True, config_models_path='./
 
     # Update models on disk because we want the fit results to be saved
     old_models = {}
-    with open(MODEL_FILE, 'r') as models_file:
+    with open(config_models_path, 'r') as models_file:
         old_models = yaml.load(models_file)
 
     try:

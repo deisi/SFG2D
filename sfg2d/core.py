@@ -411,7 +411,7 @@ class SfgRecord():
 
         if not isinstance(average_pixels, type(None)):
             for pixel, region in average_pixels:
-                self._rawData[:, :, :, pixel] = np.median(
+                self._rawData[:, :, :, pixel] = np.nanmedian(
                     self._rawData[:, :, :, pixel-region: pixel+region], -1
                        )
 
@@ -508,7 +508,7 @@ class SfgRecord():
           - **roi_frames:** Select Frames
           - **roi_spectra:** Select Spectra
           - **roi_pixel:** Select Pixel
-          - **frame_med:** Calculate frae wise median.
+          - **frame_med:** Calculate frame wise median.
           - **delay_mean:** calculate delaywise median.
           - **spectr_mean:** Spctra wise mean
           - **pixel_mean:** Calculates median. Called mean due to historic reasons.
@@ -612,21 +612,21 @@ class SfgRecord():
         logging.debug('Prop: {}'.format( prop ))
         logging.debug('ret.shape: {}'.format( ret.shape ))
         if prop in ('normalize_het', 'norm_het', 'signal_het') and frame_med:
-            ret = np.mean(ret, axis=FRAME_AXIS_INDEX, keepdims=True)
+            ret = np.nanmean(ret, axis=FRAME_AXIS_INDEX, keepdims=True)
             frame_med = None
         if frame_med:
-            ret = np.median(ret, FRAME_AXIS_INDEX, keepdims=True)
+            ret = np.nanmedian(ret, FRAME_AXIS_INDEX, keepdims=True)
         if delay_mean:
-            ret = np.mean(ret, PP_INDEX, keepdims=True)
+            ret = np.nanmean(ret, PP_INDEX, keepdims=True)
         if spectra_mean:
-            ret = np.mean(ret, SPEC_INDEX, keepdims=True)
+            ret = np.nanmean(ret, SPEC_INDEX, keepdims=True)
+        # Median because sometimes there are still nan and infs left.
+        if pixel_mean:
+            ret = np.nanmedian(ret, X_PIXEL_INDEX, keepdims=True)
         if medfilt_pixel > 1:
             ret = medfilt(ret, (1, 1, 1, medfilt_pixel))
         if resample_freqs:
             ret = double_resample(ret, resample_freqs, X_PIXEL_INDEX)
-        # Median because sometimes there are still nan and infs left.
-        if pixel_mean:
-            ret = np.median(ret, X_PIXEL_INDEX, keepdims=True)
         if scale:
             ret *= scale
         if offset:
@@ -1227,9 +1227,9 @@ class SfgRecord():
 
     def contour(
             self,
-            y_property='wavenumber',
-            z_property='bleach',
-            **kwargs
+            kwargs_xdata=None,
+            kwargs_ydata=None,
+            kwargs_zdata=None,
     ):
         """Returns data formatted for a contour plot.
 
@@ -1249,18 +1249,51 @@ class SfgRecord():
           *spectra_mean*:
           *pixel_mean*:
         """
-        kwargs.setdefault('prop', z_property)
-        kwargs.setdefault('medfilt_pixel', 11)
-        kwargs.setdefault('frame_med', True)
+        if not kwargs_xdata:
+            kwargs_xdata = {}
+        if not kwargs_ydata:
+            kwargs_ydata = {}
+        if not kwargs_zdata:
+            kwargs_zdata = {}
 
-        x = self.select('pp_delays', roi_delay=kwargs.get('roi_delay'))
-        y = self.select(y_property, roi_pixel=kwargs.get('roi_pixel'))
-        z = self.select(**kwargs)
-        z = z.squeeze().T
-        if len(z.shape) !=2:
-            raise IOError(
-                "Shape of subselected data can't be processed. Subselection was {}".format(kwargs)
-            )
+        # Warn if unused parameters get used
+        if kwargs_ydata.get('roi_frames'):
+            Warning('roi frames in ydata gets overwritten by roi_frames \
+            from zdata')
+        if kwargs_zdata.get('roi_pixel'):
+            Warning('roi_pixel of z data gets overwritten by roi_pixel of \
+            ydata')
+        if kwargs_zdata.get('roi_delay'):
+            Warning('roi_delay of z data gets overwritten by roi_delay of \
+            xdata')
+
+        # Must translate wavenumbers to pixel for y at this time,
+        # So it autoamtically gets synced with zdata in the parameter
+        # setting step
+        roi_pixel = kwargs_ydata.get('roi_pixel')
+        roi_wavenumber = kwargs_ydata.get('roi_wavenumber')
+        if isinstance(roi_pixel, type(None)):
+            if roi_wavenumber:
+                roi_pixel = self.wavenumber2pixelSlice(roi_wavenumber)
+                kwargs_ydata['roi_pixel'] = roi_pixel
+
+        # These parameters must match. Else cant produce a contour
+        # plot.
+        kwargs_ydata['roi_frames'] = kwargs_zdata.get('roi_frames')
+        kwargs_zdata['roi_pixel'] = kwargs_ydata.get('roi_pixel')
+        kwargs_zdata['roi_delay'] = kwargs_xdata.get('roi_delay')
+
+        kwargs_xdata.setdefault('prop', 'pp_delays')
+        kwargs_ydata.setdefault('prop', 'wavenumber')
+        kwargs_ydata.setdefault('frame_med', True)
+        kwargs_zdata.setdefault('prop', 'bleach')
+        kwargs_zdata.setdefault('frame_med', True)
+        kwargs_zdata.setdefault('medfilt_pixel', 7)
+        kwargs_zdata.setdefault('resample_ferq', 15)
+
+        x = self.select(**kwargs_xdata)
+        y = self.select(**kwargs_ydata)
+        z = self.select(**kwargs_zdata)
         return x, y, z
 
     def trace(

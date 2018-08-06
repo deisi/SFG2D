@@ -284,11 +284,11 @@ def contour(
       - **ydata**: usually wavenumbers
       - **ydata**: usually bleach
     """
+    kwargs.setdefault('extend', 'both')
     num_pp_delays, num_frames, num_spectra, num_pixel = zdata.shape
     for index_spectrum in range(num_spectra):
         for index_frame in range(num_frames):
             zzdata = zdata[:, index_frame, index_spectrum].T
-            print(xdata.shape, ydata.shape, zzdata.shape)
             plt.contourf(xdata, ydata, zzdata, **kwargs)
 
 
