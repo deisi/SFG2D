@@ -226,9 +226,9 @@ def track(
     for ispectrum in range(spectra):
         data = ydata[:, ispectrum]
         if isinstance(xdata, type(None)):
-            plt.plot(data, **kwargs)
+            ax.plot(data, **kwargs)
         else:
-            plt.plot(xdata, data, **kwargs)
+            ax.plot(xdata, data, **kwargs)
     if show_hlines:
         plt.vlines([delays*frame for frame in range(frames)], ydata.min(), ydata.max())
 

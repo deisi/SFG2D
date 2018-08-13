@@ -19,14 +19,14 @@ import matplotlib.pyplot as plt
 from numpy import linspace
 
 # Dict of records.
-records = {} 
+records = {}
 # Dicto of model.
 models = {}
 
 def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None):
     if not kwargs_plots:
         kwargs_plots = {}
-        
+
     for name in record_names:
         record = records.get(name)
         if not record:
@@ -36,7 +36,7 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None):
         xdata = record.select(**kwargs_xdata)
         ydata = record.select(**kwargs_ydata)
         sfg2d.plot.spectrum(xdata, ydata, **kwargs_plot)
-        
+
 def plot_traces(record_names, kwargs_xdata, kwargs_ydata, kwargs_yerr=None, kwargs_plots=None):
     if not kwargs_yerr:
         kwargs_yerr = kwargs_ydata.copy()
@@ -44,42 +44,41 @@ def plot_traces(record_names, kwargs_xdata, kwargs_ydata, kwargs_yerr=None, kwar
             kwargs_yerr.pop('frame_med')
         except KeyError:
             pass
-        
+
     if not kwargs_plots:
         kwargs_plots = {}
-        
+
     for name in record_names:
         record = records.get(name)
         if not record:
             print('{} not found in records'.format(name))
             continue
-            
+
         kwargs_plot = kwargs_plots.get(name, {})
         xdata = record.select(**kwargs_xdata)
         ydata = record.select(**kwargs_ydata)
         yerr = record.sem(**kwargs_yerr)
         sfg2d.plot.trace(xdata, ydata, yerr=yerr, **kwargs_plot)
-        
+
 def plot_tracks(record_names, kwargs_ydata, kwargs_plots=None):
     if not kwargs_plots:
         kwargs_plots = {}
-        
     for name in record_names:
         record = records.get(name)
         if not record:
             print('{} not found in records'.format(name))
             continue
-            
+
         kwargs_plot = kwargs_plots.get(name, {})
         ydata = record.select(**kwargs_ydata)
         sfg2d.plot.track(ydata=ydata, **kwargs_plot)
-        
+
 def plot_models(model_names, plot_kwargs=None, text_kwargs=None):
 
-    
+
     if not plot_kwargs:
         plot_kwargs = {}
-    
+
     if not text_kwargs:
         text_kwargs = {}
 
@@ -88,9 +87,9 @@ def plot_models(model_names, plot_kwargs=None, text_kwargs=None):
         if not m:
             print('Cant find {} in models'.format(model_name))
             continue
-            
+
         this_text_kwargs = text_kwargs.get(model_name, {})
-        
+
         plot_kwarg = plot_kwargs.get(model_name, {})
         plt.plot(m.xsample, m.ysample, color='r', **plot_kwargs)
         if text_kwargs:
@@ -101,13 +100,13 @@ def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
              fig_axis=0, kwargs_plot=None,
              sfile='bleach.pdf', ylim=None, titles=None):
     """Function to make a multi figure plot from y data selection.
-    
+
     `fig_axis` defines the axis of kwargs_ydata selecteion that will be looped
     over. This means by passing fig_axis = 0 you put every pump probe delay
     into a single figure. Of fig_axis = 1 will put each frame into a different
     figure. The result will be exported as pdf into `sfile`. By default all figures
     have the same ylim, that is the maximum amongst all figures. 
-    
+
     **Arguments:**
       - **record_name**: Name of the recrod
     **Kewords:**
@@ -127,7 +126,7 @@ def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
         kwargs_ydata = {}
     if not kwargs_plot:
         kwargs_plot = {}
-        
+
     record = records[record_name]
     xdata = record.select(**kwargs_xdata)
     ydata = record.select(**kwargs_ydata)
@@ -161,19 +160,19 @@ def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
     return figs
 
 def plot_contour(
-    record_name, 
-    kwargs_data=None, 
+    record_name,
+    kwargs_data=None,
     kwargs_contourf=None,
     colorbar=True,
-):   
+):
     if not kwargs_data:
         kwargs_data = {}
     if not kwargs_contourf:
         kwargs_contourf = {}
-        
+
     kwargs_contourf.setdefault('levels', linspace(0.7, 1.1))
     kwargs_contourf.setdefault('extend', 'both')
-    
+
     fig, ax = plt.subplots()
     record = records[record_name]
     x, y, z = record.contour(**kwargs_data)
