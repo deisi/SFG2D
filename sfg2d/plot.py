@@ -262,11 +262,11 @@ def trace(
         pixel = y[i]
         for j in range(len(pixel)):
             spec = pixel[j]
-            if isinstance(yerr, type(None)):
-                for frame in spec:
+            for frame in spec:
+                if isinstance(yerr, type(None)):
                     ax.plot(xdata, frame.T, **kwargs)
-            else:
-                plt.errorbar(xdata, spec[0], yerr[:, j, i], axes=ax, **kwargs)
+                else:
+                    plt.errorbar(xdata, frame, yerr[:, j, i], axes=ax, **kwargs)
 
 def contour(
         xdata,
