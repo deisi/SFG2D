@@ -1,0 +1,98 @@
+cc:
+  kwargs_model:
+    fitarg:
+      A: 2490.7950577330935
+      c: 0.0
+      error_A: 27.177290999916785
+      error_c: 1.0
+      error_mu: 0.002068072464482172
+      error_sigma: 0.0012093681615858943
+      fix_c: true
+      mu: -0.04843155916650273
+      sigma: 0.1551684271695356
+  kwargs_select_x:
+    prop: pp_delays_ps
+    roi_delay: &id001 !!python/object/apply:builtins.slice
+    - 4
+    - -4
+    - null
+  kwargs_select_y:
+    frame_med: true
+    kwargs_prop:
+      prop: basesubed
+    prop: trace
+    roi_delay: *id001
+    roi_wavenumber: &id002 !!python/object/apply:builtins.slice
+    - 4500
+    - 5100
+    - null
+  kwargs_select_yerr:
+    kwargs_prop:
+      prop: basesubed
+    prop: trace
+    roi_delay: *id001
+    roi_wavenumber: *id002
+  model: GaussianModelM
+  record: cc
+  run: true
+sample0:
+  kwargs_model:
+    fitarg:
+      Amp: 0.0491833654181454
+      c: 0.8650995713240687
+      error_Amp: 0.002472225109178417
+      error_c: 0.04524174296689685
+      error_mu: 0.01818127809038574
+      error_sigma: 1.0
+      error_t1: 0.06466914374936254
+      error_t2: 1.0
+      fix_mu: true
+      fix_sigma: true
+      fix_t2: true
+      mu: -0.1595480147789574
+      sigma: 0.135
+      t1: 0.8052979408913002
+      t2: 0.7
+  kwargs_select_x:
+    prop: pp_delays_ps
+  kwargs_select_y:
+    frame_med: true
+    prop: trace
+    roi_wavenumber: &id003 !!python/object/apply:builtins.slice
+    - 2420
+    - 2480
+    - null
+  kwargs_select_yerr:
+    prop: trace
+    roi_wavenumber: *id003
+  model: FourLevel
+  record: na2co3
+  run: true
+pump_vis:
+  kwargs_model:
+    fitarg:
+      A: .nan
+      c: 0.0
+      error_A: .nan
+      error_c: 1.0
+      error_mu: .nan
+      error_sigma: .nan
+      fix_c: true
+      mu: .nan
+      sigma: .nan
+    roi: !!python/object/apply:builtins.slice
+    - 781
+    - 943
+    - null
+  kwargs_select_x:
+    prop: wavenumber
+  kwargs_select_y:
+    delay_mean: true
+    frame_med: true
+    prop: basesubed
+  kwargs_select_yerr:
+    delay_mean: true
+    prop: basesubed
+  model: GaussianModelM
+  record: pump_vis
+  run: true

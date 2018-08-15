@@ -1,0 +1,70 @@
+# Background
+- name: bg200
+  fpath: ''
+
+- name: bg10
+  fpath: ''
+
+# Crosscorrelation
+- name: cc
+  fpath: ''
+  kwargs_record:
+    base: 300
+  #  pumped_index: 0
+  #  unpumped_index: 1
+  #  roi_x_pixel_spec: !!python/object/apply:builtins.slice [480, 1250]
+  #  roi_spectra: [0, 1]
+  #  name:
+
+# Pump-Visible Sfg
+- name: pump-vis
+  fpath: ''
+  kwargs_record:
+    base: 300
+  #  replace_pixels: [[496, 300]]
+  #  pumped_index: 0
+  #  unpumped_index: 1
+  #  roi_x_pixel_spec: !!python/object/apply:builtins.slice [480, 1250]
+  #  roi_spectra: [0]
+  #  name:
+
+# Scan on Gold
+- name: gold
+  fpath: ''
+  kwargs_record:
+    base: 300
+    pumped_index: 0
+    unpumped_index: 1
+  #  roi_x_pixel_spec: !!python/object/apply:builtins.slice [280, 1450]
+  #  roi_spectra: [0, 1]
+
+# Quartz for normalization
+- name: q0
+  fpath: ''
+  base: bg10
+  #kwargs_record:
+  #  base: 306
+  #  pumped_index: 0
+  #  unpumped_index: 1
+  #  roi_spectra: [0, 1]
+  #  name:
+
+# Samples
+- name: sample0
+  fpath: 
+    - ''
+    - ''
+    - ''
+  norm: q0
+  base: bg200
+  #kwargs_record:
+  #  replace_pixels: [[496, 3], [492, 3], [1049, 3]]
+  #  base: 205
+  #  pumped_index: 0
+  #  unpumped_index: 1
+  #  pump_freq: 2400
+  #  roi_x_pixel_spec: !!python/object/apply:builtins.slice [380, 1350]
+  #  roi_frames: !!python/object/apply:builtins.slice [0, 5]
+  #  roi_spectra: [0, 1]
+  #  trim_frames: [0, 1, 10]
+  #  name:
