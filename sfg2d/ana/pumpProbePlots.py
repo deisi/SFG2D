@@ -73,7 +73,7 @@ def plot_tracks(record_names, kwargs_ydata, kwargs_plots=None):
         ydata = record.select(**kwargs_ydata)
         sfg2d.plot.track(ydata=ydata, **kwargs_plot)
 
-def plot_models(model_names, plot_kwargs=None, text_kwargs=None):
+def plot_models(model_names, plot_kwargs=None, text_kwargs=None, kwargs_data=None):
 
 
     if not plot_kwargs:
@@ -89,9 +89,13 @@ def plot_models(model_names, plot_kwargs=None, text_kwargs=None):
             continue
 
         this_text_kwargs = text_kwargs.get(model_name, {})
-
         plot_kwarg = plot_kwargs.get(model_name, {})
-        plt.plot(m.xsample, m.ysample, color='r', **plot_kwargs)
+
+        if isinstance(kwargs_data, dict):
+            kwargs_data.setdefault('fmt', 'o')
+            plt.errorbar(m.xdata, m.ydata, m.yerr, **kwargs_data)
+        plot_kwarg.setdefault('color', 'r')
+        plt.plot(m.xsample, m.ysample, **plot_kwargs)
         if text_kwargs:
             plt.text(s=m.box_str, **this_text_kwargs)
 
