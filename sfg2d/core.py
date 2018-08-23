@@ -26,6 +26,7 @@ FRAME_AXIS_INDEX = CONFIG['FRAME_AXIS_INDEX']
 PIXEL = CONFIG['PIXEL']
 PP_INDEX = CONFIG['PP_INDEX']
 SPEC_INDEX = CONFIG['SPEC_INDEX']
+logger = logging.getLogger(__name__)
 
 
 def import_sfgrecord(
@@ -89,9 +90,9 @@ def import_sfgrecord(
         norm = SfgRecord(norm)
         try:
             norm.base = baseline.select(**kwargs_select_baseline)
-            logging.debug('Warning: Using record baseline as normalization baseline.')
+            logger.debug('Warning: Using record baseline as normalization baseline.')
         except AttributeError:
-            logging.warn('Warning: No baseline for normalization found.')
+            logger.warn('Warning: No baseline for normalization found.')
 
     if norm:
         kwargs_select_norm.setdefault('prop', 'basesubed')
@@ -494,7 +495,7 @@ class SfgRecord():
     def trim_frames(self, index_list):
         if isinstance(index_list, type(None)):
             return
-        logging.warn('Trimming data down with {}'.format(index_list))
+        logger.warn('Trimming data down with {}'.format(index_list))
         self._rawData = self._rawData[:, index_list, :, :]
         #self._base = self._base[:, index_list, :, :]
         #self._norm = self._norm[:, index_list, :, :]
@@ -532,13 +533,13 @@ class SfgRecord():
           - **attribute**: Attribute to get at the end
           - **scale**: A factor to scale results with
           - **abs**: Boolean to get absolute with
-          - **imag**:  Boolean to get imaginary part
-          - **real**: Boolean to get real part
           - **square**: Boolean to calculate square with
           - **sqrt**: Boolean to calculate square-root with
           - **offset**: Offset to add to result
-          - **sum_pixel**: sum up pixels
           - **roi_wavenumber**: roi to calculate trace over in wavenumbers.
+          - **imag**:  Boolean to get imaginary part
+          - **real**: Boolean to get real part
+          - **sum_pixel**: sum up pixels
 
         **kwargs**:
           Combined into *kwargs_prop*
@@ -552,13 +553,15 @@ class SfgRecord():
         # For historic reasons kwargs_prop and kwargs are not the same
         kwargs_prop = {**kwargs, **kwargs_prop}
 
+        # Internal definitions are used by default to make interface
+        # as small simple as possible.
         if isinstance(roi_delay, type(None)):
             roi_delay = self.roi_delay
         if isinstance(roi_frames, type(None)):
             roi_frames = self.roi_frames
         if isinstance(roi_spectra, type(None)):
             roi_spectra = self.roi_spectra
-        # This is wrong for traces
+        # For traces a different x_pixel region should be used.
         if isinstance(roi_pixel, type(None)):
             if roi_wavenumber:
                 roi_pixel = self.wavenumber2pixelSlice(roi_wavenumber)
@@ -586,18 +589,18 @@ class SfgRecord():
         elif prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2'):
             ret = getattr(self, prop)
             # Only Real properties get cut down
-            logging.debug('Prop: {}'.format( prop ))
-            logging.debug('Selecting Delay {}'.format( roi_delay ))
-            logging.debug('Selecting Frames:'.format( roi_frames ))
-            logging.debug('Selecting Spectra'.format( roi_spectra ))
-            logging.debug('Selecting Pixels: '.format( roi_pixel ))
+            logger.debug('Prop: {}'.format( prop ))
+            logger.debug('Selecting Delay {}'.format( roi_delay ))
+            logger.debug('Selecting Frames:'.format( roi_frames ))
+            logger.debug('Selecting Spectra'.format( roi_spectra ))
+            logger.debug('Selecting Pixels: '.format( roi_pixel ))
             ret = ret[
                     roi_delay,
                     roi_frames,
                     roi_spectra,
                     roi_pixel,
                    ]
-            logging.debug('After slicing: '.format( ret.shape ))
+            logger.debug('After slicing: '.format( ret.shape ))
 
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
@@ -609,22 +612,22 @@ class SfgRecord():
             kwargs_prop['roi_spectra'] = roi_spectra
             kwargs_prop['roi_pixel'] = roi_pixel
 
-            # Corrects trace in such a way, that it returns only the y data
-            # what is the expected behaviour of a select call
+            # Corrects trace in such a way, that it returns only the y data.
+            # This is the expected behavior of a select call.
             if prop == 'trace':
                 kwargs_prop.setdefault('y_only', True)
 
             ret = getattr(self, prop)(**kwargs_prop)
 
-            # Pixel get selected up on trace selection already. Here they must behaviour
-            # removed, because else a double call would occur
+            # Pixel get selected up on trace selection already. Here they must
+            # be removed, because else a double call would occur
             #if prop == 'trace':
             # Sublevel props dont get used for selection
         else:
             raise ValueError("Don't know prop: {}".format(prop))
 
-        logging.debug('Prop: {}'.format( prop ))
-        logging.debug('ret.shape: {}'.format( ret.shape ))
+        logger.debug('Prop: {}'.format( prop ))
+        logger.debug('ret.shape: {}'.format( ret.shape ))
         if prop in ('normalize_het', 'norm_het', 'signal_het') and frame_med:
             ret = np.nanmean(ret, axis=FRAME_AXIS_INDEX, keepdims=True)
             frame_med = None
@@ -646,7 +649,7 @@ class SfgRecord():
         if offset:
             if np.any(np.iscomplex(ret)):
                 offset = np.complex(offset, offset)
-            logging.debug('Using offset: {}'.format( offset ))
+            logger.debug('Using offset: {}'.format( offset ))
             ret += offset
         if attribute:
             ret = getattr(ret, attribute)
@@ -763,7 +766,7 @@ class SfgRecord():
         """Normalized data.
         Uses SfgRecord.basesubed and SfgRecord.norm to normalize data.
 
-        4D array like `SfgRecord.rawData` after normalizting.
+        4D array like `SfgRecord.rawData` after normalizing.
         """
         if isinstance(self._normalized, type(None)):
             self._normalized = self.basesubed / self.norm
@@ -1168,7 +1171,10 @@ class SfgRecord():
         kwargs are same as for SfgRecord.select.
         overwritten defaults are:
         *prop*: normalized
-        *frame_med*: True
+        *pumped_index*: Index of pumped spectrum. Default to
+            SfgRecord.pumped_index
+
+        **kwargs**: get passes to SfgRecord.select.
         """
         if not pumped_index:
             pumped_index = self.pumped_index
@@ -1177,6 +1183,7 @@ class SfgRecord():
         return self.select(**kwargs)
 
     def unpumped(self, prop='normalized', unpumped_index=None, **kwargs):
+        """See SfgRecord.pumped."""
         if not unpumped_index:
             unpumped_index = self.unpumped_index
         kwargs['roi_spectra'] = slice(unpumped_index, unpumped_index + 1)
@@ -1184,7 +1191,18 @@ class SfgRecord():
         return self.select(**kwargs)
 
     def bleach(self, opt='rel', kwargs_pumped=None, kwargs_unpumped=None, **kwargs):
-        """Calculate bleach of property with given operation."""
+        """Calculate bleach of property with given operation.
+
+        **Keywords:**
+          - **opt**: Operation to calculate bleach with. Valid are 'rel' or
+            'abs'. For relative bleach aka division of pumped and unpumped.
+            absolute bleach is the difference of pumped - unpumped.
+
+        **kwargs** get passed to select call of pumped and unpumped selection.
+
+        **Returns**:
+        4 D array in the usual from but spec index length will always be 1.
+        """
 
         # Must be applied after zero_time_subtraction
         # Othwerwise zero_time_subtraction fails if
@@ -1246,7 +1264,6 @@ class SfgRecord():
             kwargs_zdata=None,
     ):
         """Returns data formatted for a contour plot.
-
 
         kwargs get passed to SfgRecord.select.
         defaults are adjusted with:
@@ -1406,7 +1423,7 @@ class SfgRecord():
         """
 
         kwargs.setdefault('prop', 'basesubed')
-        logging.debug('time_domain kwargs: {}'.format( kwargs ))
+        logger.debug('time_domain kwargs: {}'.format( kwargs ))
         ret = self.select(**kwargs)
         ret = fft.ifft(ret)
         return ret
@@ -1424,7 +1441,7 @@ class SfgRecord():
         """
         #frame_med = None
         if isinstance(shift, type(None)):
-            logging.debug('Using default shift, {}'.format( self.het_shift ))
+            logger.debug('Using default shift, {}'.format( self.het_shift ))
             shift = self.het_shift
 
         time_domain = self.time_domain(**kwargs)
@@ -1451,10 +1468,10 @@ class SfgRecord():
                     )
                 for j in range(ret.shape[FRAME_AXIS_INDEX]):
                     ret[:, j] = ret[:, j] * np.exp(1j * np.pi * shift[j])
-                    logging.debug('Shifting with: {}'.format( np.exp(1j * np.pi * shift[j]) ))
+                    logger.debug('Shifting with: {}'.format( np.exp(1j * np.pi * shift[j]) ))
             else:
                 ret = ret * np.exp(1j * np.pi * shift)
-                logging.debug('Shifting with: {}'.format( np.exp(1j * np.pi * shift) ))
+                logger.debug('Shifting with: {}'.format( np.exp(1j * np.pi * shift) ))
 
         return ret
 
@@ -1483,7 +1500,7 @@ class SfgRecord():
         kwargs.setdefault('start', self.het_start)
         kwargs.setdefault('stop', self.het_stop)
         if not isinstance(shift, type(None)):
-            logging.debug('setting shift: {}'.format( shift ))
+            logger.debug('setting shift: {}'.format( shift ))
             kwargs['shift'] = shift
         return self.frequency_domain(**kwargs)
 
@@ -1504,8 +1521,8 @@ class SfgRecord():
             kwargs_norm_het = {}
         signal = self.signal_het(**kwargs_frequency_domain, **kwargs)
         norm = self.norm_het(**kwargs_norm_het, **kwargs)
-        logging.debug('signal shape: {}'.format( signal.shape ))
-        logging.debug('Norm Shape: {}'.format( norm.shape ))
+        logger.debug('signal shape: {}'.format( signal.shape ))
+        logger.debug('Norm Shape: {}'.format( norm.shape ))
         chi2 = signal/norm
 
         self.chi2 = chi2
@@ -2020,7 +2037,7 @@ class Record2d():
         if shift_zero_time_offset:
             time = self.pp_delays[delay]
             best_delay_indeces = self.find_delay_index(time)
-            logging.debug('Combining {} as {}'.format(time, self.pp_delays[self.find_delay_index(time)]))
+            logger.debug('Combining {} as {}'.format(time, self.pp_delays[self.find_delay_index(time)]))
             z = z_raw[best_delay_indeces, range(self.number_of_pump_freqs), roi_pixel].T
         else:
             z = z_raw[delay, :, roi_pixel].T
@@ -2060,7 +2077,7 @@ class Record2d():
             static_chi=self.static_chi,
             zero_time_offset=self.zero_time_offset
         )
-        logging.debug('Saving to {}'.format(path.abspath(file)))
+        logger.debug('Saving to {}'.format(path.abspath(file)))
         np.savez_compressed(
             file,
             **kwargs
@@ -2094,7 +2111,7 @@ def concatenate_list_of_SfgRecords(list_of_records):
             if attribute == '_wavelength':
                 ret._setted_wavelength = True
         else:
-            logging.debug('Not concatenating {}'.format(attribute))
+            logger.debug('Not concatenating {}'.format(attribute))
 
     # Concatenate unlistable attributes
     concatable_attributes = (

@@ -14,8 +14,7 @@ from . import myyaml as yaml
 import pandas as pd
 from glob import glob
 plt.ion()
-
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 ### Constants for configurations and options
 MODEL = 'model'
@@ -43,7 +42,7 @@ class Analyser():
         self._figures = {}
 
         os.chdir(self.dir)
-        logging.info('Changing to: {}'.format(self.dir))
+        logger.info('Changing to: {}'.format(self.dir))
 
     def __call__(
             self,
@@ -152,7 +151,7 @@ class Analyser():
         mplstyle = options.get(MPLSTYLE)
         if mplstyle:
             import matplotlib.pyplot as plt
-            logging.info('Applying mplstyle {}'.format(mplstyle))
+            logger.info('Applying mplstyle {}'.format(mplstyle))
             plt.style.use(mplstyle)
 
         file_calib = options.get(*FILE_CALIB)
@@ -164,7 +163,7 @@ class Analyser():
                     dpath.util.new(
                         config_record, 'kwargs_record/wavelength', wavelength)
             except IndexError:
-                logging.warning("Cant find wavelength in calib file %s".format(
+                logger.warning("Cant find wavelength in calib file %s".format(
                     file_calib))
             try:
                 wavenumber = calib_pixel.T[2]
@@ -177,7 +176,7 @@ class Analyser():
                     dpath.util.new(
                         config_record, 'kwargs_record/wavenumber', wavenumber)
             except IndexError:
-                logging.warning('Cant find wavenumber in calib file %s'.format(
+                logger.warning('Cant find wavenumber in calib file %s'.format(
                         file_calib))
 
         # Makes it possible to define a default vis_wl for all records
@@ -194,7 +193,7 @@ class Analyser():
         config_records = self.configuration[RECORDS]
         records = {}
         for record_entrie in config_records:
-            logging.info('Importing {}'.format(record_entrie['name']))
+            logger.info('Importing {}'.format(record_entrie['name']))
             fpath = record_entrie['fpath']
             kwargs_record = record_entrie.get('kwargs_record', {})
             base_dict = record_entrie.get('base')
@@ -258,12 +257,12 @@ class Analyser():
         try:
             config_models = self.configuration.get(MODELS).copy()
         except AttributeError:
-            logging.info('No modules definded. Skipping')
+            logger.info('No modules definded. Skipping')
             return models
 
-        logging.info('Making Models...')
+        logger.info('Making Models...')
         for model_name in sort(list(config_models.keys())):
-            logging.info('Working on model {}'.format(model_name))
+            logger.info('Working on model {}'.format(model_name))
             this_model_config = config_models[model_name]
             # Replace record string with real record becuse real records contain the data
             record_name = this_model_config['record']
@@ -288,12 +287,12 @@ class Analyser():
         try:
             new_models = {**old_models, **config_models}
         except TypeError:
-            logging.warn('Replacing old models with new models due to error')
+            logger.warn('Replacing old models with new models due to error')
             new_models = config_models
 
         if save_models:
             with open(MODEL_FILE, 'w') as models_file:
-                logging.info('Saving models to {}'.format(os.path.abspath(MODEL_FILE)))
+                logger.info('Saving models to {}'.format(os.path.abspath(MODEL_FILE)))
                 yaml.dump(new_models, models_file, default_flow_style=False)
 
         # Update config_models with fit results
@@ -305,13 +304,13 @@ class Analyser():
         """Save a cached version of the records in .npz files in cache folder."""
         try:
             os.mkdir(self.cache_dir)
-            logging.info('Create cachedir: {}'.format(self.cache_dir))
+            logger.info('Create cachedir: {}'.format(self.cache_dir))
         except FileExistsError:
             pass
 
         for key, record in self.records.items():
             fname = self.cache_dir + '/' + key
-            logging.debug('Saving cached record to {}'.format(fname))
+            logger.debug('Saving cached record to {}'.format(fname))
             record.save(fname)
 
 
@@ -336,7 +335,7 @@ class Analyser():
         for fig_config in config_figures:
             # Name is equal the configuration key, so it must be stripped
             fig_name, fig_config = list(fig_config.items())[0]
-            logging.info('Making: {}'.format(fig_name))
+            logger.info('Making: {}'.format(fig_name))
             fig_type = fig_config['type']
             kwargs_fig = fig_config['kwargs'].copy()
 
@@ -345,7 +344,7 @@ class Analyser():
                 kwargs_fig, '**/record', yielded=True
             )
             for path, record_name in found_records:
-                logging.info("Configuring {} with {}".format(path, record_name))
+                logger.info("Configuring {} with {}".format(path, record_name))
                 dpath.util.set(kwargs_fig, path, self.records[record_name])
 
             # Replace model strings with real models
@@ -353,7 +352,7 @@ class Analyser():
                 kwargs_fig, '**/model', yielded=True
             )
             for path, model_name in found_models:
-                logging.info("Configuring {} with {}".format(path, model_name))
+                logger.info("Configuring {} with {}".format(path, model_name))
                 dpath.util.set(kwargs_fig, path, self.models[model_name])
 
 
@@ -385,11 +384,11 @@ class Analyser():
             open(gitfile, 'a').close()
             with open(gitfile, 'r+') as ofile:
                 if sha not in ofile.read():
-                    logging.info('Appending {} to {}'.format(
+                    logger.info('Appending {} to {}'.format(
                         sha, os.path.abspath(GITVERSION)))
                     ofile.write(sha + '\n')
         except InvalidGitRepositoryError:
-            logging.warning('Cant Save gitversion because no repo available.')
+            logger.warning('Cant Save gitversion because no repo available.')
 
     def save_packages(self):
         installed_packages = get_installed_distributions()
@@ -429,7 +428,7 @@ def import_records(config_records):
 
     records = {}
     for record_entrie in config_records:
-        logging.info('Importing {}'.format(record_entrie['name']))
+        logger.info('Importing {}'.format(record_entrie['name']))
         fpath = record_entrie['fpath']
         kwargs_record = record_entrie.get('kwargs_record', {})
         base_dict = record_entrie.get('base')
@@ -498,9 +497,9 @@ def make_models(config_models, records, save_models=True, config_models_path='./
     """
     models = {}
 
-    logging.info('Making Models...')
+    logger.info('Making Models...')
     for model_name in sort(list(config_models.keys())):
-        logging.info('Working on model {}'.format(model_name))
+        logger.info('Working on model {}'.format(model_name))
         this_model_config = config_models[model_name]
         # Replace record string with real record becuse real records contain the data
         record_name = this_model_config['record']
@@ -527,12 +526,12 @@ def make_models(config_models, records, save_models=True, config_models_path='./
     try:
         new_models = {**old_models, **config_models}
     except TypeError:
-        logging.warn('Replacing old models with new models due to error')
+        logger.warn('Replacing old models with new models due to error')
         new_models = config_models
 
     if save_models:
         with open(config_models_path, 'w') as models_file:
-            logging.info('Saving models to {}'.format(
+            logger.info('Saving models to {}'.format(
                 os.path.abspath(config_models_path))
             )
             yaml.dump(new_models, models_file, default_flow_style=False)
@@ -547,13 +546,13 @@ def cache_records(records, cache_dir=CACHE_DIR[1]):
     """Save a cached version of the records in .npz files in cache folder."""
     try:
         os.mkdir(cache_dir)
-        logging.info('Create cachedir: {}'.format(cache_dir))
+        logger.info('Create cachedir: {}'.format(cache_dir))
     except FileExistsError:
         pass
 
     for key, record in records.items():
         fname = cache_dir + '/' + key
-        logging.debug('Saving cached record to {}'.format(fname))
+        logger.debug('Saving cached record to {}'.format(fname))
         record.save(fname)
 
 

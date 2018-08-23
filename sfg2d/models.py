@@ -271,16 +271,20 @@ class Fitter():
 
     @sigma.setter
     def sigma(self, value):
+        self._sigma = value
         if isinstance(value, type(None)):
             self._sigma = np.ones_like(self._ydata)
         elif len(np.shape(value)) != 1:
             raise IndexError('Shappe of yerr is not of dim 1')
         if np.any(value==0):
-            logging.warn('Zero value within ucertainty. Ignoring errorbars.')
-            logging.warn('Errors passed were {}'.format(value))
-            self._sigma = np.ones_like(self._ydata)
+            pos = np.where(value==0)
+            #replace = np.nanmedian(value)
+            logging.warn('Zero value within ucertainty.')
+            logging.warn('Zero Values @ {}'.format(pos))
+            #logging.warn('Replacing error with {}'.format(replace))
+            #logging.warn('Errors passed were {}'.format(value))
+            #self._sigma = np.ones_like(self._ydata)
             #self.ignore_errors = True
-        self._sigma = value
 
     @property
     def yerr(self):
