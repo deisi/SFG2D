@@ -254,7 +254,7 @@ class SfgRecord():
         self._zero_time_subtraction = True
 
         # list/slice of delay indexes for zero_time_subtraction
-        self._zero_time_selec = [0, 1]
+        self._zero_time_select = [0, 1]
 
         # array of bleach value at negative time
         self.zero_time_abs = None
@@ -372,7 +372,7 @@ class SfgRecord():
 
         # Update zero time select
         if zero_time_select:
-            self.zero_time_selec = zero_time_select
+            self.zero_time_select = zero_time_select
 
         # Update zero time subtraction boolean
         if not isinstance(zero_time_subtraction, type(None)):
@@ -464,7 +464,7 @@ class SfgRecord():
             'unpumped_index': '_unpumped_index',
             'baseline_offset': '_baseline_offset',
             'zero_time_subtraction': '_zero_time_subtraction',
-            'zero_time_selec': 'zero_time_selec',
+            'zero_time_select': 'zero_time_select',
             'rois_x_pixel_trace': 'rois_x_pixel_trace',
             'roi_x_pixel_spec': 'roi_x_pixel_spec',
             'roi_spectra': 'roi_spectra',
@@ -1050,13 +1050,13 @@ class SfgRecord():
         self._zero_time_subtraction = value
 
     @property
-    def zero_time_selec(self):
+    def zero_time_select(self):
         """Slice/List to select delays for zero time subtraction."""
-        return self._zero_time_selec
+        return self._zero_time_select
 
-    @zero_time_selec.setter
-    def zero_time_selec(self, value):
-        self._zero_time_selec = value
+    @zero_time_select.setter
+    def zero_time_select(self, value):
+        self._zero_time_select = value
 
     @property
     def lname(self):
@@ -1223,7 +1223,7 @@ class SfgRecord():
             )
 
         if self.zero_time_subtraction:
-            zero_time = bleach[self.zero_time_selec].mean(0)
+            zero_time = bleach[self.zero_time_select].mean(0)
             bleach -= zero_time
             # Recorretion for zero_time offset needed because
             # data is expected to be at 1 for negative times.
@@ -1663,7 +1663,7 @@ class SfgRecord():
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
         ret.baseline_offset = self.baseline_offset
-        ret.zero_time_selec = self.zero_time_selec
+        ret.zero_time_select = self.zero_time_select
         ret.zero_time_subtraction = self.zero_time_subtraction
         ret.baseline_offset = self.baseline_offset
         ret.roi_x_pixel_spec = self.roi_x_pixel_spec
@@ -1895,7 +1895,7 @@ class Record2d():
             self.unpumpedE = unpumpedE
 
         self.zero_time_subtraction = True
-        self.zero_time_selec = slice(0, 2)
+        self.zero_time_select = slice(0, 2)
 
         self.gold_bleach = gold_bleach
         self.static_chi = static_chi
@@ -1943,7 +1943,7 @@ class Record2d():
                 "Must enter valid opt {} is invalid".format(opt)
             )
         if self.zero_time_subtraction:
-            zero_time = bleach[self.zero_time_selec].mean(0)
+            zero_time = bleach[self.zero_time_select].mean(0)
             bleach -= zero_time
             # Recorretion for zero_time offset needed because
             # data is expected to be at 1 for negative times.
