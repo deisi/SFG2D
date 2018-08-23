@@ -1656,6 +1656,9 @@ class SfgRecord():
         come from the same file. By copying the data from the RAM, we can
         save some IO and speed up the process."""
         ret = SfgRecord()
+        ret.rawData = self.rawData.copy()
+        ret.base = self.base.copy()
+        ret.norm = self.norm.copy()
         ret.pp_delays = self.pp_delays.copy()
         ret.metadata = self.metadata.copy()
         ret._fname = self._fname
@@ -1672,8 +1675,8 @@ class SfgRecord():
         ret.roi_frames = self.roi_frames
         ret.roi_delay = self.roi_delay
         ret.rois_delays_pump_probe = self.rois_delays_pump_probe
-        ret.shift = self.shift
-        ret.quarz_norm_het = self.quartz_norm_het
+        ret.het_shift = self.het_shift
+        ret.norm_het_shift = self.norm_het_shift
         return ret
 
     def save(self, file, *args, **kwargs):
