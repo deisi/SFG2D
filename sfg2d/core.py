@@ -591,16 +591,16 @@ class SfgRecord():
             # Only Real properties get cut down
             logger.debug('Prop: {}'.format( prop ))
             logger.debug('Selecting Delay {}'.format( roi_delay ))
-            logger.debug('Selecting Frames:'.format( roi_frames ))
-            logger.debug('Selecting Spectra'.format( roi_spectra ))
-            logger.debug('Selecting Pixels: '.format( roi_pixel ))
+            logger.debug('Selecting Frames: {}'.format( roi_frames ))
+            logger.debug('Selecting Spectra: {}'.format( roi_spectra ))
+            logger.debug('Selecting Pixels: {}'.format( roi_pixel ))
             ret = ret[
                     roi_delay,
                     roi_frames,
                     roi_spectra,
                     roi_pixel,
                    ]
-            logger.debug('After slicing: '.format( ret.shape ))
+            logger.debug('Shape after slicing: {}'.format( ret.shape ))
 
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
@@ -632,19 +632,26 @@ class SfgRecord():
             ret = np.nanmean(ret, axis=FRAME_AXIS_INDEX, keepdims=True)
             frame_med = None
         if frame_med:
+            logger.debug('Calculating frame_mean')
             ret = np.nanmedian(ret, FRAME_AXIS_INDEX, keepdims=True)
         if delay_mean:
+            logger.debug('Calculating delay_mean')
             ret = np.nanmean(ret, PP_INDEX, keepdims=True)
         if spectra_mean:
+            logger.debug('Calculating spectra_mean')
             ret = np.nanmean(ret, SPEC_INDEX, keepdims=True)
         # Median because sometimes there are still nan and infs left.
         if pixel_mean:
+            logger.debug('Calculating pixel_mean')
             ret = np.nanmedian(ret, X_PIXEL_INDEX, keepdims=True)
         if medfilt_pixel > 1:
+            logger.debug('Calculating medfilt_pixel: {}'.format(medfilt_pixel))
             ret = medfilt(ret, (1, 1, 1, medfilt_pixel))
         if resample_freqs:
+            logger.debug('Calculating resample_freqs {}'.format(resample_freqs))
             ret = double_resample(ret, resample_freqs, X_PIXEL_INDEX)
         if scale:
+            logger.debug('Sacaling with: {}'.format(scale))
             ret *= scale
         if offset:
             if np.any(np.iscomplex(ret)):
@@ -652,18 +659,25 @@ class SfgRecord():
             logger.debug('Using offset: {}'.format( offset ))
             ret += offset
         if attribute:
+            logger.debug("Attribute {}".format(attribute))
             ret = getattr(ret, attribute)
         if abs:
+            logger.debug("Calculating abs")
             ret = np.absolute(ret)
         if imag:
+            logger.debug("Calculating imag")
             ret = np.imag(ret)
         if real:
+            logger.debug("Calculating real")
             ret = np.real(ret)
         if square:
+            logger.debug("Calculating square")
             ret = np.square(ret)
         if sqrt:
+            logger.debug("Calculating sqrt")
             ret = np.sqrt(ret)
         if sum_pixel:
+            logger.debug("Calculating sum_pixel")
             ret = np.sum(ret, axis=X_PIXEL_INDEX, keepdims=True)
         return ret
 
