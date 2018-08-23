@@ -168,6 +168,9 @@ class SfgRecord():
         the median of that region then replaces the pixel value.
     trim_frames: pass a list of frame index numbers as list. rawData
         gets trimmed down by these frames.
+    base_corrections: Allows to manipulate the baseline. This is needed because
+        the camera has a bug, that leads to a static offset in individual
+        baselines of a scan.
     """
     def __init__(self, fname=None, rawData=None,
                  base=None, norm=None, baseline_offset=0, wavelength=None,
@@ -176,6 +179,7 @@ class SfgRecord():
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
                  zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None,
                  roi_delay=None, pumped_index=0, unpumped_index=1, roi_spectra=None, vis_wl=None, replace_pixels=None, average_pixels=None, trim_frames=None,
+                 base_corrections=None,
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
@@ -414,6 +418,16 @@ class SfgRecord():
                 self._rawData[:, :, :, pixel] = np.nanmedian(
                     self._rawData[:, :, :, pixel-region: pixel+region], -1
                        )
+
+        # base correction to manipulte baseline offsets individually
+        if not isinstance(base_corrections, type(None)):
+            self.base_corrections = base_corrections
+            for base_dict in base_corrections:
+                axis = base_dict['axis']
+                value = base_dict['value']
+                self._base[axis] = self._base[axis] + value
+            self._basesubed = None
+            self._normalized = None
 
 
     @property
