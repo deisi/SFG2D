@@ -2,7 +2,7 @@ from numpy import median
 from scipy.signal import resample
 
 def double_resample(x, num, axis=0, **kwargs):
-    """Use FFT bases resample twiche to FFT filter data and keep axis size constant.
+    """Use FFT bases resample twice to FFT filter data and keep axis size constant.
 
     Parameter:
     x: array

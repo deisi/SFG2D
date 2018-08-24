@@ -118,60 +118,57 @@ class SfgRecord():
       - .spe files from Andor version 2.5 and version 3
       - victor_controller .dat files
 
-    Parameters
-    ----------
-    fname: List of strings or string
-        Path to input data
-    base: 4d castable array.
-        Data for the baseline
-    norm: 4d castable array
-        Data to normalize with
-
-    Properties
-    ----------
-    raw_data: 4 dim numpy array
-        Immutable version of the imported data. This should only be changed
-        upon initialization of the data. Else this should always stay the same.
-    data : 4 dim numpy array
-        Each axis seperates the data by:
-        - axis 0: pump-probe time delay
-        - axis 1: frames
-        - axis 2: y-pixels
-        - axis 3: x-pixels
-
-    dates: list of dates
-        eaclist is a relative timedelta obj, that refers
-        to the time 0 of the first frame.
-    frames: int
-        Number of frames of this obj.
-    pixel: np.array
-        numpy array with the range of the pixels. Often used as x-axis.
-    wavelength: np.array
-        Wavelength of the data.
-            If data is from an .spe file, wavelength can be read from it.
-            If data is from a ,dat file, wavelength gets calcuated based
-              on a calibration line with the central wavelength taken from:
-              `SfgRecord.metadata['central_wl']`
-    wavenumber: np.array
-        Wavenumber calculated from the wavelength as described above.
-        The effect of the up-conversion is calculated by using
-        `SfgRecord.metadata["vis_wl"]` as wavelength of the visible.
-    basesubed: np.array
-        4 d baselinesubstracted array
-    normalized: np.array
-        4 d normalized array
-    shift: shift heterodyne singal by given angle in radiant.
-    norm_het_shift: Shift heterodyne quartz by given angle in radiants.
-    replace_pixels: Give list of tuples of
-        ((pixel0, value0), (pixel1, ...)) to replace pixel with
-        the median of the region definded by odd_number.
-    average_pixels: like replace, but instead of value, a region is given.
-        the median of that region then replaces the pixel value.
-    trim_frames: pass a list of frame index numbers as list. rawData
-        gets trimmed down by these frames.
-    base_corrections: Allows to manipulate the baseline. This is needed because
-        the camera has a bug, that leads to a static offset in individual
-        baselines of a scan.
+    **Properties**
+      - **fname**: String or list of strings.
+          Path to input data
+      - **raw_data**: 4 dim numpy array
+          - axis 0: pump-probe time delay
+          - axis 1: frames
+          - axis 2: y-pixels
+          - axis 3: x-pixels
+      - **base**: 4d castable array or string to baseline file
+          Data for the baseline
+      - **norm**: 4d castable array or string with path to baseline file
+          Data to normalize with
+      - **baseline_offset**: Default 0
+          Add static offset to baseline.
+      - **wavelength**: np.array of wavelength data.
+          If data is from an .spe file, wavelength can be read from it.
+          If data is from a .dat file, wavelength gets calcuated based
+          on a calibration line with the central wavelength taken from:
+          `SfgRecord.metadata['central_wl']`
+      - **wavenumber**: np.array
+          Wavenumber calculated from the wavelength as described above.
+          The effect of the up-conversion is calculated by using
+          `SfgRecord.metadata["vis_wl"]` as wavelength of the visible.
+      - **roi_x_pixel_spec**: slice
+        region of interest for normal spectra. Usually given bey the grating
+        and bandwidth of the setup plus central wavelength.
+      - **norm_het_shift**: Shift heterodyne quartz by given angle in radiants.
+      - **norm_het_start**: Starting frequency of heterodyne freq
+      - **norm_het_stop**: Stop freq of heterodyne freq
+      - **roi_frames**: Slice. Region of interes for frame axis
+      - **zero_time_select**: default [0, 1]
+          Array of indeces used for zero time selection.
+      - **pump_freq**: Frequency of the pump
+      - **name**: strign. Additional name of the sample like d2o or something.
+      - **zero_time_subtraction**: boolean, default True
+          If zero time should be subtracted.
+      - **roi_delay**: slice. Region of interest for delays
+      - **pumped_index**: index number of the pumped spectrum
+      - **unpumped_index**: index of unpumped spectrum
+      - **roi_spectra**: Region of interest for spectra axis.
+      - **vis_wl**: Wavelength of visible light. Default is written from file
+      - **replace_pixel**: list of tuples.
+          ((index, value), (index1, value1), ...) to replace pixel at position           index with value, replacement happens through all axis.
+      - **average_pixels**: Forgot what it was
+      - **trim_frames**: slice or array of indeces.
+          Is used after data import to trim down frame axis. Usefull when
+          combining many different scans, with partial good and partial
+          bad data.
+      - **base_corrections**: list of dicts with
+          ({"axis": axis_description, "value": value_to_set}). Usefull to cope
+          with unstable baselines due to a bug in em-cm mode switching.
     """
     def __init__(self, fname=None, rawData=None,
                  base=None, norm=None, baseline_offset=0, wavelength=None,
