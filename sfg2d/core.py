@@ -139,7 +139,7 @@ class SfgRecord():
           `SfgRecord.metadata['central_wl']`
       - **wavenumber**: np.array
           Wavenumber calculated from the wavelength as described above.
-          The effect of the up-conversion is calculated by using
+          The effect of the up-conversion is calcula
           `SfgRecord.metadata["vis_wl"]` as wavelength of the visible.
       - **roi_x_pixel_spec**: slice
         region of interest for normal spectra. Usually given bey the grating

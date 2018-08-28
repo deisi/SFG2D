@@ -423,59 +423,77 @@ def read_yaml(fpath):
         configuration = yaml.load(ifile)
     return configuration
 
+def save_yaml(fpath, configuration):
+    """Save configuration dict to fpath."""
+    logger.info(
+        'Saving configuration to {}'.format(
+            os.path.abspath(fpath)
+        )
+   )
+    with open(fpath, 'w') as ofile:
+        configuration = yaml.dump(
+            configuration, ofile, default_flow_style=False
+        )
+    return configuration
+
+def import_record(record_entrie, records):
+    """Import of a single record via given record_entrie dict.
+    and lookup already import records within records
+    """
+    logger.info('Importing {}'.format(record_entrie['name']))
+    fpath = record_entrie['fpath']
+    kwargs_record = record_entrie.get('kwargs_record', {})
+    base_dict = record_entrie.get('base')
+    if base_dict:
+        # Allows for easy definition of base by passing {base: name}
+        if isinstance(base_dict, str):
+            base_dict = {'name': base_dict}
+
+        # Pop base name, so the rest can be passed to select
+        base_name = base_dict.pop('name')
+
+        base_dict.setdefault('frame_med', True)
+        base_dict.setdefault('prop', 'rawData')
+        # Needs to be set so all pixels get set by default.
+        base_dict.setdefault('roi_pixel', slice(None))
+
+        base = records[base_name]
+        base = base.select(
+            **base_dict
+        )
+        kwargs_record['base'] = base
+
+    norm_dict = record_entrie.get('norm')
+    if norm_dict:
+        # Allows to have the simple config with norm: name
+        if isinstance(norm_dict, str):
+            norm_dict = {'name': norm_dict}
+
+        # pop name so we use it to select the record
+        norm_record = norm_dict.pop('name')
+
+        # Set default kwargs for the select
+        norm_dict.setdefault('prop', 'basesubed')
+        norm_dict.setdefault('frame_med', True)
+        # Using all pixels will make it allways work if same camera is used.
+        norm_dict.setdefault('roi_pixel', slice(None))
+
+        norm = records[norm_record]
+        norm = norm.select(
+            **norm_dict
+        )
+        kwargs_record['norm'] = norm
+
+    record = core.SfgRecord(fpath, **kwargs_record)
+    return record
+
 def import_records(config_records):
     """Import records"""
 
     records = {}
     for record_entrie in config_records:
-        logger.info('Importing {}'.format(record_entrie['name']))
-        fpath = record_entrie['fpath']
-        kwargs_record = record_entrie.get('kwargs_record', {})
-        base_dict = record_entrie.get('base')
-        if base_dict:
-            # Allows for easy definition of base by passing {base: name}
-            if isinstance(base_dict, str):
-                base_dict = {'name': base_dict}
+        record = import_record(record_entrie, records)
 
-            # Pop base name, so the rest can be passed to select
-            base_name = base_dict.pop('name')
-
-            base_dict.setdefault('frame_med', True)
-            base_dict.setdefault('prop', 'rawData')
-            # Needs to be set so all pixels get set by default.
-            base_dict.setdefault('roi_pixel', slice(None))
-
-            base = records[base_name]
-            base = base.select(
-                **base_dict
-            )
-            kwargs_record['base'] = base
-
-        norm_dict = record_entrie.get('norm')
-        if norm_dict:
-            # Allows to have the simple config with norm: name
-            if isinstance(norm_dict, str):
-                norm_dict = {'name': norm_dict}
-
-            # pop name so we use it to select the record
-            norm_record = norm_dict.pop('name')
-
-            # Set default kwargs for the select
-            norm_dict.setdefault('prop', 'basesubed')
-            norm_dict.setdefault('frame_med', True)
-            # Using all pixels will make it allways work if same camera is used.
-            norm_dict.setdefault('roi_pixel', slice(None))
-
-            norm = records[norm_record]
-            norm = norm.select(
-                **norm_dict
-            )
-            kwargs_record['norm'] = norm
-
-        #kwargs_record.setdefault('wavelength', wavelength)
-        #kwargs_record.setdefault('wavenumber', wavenumber)
-
-        record = core.SfgRecord(fpath, **kwargs_record)
         # Update record name with its real record
         records[record_entrie['name']] = record
 
