@@ -303,7 +303,7 @@ class SfgRecord():
         self._lname = None
 
         #
-        self._pump_freq = pump_freq
+        self.pump_freq = pump_freq
 
         #
         self.het_shift = 0
@@ -999,15 +999,11 @@ class SfgRecord():
 
     @property
     def pump_freq(self):
-        if self._pump_freq:
-            return self._pump_freq
-        else:
-            return self.metadata.get('pump_freq')
+        return self.metadata.get('pump_freq')
 
     @pump_freq.setter
     def pump_freq(self, value):
         self.metadata['pump_freq'] = value
-        self._pump_freq = value
 
     @property
     def wavenumber(self):
