@@ -430,6 +430,12 @@ class SfgRecord():
             self._basesubed = None
             self._normalized = None
 
+    def update_config(self, kwargs):
+        """Update the configuration of the record with given kwargs"""
+        logger.info('Updating config of record {}'.format(self))
+        for key, value in kwargs.items():
+            logger.debug('Updating {} with {}'.format(key,  value))
+            setattr(self, key, value)
 
     @property
     def info(self):
@@ -586,21 +592,22 @@ class SfgRecord():
             return ret
 
         # Real properties get used directly
-        elif prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm', 'chi2'):
+        elif prop in ('rawData', 'basesubed', 'normalized', 'base', 'norm',
+                      'chi2'):
             ret = getattr(self, prop)
             # Only Real properties get cut down
-            logger.debug('Prop: {}'.format( prop ))
-            logger.debug('Selecting Delay {}'.format( roi_delay ))
-            logger.debug('Selecting Frames: {}'.format( roi_frames ))
-            logger.debug('Selecting Spectra: {}'.format( roi_spectra ))
-            logger.debug('Selecting Pixels: {}'.format( roi_pixel ))
+            logger.debug('Prop: {}'.format(prop))
+            logger.debug('Selecting Delay {}'.format(roi_delay))
+            logger.debug('Selecting Frames: {}'.format(roi_frames))
+            logger.debug('Selecting Spectra: {}'.format(roi_spectra))
+            logger.debug('Selecting Pixels: {}'.format(roi_pixel))
             ret = ret[
                     roi_delay,
                     roi_frames,
                     roi_spectra,
                     roi_pixel,
                    ]
-            logger.debug('Shape after slicing: {}'.format( ret.shape ))
+            logger.debug('Shape after slicing: {}'.format(ret.shape))
 
         # Infered properites need aditional kwargs
         elif prop in ('pumped', 'unpumped', 'bleach', 'trace',
@@ -1349,6 +1356,9 @@ class SfgRecord():
             **kwargs
     ):
         """Shortcut to get trace.
+        Trace means, that the mean over a certain pixel region is calculated.
+        E.g. this function calls select and allways add the `pixel_mean`
+        option.
 
         prop: property to calculate the trace from
         kwargs_prop: additional kwargs of the property
@@ -2173,4 +2183,3 @@ def get_fit_results(record):
             }
         )
     return ret
-
