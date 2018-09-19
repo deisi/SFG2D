@@ -151,6 +151,7 @@ class SfgRecord():
       - **zero_time_select**: default [0, 1]
           Array of indeces used for zero time selection.
       - **pump_freq**: Frequency of the pump
+      - **pump_width**: Width of the pump
       - **name**: strign. Additional name of the sample like d2o or something.
       - **zero_time_subtraction**: boolean, default True
           If zero time should be subtracted.
@@ -175,9 +176,11 @@ class SfgRecord():
                  wavenumber=None, roi_x_pixel_spec=None, het_shift=None,
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
-                 zero_time_select=None, pump_freq=None, name=None, zero_time_subtraction=None,
-                 roi_delay=None, pumped_index=0, unpumped_index=1, roi_spectra=None, vis_wl=None, replace_pixels=None, average_pixels=None, trim_frames=None,
-                 base_corrections=None,
+                 zero_time_select=None, pump_freq=None, pump_width=None,
+                 name=None, zero_time_subtraction=None,
+                 roi_delay=None, pumped_index=0, unpumped_index=1,
+                 roi_spectra=None, vis_wl=None, replace_pixels=None,
+                 average_pixels=None, trim_frames=None, base_corrections=None,
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
