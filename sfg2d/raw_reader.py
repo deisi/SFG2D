@@ -436,6 +436,59 @@ def save_yaml(fpath, configuration):
         )
     return configuration
 
+def files_to_records(list_of_files, select_names=False, split='_',
+                     kwargs_record=None):
+    """Import all files as records and return records dict.
+
+    Auxilary function to batch import a list if files.
+    **kwargs**:
+      - **select_names**: None or slice. The `_` splited part of filename
+          to use for record names. User must make shure it is unique. Else
+          later newer imports overwirte older ones.
+      - **split**: str, of what to split filename with in case of select_names
+      - **kwargs_record**: kwargs passed to the import of eachr record
+
+    **Returns:**
+    Dictionary of records, where filenames were used to make up dict keys.
+    per default full filename is used for key. If `select_names` slice is given,
+    the filename is trimed town to the selected range using `split` as split
+    """
+    records = {}
+    if not kwargs_record:
+        kwargs_record = {}
+
+    for fpath in list_of_files:
+        record = core.SfgRecord(fpath, **kwargs_record)
+        name = os.path.splitext(
+            os.path.basename(record.metadata['uri'])
+        )[0]
+        if select_names:
+            name = '_'.join(name.split(split)[select_names])
+
+        records[name] = record
+    return records
+
+def metadata_df(records, ignore=None):
+    """Make a pandas data frame with metadata from records dict ignoring given
+    keywords.
+
+    **Args:**
+      - **records**: dict of records to operate on
+    **Kwargs:**
+      - **ignore**: Default None, Iterable with keywords of metadata dict to skip.
+
+    **Returns:**
+    Pandas DataFrame with Columns as record keys and index as metadatavalue.
+    """
+    metadata = pd.DataFrame()
+    for key, record in records.items():
+        rmd = record.metadata.copy()
+        if ignore:
+            for elm in ignore:
+                rmd.pop(elm)
+        metadata[key] = pd.Series(rmd)
+    return metadata
+
 def import_record(record_entrie, records):
     """Import of a single record via given record_entrie dict.
     and lookup already import records within records
