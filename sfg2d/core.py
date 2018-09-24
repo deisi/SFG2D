@@ -306,9 +306,6 @@ class SfgRecord():
         self._lname = None
 
         #
-        self.pump_freq = pump_freq
-
-        #
         self.het_shift = 0
         self.het_start = None
         self.het_stop = None
@@ -396,6 +393,14 @@ class SfgRecord():
         # vis_wl
         if vis_wl:
             self.vis_wl = vis_wl
+
+        #Set pump_frequency
+        if pump_freq:
+            self.pump_freq = pump_freq
+
+        # Set pump_width
+        if pump_width:
+            self.pump_width = pump_width
 
         if isinstance(base, str):
             base = SfgRecord(base).rawData
@@ -1013,7 +1018,17 @@ class SfgRecord():
 
     @pump_freq.setter
     def pump_freq(self, value):
+        logger.debug('Setting pump_freq to: {}'.format(value))
         self.metadata['pump_freq'] = value
+
+    @property
+    def pump_width(self):
+        return self.metadata.get('pump_width')
+
+    @pump_width.setter
+    def pump_width(self, value):
+        logger.debug('Setting pump_width to: {}'.format(value))
+        self.metadata['pump_width'] = value
 
     @property
     def wavenumber(self):
