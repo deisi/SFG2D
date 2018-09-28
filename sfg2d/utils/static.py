@@ -461,3 +461,15 @@ def conv_gaus_exp_f(Xe, Xg, A0, A1, tau0, tau1, c, Ag=-1, sigma=0.25, mode="same
 
     return conv
 
+def centeroidnp(x, y):
+    """Center of mass for spectrum with x and y data.
+
+    **Arguments:**
+      - **x**: Array of x data
+      - **y**: array of y data must be same length as **x**
+
+    **Returns:**
+    X coordinate of center of mass weighted by y
+    """
+
+    return np.sum(x*y)/np.sum(y)

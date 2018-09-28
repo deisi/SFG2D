@@ -15,6 +15,7 @@ def get_metadata_from_filename(fpath):
     ffolder, ffile = os.path.split(fpath)
     fsplit = ffile.split("_")
     metadata["uri"] = os.path.abspath(fpath)
+    metadata['filename'] = os.path.splitext(ffile)[0]
     try:
         ext = os.path.splitext(fpath)[1]
         if ext == '.dat':
@@ -70,6 +71,11 @@ def get_metadata_from_filename(fpath):
         metadata["polarisation"] = "ppp"
     elif "_ssp_" in ffile:
         metadata["polarisation"] = "ssp"
+
+    # find rotation
+    match  = re.search('_rot(\d+)', ffile)
+    if match:
+        metadata['rot'] = int(match.group(1))
 
     # pump status
     def _match_booleans(denom, key):

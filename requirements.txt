@@ -31,3 +31,5 @@ iminuit
 gitpython
 
 dpath
+
+ipympl

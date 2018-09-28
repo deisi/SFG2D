@@ -1007,6 +1007,7 @@ class TwoExponentials(Fitter):
 
 
 class FourLevel(Fitter):
+    """Analytical Solution to the 4 Level Model."""
     def __init__(self, *args, **kwargs):
         Fitter.__init__(self, *args, **kwargs)
         self.N = 1 # Number of initial oszillators.
@@ -1014,6 +1015,7 @@ class FourLevel(Fitter):
     def N(self, t, t1, t2, N10, N20=0, N30=0):
         """Populations of the solution to the 4 level model.
         This is only true for t>0.
+
         **Parameters:**
           - **t**: Time points to calculated population of
           - **t1**: Lifetime of first excited state
