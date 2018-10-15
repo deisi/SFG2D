@@ -444,7 +444,7 @@ def files_to_records(list_of_files, select_names=False, split='_',
     **kwargs**:
       - **select_names**: None or slice. The `_` splited part of filename
           to use for record names. User must make shure it is unique. Else
-          later newer imports overwirte older ones.
+          later imports overwirte older ones.
       - **split**: str, of what to split filename with in case of select_names
       - **kwargs_record**: kwargs passed to the import of eachr record
 
@@ -489,18 +489,18 @@ def metadata_df(records, ignore=None):
         metadata[key] = pd.Series(rmd)
     return metadata
 
-def import_record(record_entrie, records):
-    """Import of a single record via given record_entrie dict.
-    and lookup already import records within records
-    """
-    logger.info('Importing {}'.format(record_entrie['name']))
-    fpath = record_entrie['fpath']
-    kwargs_record = record_entrie.get('kwargs_record', {})
+
+def _get_base(record_entrie, records):
+    """Function to read base entries in configuration dict."""
     base_dict = record_entrie.get('base')
     if base_dict:
         # Allows for easy definition of base by passing {base: name}
         if isinstance(base_dict, str):
             base_dict = {'name': base_dict}
+
+        # Allows singe value baselines
+        if isinstance(base_dict, int) or isinstance(base_dict, float):
+            return base_dict
 
         # Pop base name, so the rest can be passed to select
         base_name = base_dict.pop('name')
@@ -514,8 +514,11 @@ def import_record(record_entrie, records):
         base = base.select(
             **base_dict
         )
-        kwargs_record['base'] = base
+        return base
 
+
+def _get_norm(record_entrie, records):
+    """Get norm from norm entrie."""
     norm_dict = record_entrie.get('norm')
     if norm_dict:
         # Allows to have the simple config with norm: name
@@ -535,13 +538,68 @@ def import_record(record_entrie, records):
         norm = norm.select(
             **norm_dict
         )
+        return norm
+
+
+def import_relational(record_entrie, records):
+    """Import relational record configuration.
+
+    A relational record configureation is when records are first
+    importet via a batch import and then they are assinged das data
+    or base or norm of a resulting recrod
+
+    **Arguments**
+      - **record_entrie**
+        a dict defining the relations between the differenct records
+      - **records**
+        a dict with named records.
+
+    **Returns**
+    dict of records
+    """
+    name = record_entrie['name']
+    rawData = record_entrie['rawData']
+    logger.info('Importing {}'.format(name))
+    record = records[rawData]
+    kwargs_record = record_entrie.get('kwargs_record', {})
+
+    base = _get_base(record_entrie, records)
+    if not isinstance(base, type(None)):
+        record.base = base
+
+    norm = _get_norm(record_entrie, records)
+    if not isinstance(norm, type(None)):
+        record.norm = norm
+
+    return record
+
+
+def import_record(record_entrie, records):
+    """Import of a single record via given record_entrie dict.
+    and lookup already import records within records
+    """
+    logger.info('Importing {}'.format(record_entrie['name']))
+    fpath = record_entrie['fpath']
+    kwargs_record = record_entrie.get('kwargs_record', {})
+
+    base = _get_base(record_entrie, records)
+    if not isinstance(base, type(None)):
+        kwargs_record['base'] = base
+
+    norm = _get_norm(record_entrie, records)
+    if not isinstance(norm, type(None)):
         kwargs_record['norm'] = norm
 
     record = core.SfgRecord(fpath, **kwargs_record)
     return record
 
+
 def import_records(config_records):
-    """Import records"""
+    """Import records
+
+    **Kwargs:**
+      - **relations**: If given use relations imports per record.
+    """
 
     records = {}
     for record_entrie in config_records:
@@ -551,6 +609,16 @@ def import_records(config_records):
         records[record_entrie['name']] = record
 
     return records
+
+
+def set_relations(config_records, records):
+    """Set relational imports."""
+    ret = {}
+    for record_entrie in config_records:
+        name = record_entrie['name']
+        all_records = {**records, **ret}
+        ret[name] = import_relational(record_entrie, all_records)
+    return ret
 
 
 def make_models(config_models, records, save_models=True, config_models_path='./models.yaml', clear=True):
