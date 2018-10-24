@@ -18,23 +18,58 @@ import sfg2d
 import matplotlib.pyplot as plt
 from numpy import linspace
 
-# Dict of records.
-records = {}
-# Dicto of model.
-models = {}
+## Dict of records.
+#records = {}
+## Dicto of model.
+#models = {}
 
-def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None):
+try:
+    if not isinstance(records, dict):
+        records = {}
+except NameError:
+    records = {}
+
+try:
+    if not isinstance(models, dict):
+        models = {}
+except NameError:
+    models = {}
+
+def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kwargs_xdata_record=None, kwargs_ydata_record=None):
+    """High level function to generate plots.
+
+    **Arguments**
+      - **record_names**: List of keys for the `records` dict.
+      - **kwargs_xdata**: dict with x kwargs for all records
+      - **kwargs_ydata**: dict with y kwargs for all records
+      - **kwargs_plots**: dict with kwargs for each record_name
+      - **kwargs_xdata_record**: Dict with xdata kwargs per record
+        specific kwargs overwrite general
+      - **kwargs_ydata_record**: Dict with ydata kwargs per record
+        specific kwargs overwrite general
+    """
     if not kwargs_plots:
         kwargs_plots = {}
+    if not kwargs_xdata_record:
+        kwargs_xdata_record = {}
+    if not kwargs_ydata_record:
+        kwargs_ydata_record = {}
 
     for name in record_names:
         record = records.get(name)
         if not record:
             print('{} not found in records'.format(name))
             continue
+
+        _kwargs_xdata = kwargs_ydata_record.get(name, {})
+        _kwargs_ydata = kwargs_ydata_record.get(name, {})
+
+        tkwx = {**kwargs_xdata, **_kwargs_xdata}
+        tkwy = {**kwargs_ydata, **_kwargs_ydata}
+
         kwargs_plot = kwargs_plots.get(name, {})
-        xdata = record.select(**kwargs_xdata)
-        ydata = record.select(**kwargs_ydata)
+        xdata = record.select(**tkwx)
+        ydata = record.select(**tkwy)
         sfg2d.plot.spectrum(xdata, ydata, **kwargs_plot)
 
 def plot_traces(record_names, kwargs_xdata, kwargs_ydata, kwargs_yerr=None, kwargs_plots=None):
@@ -100,7 +135,7 @@ def plot_models(model_names, plot_kwargs=None, text_kwargs=None, kwargs_data=Non
             plt.text(s=m.box_str, **this_text_kwargs)
 
 @sfg2d.fig.ioff
-def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None, 
+def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
              fig_axis=0, kwargs_plot=None,
              sfile='bleach.pdf', ylim=None, titles=None):
     """Function to make a multi figure plot from y data selection.
@@ -109,7 +144,7 @@ def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
     over. This means by passing fig_axis = 0 you put every pump probe delay
     into a single figure. Of fig_axis = 1 will put each frame into a different
     figure. The result will be exported as pdf into `sfile`. By default all figures
-    have the same ylim, that is the maximum amongst all figures. 
+    have the same ylim, that is the maximum amongst all figures.
 
     **Arguments:**
       - **record_name**: Name of the recrod
