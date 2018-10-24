@@ -194,7 +194,15 @@ def import_relational(record_entrie, records):
     name = record_entrie['name']
     rawData = record_entrie['rawData']
     logger.info('Importing {}'.format(name))
-    record = records[rawData].copy()
+
+    # Allows to have a single string as rawData
+    if isinstance(rawData, str):
+        record = records[rawData].copy()
+    # Allows to have a list of strings as rawData
+    else:
+        rawDataRecords = [records[elm] for elm in rawData]
+        record = core.concatenate_list_of_SfgRecords(rawDataRecords)
+
     kwargs_record = record_entrie.get('kwargs_record')
     if kwargs_record:
         for key, value in kwargs_record.items():
@@ -215,7 +223,6 @@ def import_relational(record_entrie, records):
     norm = _get_norm(record_entrie, records)
     if not isinstance(norm, type(None)):
         record.norm = norm
-
 
     return record
 
@@ -258,7 +265,10 @@ def import_records(config_records):
 
 
 def set_relations(config_records, records):
-    """Set relational imports."""
+    """Set relational imports.
+
+    This runs the complete relation import config.
+    """
     ret = {}
     for record_entrie in config_records:
         name = record_entrie['name']

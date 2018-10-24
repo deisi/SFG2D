@@ -2137,13 +2137,13 @@ def concatenate_list_of_SfgRecords(list_of_records):
             )
         )
 
-    concatable_lists = ('_wavelength', '_wavenumber')
+    concatable_lists = ('wavelength', 'wavenumber')
     for attribute in concatable_lists:
         if all([all(getattr(elm, attribute)==getattr(list_of_records[0], attribute)) for elm in list_of_records]):
             setattr(ret, attribute, getattr(list_of_records[0], attribute))
-            if attribute == '_wavenumber':
+            if attribute == 'wavenumber':
                 ret._setted_wavenumber = True
-            if attribute == '_wavelength':
+            if attribute == 'wavelength':
                 ret._setted_wavelength = True
         else:
             logger.debug('Not concatenating {}'.format(attribute))
