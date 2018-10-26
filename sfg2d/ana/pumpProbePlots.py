@@ -16,7 +16,7 @@ Optionaly overwrite the models with
 import os
 import sfg2d
 import matplotlib.pyplot as plt
-from numpy import linspace
+from numpy import linspace, array
 
 ## Dict of records.
 #records = {}
@@ -47,6 +47,9 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
         specific kwargs overwrite general
       - **kwargs_ydata_record**: Dict with ydata kwargs per record
         specific kwargs overwrite general
+
+    **Returns**:
+    The xdatas and ydatas used during making the plot
     """
     if not kwargs_plots:
         kwargs_plots = {}
@@ -55,6 +58,8 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
     if not kwargs_ydata_record:
         kwargs_ydata_record = {}
 
+    xdatas = []
+    ydatas = []
     for name in record_names:
         record = records.get(name)
         if not record:
@@ -69,8 +74,11 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
 
         kwargs_plot = kwargs_plots.get(name, {})
         xdata = record.select(**tkwx)
+        xdatas.append(xdata)
         ydata = record.select(**tkwy)
+        ydatas.append(ydata)
         sfg2d.plot.spectrum(xdata, ydata, **kwargs_plot)
+    return array(xdatas), array(ydatas)
 
 def plot_traces(record_names, kwargs_xdata, kwargs_ydata, kwargs_yerr=None, kwargs_plots=None):
     if not kwargs_yerr:
