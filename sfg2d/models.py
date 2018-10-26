@@ -687,34 +687,6 @@ class Crosspeak(FourLevelMolKinM):
         # traces.
         return np.array([y0, y1])
 
-    def chi2(self, t1, teq, tup, tdown, mu, gSigma, s, c):
-        """Chi2 to minimize with minuit.
-
-        **Aguments**
-          - **s**: Gaussian Amplitude of the excitation
-          - **t1**: Livetime of the first state
-          - **teq**: Livetime of the second state/ The equbrilation step
-          - **tup**: Livetime of the upconversion
-          - **tdown**: Livetime of the downconversion
-          - **gSigma**: Witdh of the excitation pulse
-          - **mu**: Temporal position of the excitation pulse
-          - **c**: Coefficient of the heat
-
-        **Returns:**
-          Chi2 of the fit. This is the square distance of fit-function and
-          measured data
-        """
-        return np.sum(
-            (
-                (
-                    self.ydata - self.fit_func(
-                        self.xdata, t1, teq, tup, tdown, mu, gSigma, s, c
-                    )
-                ) / self.sigma
-            )**2
-        )
-
-
     @property
     def ydata(self):
         return self._ydata
