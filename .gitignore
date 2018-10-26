@@ -101,3 +101,10 @@ python_boilerplate/
 
 *.pyc
 .ipynb_checkpoints*
+
+# dont track dashboards any more. they change to much
+dashboards/*
+data/*
+jupyterhub.sqlite
+jupyterhub_cookie_secret
+src/*
