@@ -283,7 +283,8 @@ def sfgn(x, nr, phase, *res_args):
         Must have n*3 elements. If longer tailing elements are dropped
         List of args for the resonant peaks. The number of args
         determines the number of resonances. It is given by number of
-        args divided by 3.
+        args divided by 3. The parameters are in the oder:
+        amplitude, pos, width
 
     """
 

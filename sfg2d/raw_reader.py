@@ -351,6 +351,18 @@ def cache_records(records, cache_dir=CACHE_DIR[1]):
         record.save(fname)
 
 
+def read_cache_list(fnames):
+    """
+    **Args:**
+      - **fnames**: List of filenames
+    """
+    ret = {}
+    for fname in fnames:
+        key = os.path.basename(fname).split('.')[0]
+        ret[key] = sfg2d.SfgRecord(fname)
+    return ret
+
+
 def read_cache(cache_dir=CACHE_DIR[1]):
     """Read all the .npz files in cache_dir and return dict of them.
 

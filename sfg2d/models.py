@@ -8,7 +8,13 @@ from iminuit import Minuit, describe
 import sys
 import yaml
 import logging
+from .utils.static import sfgn
 thismodule = sys.modules[__name__]
+
+logger = logging.getLogger(__name__)
+flatten = lambda l: [item for sublist in l for item in sublist]
+
+#logger.setLevel(logging.DEBUG)
 
 def read_fit_results(fname):
     with open(fname) as ifile:
@@ -42,19 +48,22 @@ def model_fit_record(
     """
     if not kwargs_model:
         kwargs_model = {}
-    if not kwargs_select_yerr:
-        raise NotImplementedError('Models without errorbar not implemented yet')
-    logging.debug('Selecting model data from record with:')
-    logging.debug('ydata :{}'.format(kwargs_select_y))
+    #if not kwargs_select_yerr:
+    #    raise NotImplementedError('Models without errorbar not implemented yet')
+    logger.debug('Selecting model data from record with:')
+    logger.debug('ydata :{}'.format(kwargs_select_y))
     xdata = record.select(**kwargs_select_x).squeeze()
     ydata = record.select(**kwargs_select_y).squeeze()
-    yerr = record.sem(**kwargs_select_yerr).squeeze()
+    if not kwargs_select_yerr:
+        yerr = np.ones_like(ydata)
+    else:
+        yerr = record.sem(**kwargs_select_yerr).squeeze()
 
-    logging.debug('Setting model with:')
-    logging.debug('xdata: {}'.format(xdata))
-    logging.debug('ydata: {}'.format(ydata))
-    logging.debug('yerr: {}'.format(yerr))
-    logging.debug('kwargs_module: {}'.format(kwargs_model))
+    logger.debug('Setting model with:')
+    logger.debug('xdata: {}'.format(xdata))
+    logger.debug('ydata: {}'.format(ydata))
+    logger.debug('yerr: {}'.format(yerr))
+    logger.debug('kwargs_module: {}'.format(kwargs_model))
     model = getattr(thismodule, model)(xdata, ydata, yerr, **kwargs_model)
     if run:
         fit_model(
@@ -185,10 +194,10 @@ class Fitter():
         self.figures = {}
         kwargs.setdefault('pedantic', False)
         # Minuit is used for fitting. This makes self.chi2 the fit function
-        #logging.info(self.chi2)
-        kwargs['forced_parameters'] = self.parameters
-        logging.info(fitarg)
-        logging.info(kwargs)
+        #logger.info(self.chi2)
+        #kwargs['forced_parameters'] = self.parameters
+        logger.info(fitarg)
+        logger.info(kwargs)
         self.minuit = Minuit(self.chi2, **fitarg, **kwargs)
 
     def chi2(self, *args, **kwargs):
@@ -279,10 +288,10 @@ class Fitter():
         if np.any(value==0):
             pos = np.where(value==0)
             #replace = np.nanmedian(value)
-            logging.warn('Zero value within ucertainty.')
-            logging.warn('Zero Values @ {}'.format(pos))
-            #logging.warn('Replacing error with {}'.format(replace))
-            #logging.warn('Errors passed were {}'.format(value))
+            logger.warn('Zero value within ucertainty.')
+            logger.warn('Zero Values @ {}'.format(pos))
+            #logger.warn('Replacing error with {}'.format(replace))
+            #logger.warn('Errors passed were {}'.format(value))
             #self._sigma = np.ones_like(self._ydata)
             #self.ignore_errors = True
 
@@ -355,7 +364,6 @@ class Fitter():
         plt.plot(**kwargs_fit)
 
 
-
 class GaussianModelM(Fitter):
     def __init__(self, *args, **kwargs):
         ''' Fit Gausian model using Minuit.
@@ -390,14 +398,33 @@ class GaussianModelM(Fitter):
             return 0
         return A * norm.pdf(x, mu, sigma) + c
 
-    #def chi2(self, A, mu, sigma, c):
-    #    """Chi2 to be minimized by minuit."""
-    #    return np.sum(
-    #        (
-    #            (self.ydata - self.fit_func(self.xdata, A, mu, sigma, c)) /
-    #            self.sigma
-    #        )**2
-    #    )
+
+class LorenzianModel(Fitter):
+    """
+    N-Lorenzian Peaks and Non Resonant background to fit SFG
+    Spectra with.
+    """
+    def __init__(self, *args, n_lorenzians=1, **kwargs):
+
+        # Must definde forced_parameters because iminuits parameter auto
+        # discovery fails for sfgn as fit function
+        _fitarg = {k: 0 for k in flatten([('amp_%i'%i, 'pos_%i'%i, 'width_%i'%i) for i in range(n_lorenzians)])}
+        _fitarg = {'nr': 0, 'phase': 0, **_fitarg}
+        self.parameter_names = list(_fitarg.keys())
+        kwargs['forced_parameters'] = self.parameter_names
+
+        # If no fitargs is defined, we define a minimum set and use
+        # sane parameter defaults
+        # This has a problem if n_lorenzians is wrong. Currently the user
+        # has to take care to use it correctly
+        fitarg = kwargs.get('fitarg')
+        if not fitarg:
+            kwargs['fitarg'] = _fitarg
+        Fitter.__init__(self, *args, **kwargs)
+
+    def fit_func(self, x, *args, **kwargs):
+        return sfgn(x, *args, **kwargs)
+
 
 class SkewedNormal(Fitter):
     def __init__(self, *args, **kwargs):
