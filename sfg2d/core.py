@@ -518,7 +518,7 @@ class SfgRecord():
             pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
             attribute=None, scale=None, abs=False, square=False, sqrt=False,
             offset=None, roi_wavenumber=None, imag=False, real=False,
-            sum_pixel=False,
+            sum_pixel=False, rebin=False,
             debug=False,
             **kwargs
     ):
@@ -551,6 +551,7 @@ class SfgRecord():
           - **imag**:  Boolean to get imaginary part
           - **real**: Boolean to get real part
           - **sum_pixel**: sum up pixels
+          - **rebin**: Rebins pixel axis by given integer
 
         **kwargs**:
           Combined into *kwargs_prop*
@@ -588,12 +589,23 @@ class SfgRecord():
                 ret = ret[roi_delay]
             elif prop is "frames":
                 ret = ret[roi_frames]
+            if rebin:
+                logger.debug('Rebinning pixels with {}'.format(int(rebin)))
+                ret = ret.reshape(
+                        (ret.shape[-1]//int(rebin), int(rebin))
+                      ).mean(-1)
             return ret
 
         elif prop == 'range':
             ret = np.arange(0, self.number_of_x_pixel)
             if roi_pixel:
                 ret = np.arange(0, roi_pixel.stop - roi_pixel.start)
+
+            if rebin:
+                logger.debug('Rebinning range with {}'.format(int(rebin)))
+                ret = ret.reshape(
+                        (ret.shape[-1]//int(rebin), int(rebin))
+                      ).mean(-1)
             return ret
 
         # Real properties get used directly
@@ -691,6 +703,13 @@ class SfgRecord():
         if sum_pixel:
             logger.debug("Calculating sum_pixel")
             ret = np.sum(ret, axis=X_PIXEL_INDEX, keepdims=True)
+        if rebin:
+            # Rebins over pixel axis with given rebin number
+            logger.debug('Rebinning Pixels with {}'.format(int(rebin)))
+            ret = ret.reshape(
+                (*ret.shape[:-1], ret.shape[-1]//int(rebin), int(rebin))
+            ).mean(-1)
+
         return ret
 
     def sem(self, prop, **kwargs):

@@ -1008,6 +1008,23 @@ class TwoExponentials(Fitter):
 class FourLevel(Fitter):
     """Analytical Solution to the 4 Level Model."""
     def __init__(self, *args, **kwargs):
+
+        # Autodiscovery of iminuit doesnt work with implicit
+        # variable definitions. Thus we must specify parameters
+        # and there names specifically. We also define some sane defalts,
+        # that should be updated by the user.
+        _fitarg = {'Amp': 1, 'c': 1, 'mu': 0, 'sigma':200, 't1': 1, 't2': 0.7}
+        self.parameter_names = list(_fitarg.keys())
+        kwargs['forced_parameters'] = self.parameter_names
+
+        # If no fitargs is defined, we define a minimum set and use
+        # sane parameter defaults
+        # This has a problem if n_lorenzians is wrong. Currently the user
+        # has to take care to use it correctly
+        fitarg = kwargs.get('fitarg')
+        if not fitarg:
+            kwargs['fitarg'] = _fitarg
+
         Fitter.__init__(self, *args, **kwargs)
         self.N = 1 # Number of initial oszillators.
 
