@@ -16,12 +16,15 @@ Optionaly overwrite the models with
 import os
 import sfg2d
 import matplotlib.pyplot as plt
+import logging
 from numpy import linspace, array
 
 ## Dict of records.
 #records = {}
 ## Dicto of model.
 #models = {}
+
+logger = logging.getLogger(__name__)
 
 try:
     if not isinstance(records, dict):
@@ -35,7 +38,7 @@ try:
 except NameError:
     models = {}
 
-def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kwargs_xdata_record=None, kwargs_ydata_record=None):
+def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kwargs_xdata_record=None, kwargs_ydata_record=None, kwargs_plot=None):
     """High level function to generate plots.
 
     **Arguments**
@@ -47,6 +50,7 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
         specific kwargs overwrite general
       - **kwargs_ydata_record**: Dict with ydata kwargs per record
         specific kwargs overwrite general
+      - **kwargs_plot**: Plot kwargs applied to all lines
 
     **Returns**:
     The xdatas and ydatas used during making the plot
@@ -57,6 +61,8 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
         kwargs_xdata_record = {}
     if not kwargs_ydata_record:
         kwargs_ydata_record = {}
+    if not kwargs_plot:
+        kwargs_plot = {}
 
     xdatas = []
     ydatas = []
@@ -72,13 +78,24 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
         tkwx = {**kwargs_xdata, **_kwargs_xdata}
         tkwy = {**kwargs_ydata, **_kwargs_ydata}
 
-        kwargs_plot = kwargs_plots.get(name, {})
+        # Must combine global and specific kwarg dicts
+        kwargs_plot = {**kwargs_plot, **kwargs_plots.get(name, {})}
         xdata = record.select(**tkwx)
         xdatas.append(xdata)
         ydata = record.select(**tkwy)
         ydatas.append(ydata)
         sfg2d.plot.spectrum(xdata, ydata, **kwargs_plot)
-    return array(xdatas), array(ydatas)
+    # Casting to numpy array not allways works, because
+    # ydatas can have different shapes
+    try:
+        xdatas = array(xdatas)
+    except ValueError:
+        logger.warn('Can cast xdatas of plot_spectra to numpy array.')
+    try:
+        ydatas = array(ydatas)
+    except ValueError:
+        logger.warn('Cant cast ydatas of plot_spectra to numpy array.')
+    return xdatas, ydatas
 
 def plot_traces(record_names, kwargs_xdata, kwargs_ydata, kwargs_yerr=None, kwargs_plots=None):
     if not kwargs_yerr:
