@@ -518,7 +518,7 @@ class SfgRecord():
             pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
             attribute=None, scale=None, abs=False, square=False, sqrt=False,
             offset=None, roi_wavenumber=None, imag=False, real=False,
-            sum_pixel=False, rebin=False,
+            sum_pixel=False, rebin=False, rebin_agg=np.mean,
             debug=False,
             **kwargs
     ):
@@ -552,6 +552,9 @@ class SfgRecord():
           - **real**: Boolean to get real part
           - **sum_pixel**: sum up pixels
           - **rebin**: Rebins pixel axis by given integer
+          - **rebin_agg**: Defaults to np.mean, any other aggregating function
+            would do the trick tough, e.g. np.median. It must have the
+            signature (array, axis).
 
         **kwargs**:
           Combined into *kwargs_prop*
@@ -591,9 +594,10 @@ class SfgRecord():
                 ret = ret[roi_frames]
             if rebin:
                 logger.debug('Rebinning pixels with {}'.format(int(rebin)))
-                ret = ret.reshape(
+                logger.debug('Rebinning pixel with {} as aggregation function'.format(rebin_agg))
+                ret = rebin_agg(ret.reshape(
                         (ret.shape[-1]//int(rebin), int(rebin))
-                      ).mean(-1)
+                      ), -1)
             return ret
 
         elif prop == 'range':
@@ -603,9 +607,10 @@ class SfgRecord():
 
             if rebin:
                 logger.debug('Rebinning range with {}'.format(int(rebin)))
-                ret = ret.reshape(
+                logger.debug('Rebinning range with {} as aggregation function'.format(rebin_agg))
+                ret = rebin_agg(ret.reshape(
                         (ret.shape[-1]//int(rebin), int(rebin))
-                      ).mean(-1)
+                      ), -1)
             return ret
 
         # Real properties get used directly
@@ -705,10 +710,11 @@ class SfgRecord():
             ret = np.sum(ret, axis=X_PIXEL_INDEX, keepdims=True)
         if rebin:
             # Rebins over pixel axis with given rebin number
-            logger.debug('Rebinning Pixels with {}'.format(int(rebin)))
-            ret = ret.reshape(
+            logger.debug('Rebinning Data with {}'.format(int(rebin)))
+            logger.debug('Rebinning Data with {} as aggregation function'.format(rebin_agg))
+            ret = rebin_agg(ret.reshape(
                 (*ret.shape[:-1], ret.shape[-1]//int(rebin), int(rebin))
-            ).mean(-1)
+            ), -1)
 
         return ret
 
