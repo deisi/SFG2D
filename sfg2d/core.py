@@ -1733,7 +1733,14 @@ class SfgRecord():
         ret.pp_delays = self.pp_delays.copy()
         ret.metadata = self.metadata.copy()
         ret._fname = self._fname
+        # For spe this leads to issues, because spe has the _spe attribute
+        # This doesnt gets copied, so we have to introduce a new type
+        # for copied spe files, that gets treated slightly different then
+        # the original spe type. Otherwise we would need to copy _spe attribute
+        # witch is even worse I think.
         ret.type = self.type
+        if self.type == 'spe':
+            ret.type = 'spe_c' # copied spe type
         ret._unpumped_index = self._unpumped_index
         ret._pumped_index = self._pumped_index
         ret.baseline_offset = self.baseline_offset
@@ -1748,6 +1755,10 @@ class SfgRecord():
         ret.rois_delays_pump_probe = self.rois_delays_pump_probe
         ret.het_shift = self.het_shift
         ret.norm_het_shift = self.norm_het_shift
+        if self._setted_wavenumber:
+            ret.wavenumber = self.wavenumber
+        if self._setted_wavelength:
+            ret.wavelength = self.wavelength
         return ret
 
     def save(self, file, *args, **kwargs):
