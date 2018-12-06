@@ -79,12 +79,13 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
         tkwy = {**kwargs_ydata, **_kwargs_ydata}
 
         # Must combine global and specific kwarg dicts
-        kwargs_plot = {**kwargs_plot, **kwargs_plots.get(name, {})}
+        logger.debug('kwargs_plot is: {}'.format(kwargs_plot))
+        _kwargs_plot = {**kwargs_plot, **kwargs_plots.get(name, {})}
         xdata = record.select(**tkwx)
         xdatas.append(xdata)
         ydata = record.select(**tkwy)
         ydatas.append(ydata)
-        sfg2d.plot.spectrum(xdata, ydata, **kwargs_plot)
+        sfg2d.plot.spectrum(xdata, ydata, **_kwargs_plot)
     # Casting to numpy array not allways works, because
     # ydatas can have different shapes
     try:
