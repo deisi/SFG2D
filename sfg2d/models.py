@@ -1017,10 +1017,6 @@ class FourLevel(Fitter):
         self.parameter_names = list(_fitarg.keys())
         kwargs['forced_parameters'] = self.parameter_names
 
-        # If no fitargs is defined, we define a minimum set and use
-        # sane parameter defaults
-        # This has a problem if n_lorenzians is wrong. Currently the user
-        # has to take care to use it correctly
         fitarg = kwargs.get('fitarg')
         if not fitarg:
             kwargs['fitarg'] = _fitarg

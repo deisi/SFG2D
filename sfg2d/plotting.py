@@ -45,6 +45,12 @@ def figures2pdf(fname, fignums=None, figures=None, close=False):
                 plt.close(fig)
     print('DONE')
 
+
+# Wrapper function for figures2pdf with easier to remember name
+def savefig_multipage(*args, **kwargs):
+    return figures2pdf(*args, **kwargs)
+
+
 def multipage_pdf(plot_func):
     """
     Function can be used as a decorator, to loop over a given range

@@ -21,6 +21,6 @@ from .utils.filter import double_resample, replace_pixel
 
 from .plotting import (multipage_pdf, plot_model_trace, plot_record_contour,
                        plot_record_static, plot_trace_fit, plot_contour,
-                       plot_trace, plot_spec)
+                       plot_trace, plot_spec, figures2pdf, savefig_multipage)
 
 from .models import FourLevelMolKinM as FourLevelMolKin, fit_model

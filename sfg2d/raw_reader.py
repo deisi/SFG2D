@@ -92,6 +92,8 @@ def files_to_records(list_of_files, select_names=False, split='_',
         kwargs_record = {}
 
     for fpath in list_of_files:
+        logger.debug('Reading {}'.format(fpath))
+        logger.debug('kwargs_record {}'.format(kwargs_record))
         record = core.SfgRecord(fpath, **kwargs_record)
         name = os.path.splitext(
             os.path.basename(record.metadata['uri'])
