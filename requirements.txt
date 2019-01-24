@@ -33,3 +33,5 @@ gitpython
 dpath
 
 ipympl
+
+numpy-indexed

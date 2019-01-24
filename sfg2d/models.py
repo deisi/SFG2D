@@ -200,6 +200,26 @@ class Fitter():
         logger.info(kwargs)
         self.minuit = Minuit(self.chi2, **fitarg, **kwargs)
 
+    def _setup_fitter_kwargs(self, fitarg, kwargs=None):
+        """Setup initial fitter kwargs
+
+        Use this to pass default fitargs and parameter names to Minuit.
+        This allows to initialize a Model class with only a fitfunc and no
+        boilerplate chi2 function.
+        """
+
+        # Use fitargs of kwargs if given, else use default defined by fitarg
+        self.parameter_names = list(fitarg.keys())
+        fitarg['forced_parameters'] = self.parameter_names
+        if not kwargs:
+            kwargs = {}
+        if not kwargs.get('fitarg'):
+            kwargs['fitarg'] = {}
+        kwargs['fitarg'] = {**fitarg, **kwargs['fitarg']}
+
+        return kwargs
+
+
     def chi2(self, *args, **kwargs):
         """Sum of distance of data and fit. Weighted by uncertainty of data."""
         return np.sum(
@@ -380,6 +400,12 @@ class GaussianModelM(Fitter):
               This subregion will be used for fitting.
             - **name**: Str, Name to describe the Model.
         '''
+
+        kwargs = self._setup_fitter_kwargs(
+            {'A': 1, 'mu':0, 'sigma': 1, 'c': 0,},
+            kwargs
+        )
+
         Fitter.__init__(self, *args, **kwargs)
         self._box_str_format = '{:5}: {:7.3g} $\\pm$ {:6.1g}\n'
 
@@ -1013,7 +1039,11 @@ class FourLevel(Fitter):
         # variable definitions. Thus we must specify parameters
         # and there names specifically. We also define some sane defalts,
         # that should be updated by the user.
-        _fitarg = {'Amp': 1, 'c': 1, 'mu': 0, 'sigma':200, 't1': 1, 't2': 0.7}
+        kwargs = self._setup_fitter_kwargs(
+            {'Amp': 1, 'c': 1, 'mu': 0, 'sigma':200, 't1': 1, 't2': 0.7},
+            kwargs
+        )
+
         self.parameter_names = list(_fitarg.keys())
         kwargs['forced_parameters'] = self.parameter_names
 
