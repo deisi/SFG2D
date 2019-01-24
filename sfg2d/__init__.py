@@ -3,7 +3,7 @@ __version__ = '0.6.0'
 # CONFIG Get loaded first because its often used by other modules.
 from .utils.config import CONFIG
 
-from . import io, utils, plot, widgets, models
+from . import io, utils, plot, widgets, models, records
 
 from .core import (SfgRecord, concatenate_list_of_SfgRecords,
                    SfgRecords_from_file_list, import_sfgrecord)
