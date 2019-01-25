@@ -1043,14 +1043,6 @@ class FourLevel(Fitter):
             {'Amp': 1, 'c': 1, 'mu': 0, 'sigma':200, 't1': 1, 't2': 0.7},
             kwargs
         )
-
-        self.parameter_names = list(_fitarg.keys())
-        kwargs['forced_parameters'] = self.parameter_names
-
-        fitarg = kwargs.get('fitarg')
-        if not fitarg:
-            kwargs['fitarg'] = _fitarg
-
         Fitter.__init__(self, *args, **kwargs)
         self.N = 1 # Number of initial oszillators.
 
