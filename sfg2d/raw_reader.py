@@ -4,6 +4,7 @@ import sys
 import os
 import numpy as np
 import sfg2d.core as core
+import sfg2d.records as rr
 import sfg2d.fig as fig
 import sfg2d.models
 import dpath.util
@@ -203,7 +204,7 @@ def import_relational(record_entrie, records):
     # Allows to have a list of strings as rawData
     else:
         rawDataRecords = [records[elm] for elm in rawData]
-        record = core.concatenate_list_of_SfgRecords(rawDataRecords)
+        record = rr.concatenate_list_of_SfgRecords(rawDataRecords)
 
     kwargs_record = record_entrie.get('kwargs_record')
     if kwargs_record:
@@ -341,16 +342,11 @@ def make_models(config_models, records, save_models=True, config_models_path='./
 
 def cache_records(records, cache_dir=CACHE_DIR[1]):
     """Save a cached version of the records in .npz files in cache folder."""
-    try:
-        os.mkdir(cache_dir)
-        logger.info('Create cachedir: {}'.format(cache_dir))
-    except FileExistsError:
-        pass
-
-    for key, record in records.items():
-        fname = cache_dir + '/' + key
-        logger.debug('Saving cached record to {}'.format(fname))
-        record.save(fname)
+    msg = 'Using deprecated Method.'
+    msg += 'Use `cache_records` from `records` module instead.'
+    logger.warn(msg)
+    from .records import cache_records
+    return cache_records(records, cache_dir)
 
 
 def read_cache_list(fnames):

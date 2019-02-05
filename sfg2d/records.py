@@ -7,11 +7,15 @@ together.
 import os
 from . import plot
 from . import fig as sfgfig
+from .core import SfgRecord
 import matplotlib.pyplot as plt
 import logging
-from numpy import linspace, array
+from numpy import linspace, array, concatenate
 from scipy.stats import sem
 import pandas as pd
+
+from sfg2d.utils.config import CONFIG
+FRAME_AXIS_INDEX = CONFIG['FRAME_AXIS_INDEX']
 
 ## Dict of records.
 #records = {}
@@ -41,6 +45,15 @@ def records_agg(names, func):
         ret.append(func(record))
     return ret
 
+
+def records_list_agg(records, func):
+    """Aggregation function for a list of records."""
+    ret = []
+    for record in records:
+        ret.append(func(record))
+    return ret
+
+
 def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kwargs_xdata_record=None, kwargs_ydata_record=None, kwargs_plot=None):
     """High level function to generate plots.
 
@@ -58,6 +71,7 @@ def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kw
     **Returns**:
     The xdatas and ydatas used during making the plot
     """
+    global records
     if not kwargs_plots:
         kwargs_plots = {}
     if not kwargs_xdata_record:
@@ -139,7 +153,6 @@ def plot_tracks(record_names, kwargs_ydata, kwargs_plots=None):
 
 def plot_models(model_names, plot_kwargs=None, text_kwargs=None, kwargs_data=None):
 
-
     if not plot_kwargs:
         plot_kwargs = {}
 
@@ -162,6 +175,7 @@ def plot_models(model_names, plot_kwargs=None, text_kwargs=None, kwargs_data=Non
         plt.plot(m.xsample, m.ysample, **plot_kwargs)
         if text_kwargs:
             plt.text(s=m.box_str, **this_text_kwargs)
+
 
 @sfgfig.ioff
 def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
@@ -273,6 +287,71 @@ def find(word):
     rk = list(records.keys())
     return list(array(rk)[[word in elm for elm in rk]])
 
+
+def concatenate_list_of_SfgRecords(list_of_records):
+    """Concatenate SfgRecords into one big SfgRecord."""
+
+    concatable_attributes = ('rawData', 'base', 'norm')
+
+    ret = SfgRecord()
+    ret.metadata["central_wl"] = None
+    # TODO Rewrite this pythonic
+    for attribute in concatable_attributes:
+        setattr(
+            ret,
+            attribute,
+            concatenate(
+                [getattr(elm, attribute) for elm in list_of_records],
+                FRAME_AXIS_INDEX
+            )
+        )
+
+    concatable_lists = ('wavelength', 'wavenumber')
+    for attribute in concatable_lists:
+        if all([all(getattr(elm, attribute)==getattr(list_of_records[0], attribute)) for elm in list_of_records]):
+            setattr(ret, attribute, getattr(list_of_records[0], attribute))
+            if attribute == 'wavenumber':
+                ret._setted_wavenumber = True
+            if attribute == 'wavelength':
+                ret._setted_wavelength = True
+        else:
+            logger.debug('Not concatenating {}'.format(attribute))
+
+    # Concatenate unlistable attributes
+    concatable_attributes = (
+        'het_shift', 'het_start', 'het_stop', 'pp_delays', 'norm_het_shift', 'norm_het_start', 'norm_het_stop',
+    )
+    for attribute in concatable_attributes:
+        if all([getattr(elm, attribute) == getattr(list_of_records[0], attribute) for elm in list_of_records]):
+            setattr(ret, attribute, getattr(list_of_records[0], attribute))
+
+    # concat some properties
+    ret.dates = concatenate([elm.dates for elm in list_of_records]).tolist()
+    ret.pp_delays = list_of_records[0].pp_delays
+
+    # Keep unchanged metadata and listify changed metadata.
+    for key in list_of_records[0].metadata:
+        values = [record.metadata.get(key) for record in list_of_records]
+        if all([elm == values[0] for elm in values]):
+            ret.metadata[key] = values[0]
+        else:
+            ret.metadata[key] = values
+
+    return ret
+
+
+def cache_records(records, cache_dir='./cache'):
+    """Save a cached version of the records in .npz files in cache folder."""
+    try:
+        os.mkdir(cache_dir)
+        logger.info('Create cachedir: {}'.format(cache_dir))
+    except FileExistsError:
+        pass
+
+    for key, record in records.items():
+        fname = cache_dir + '/' + key
+        logger.debug('Saving cached record to {}'.format(fname))
+        record.save(fname)
 
 # ## Aggregation Functions Templates
 def get_basesubed(record, kwargs=None):

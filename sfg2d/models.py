@@ -208,14 +208,18 @@ class Fitter():
         boilerplate chi2 function.
         """
 
-        # Use fitargs of kwargs if given, else use default defined by fitarg
-        self.parameter_names = list(fitarg.keys())
+        # This gurantees correct oder and names of fitparameters
+        # we start at 1 because running value (x or t) must be skipped
+        self.parameter_names = describe(self.fit_func)[1:]
+        # The oder of parameters is important
         fitarg['forced_parameters'] = self.parameter_names
         if not kwargs:
             kwargs = {}
         if not kwargs.get('fitarg'):
             kwargs['fitarg'] = {}
         kwargs['fitarg'] = {**fitarg, **kwargs['fitarg']}
+
+        # DODO add check that fitargs and parameter_names fit together
 
         return kwargs
 
@@ -769,12 +773,10 @@ class Crosspeak(FourLevelMolKinM):
             self.ignore_errors = True
         self._sigma = value
 
-class SimpleDecay(Fitter):
+class SingleLifetime(Fitter):
     def __init__(
             self,
             *args,
-            xsample=None,
-            xsample_ext=0.1,
             fit_func_dtype=np.float64,
             **kwargs
     ):
@@ -803,26 +805,13 @@ class SimpleDecay(Fitter):
               This subregion will be used for fitting.
             - **name**: Str, Name to describe the Model.
         """
-        Fitter.__init__(self, *args, **kwargs)
-        self._xsample = np.array([])
 
-        self.xsample = xsample
         self.fit_func_dtype = fit_func_dtype
-        self.xdata_step_size = np.diff(self.xdata).min()
-        if not xsample:
-            self.xsample = np.arange(
-                self.xdata[0],
-                self.xdata[-1],
-                self.xdata_step_size
-            )
-
-    @property
-    def xsample(self):
-        return self._xsample
-
-    @xsample.setter
-    def xsample(self, value):
-        self._xsample = value
+        kwargs = self._setup_fitter_kwargs(
+            {'A': 1, 't1':1000, 'c': 0, 'mu': 0, 'sigma': 200 },
+            kwargs
+        )
+        Fitter.__init__(self, *args, **kwargs)
 
     def fit_func(self, t, A, t1, c, mu, ofs, sigma):
         """Result of a convolution of Gausian an exponential recovery.
@@ -839,8 +828,9 @@ class SimpleDecay(Fitter):
           - **c**: Convergence of the recovery
           - **mu**: Tempoaral Position of the Pulse
           - **ofs**: Global offset factor
-          - **sigma**: Width if the gaussian
+          - **sigma**: Width of the gaussian
         """
+
         ## This dtype hack is needed because the exp cant get very large.
         return 1/2 * (
             c + c * erf((t - mu)/(np.sqrt(2) * sigma)) -
@@ -848,16 +838,6 @@ class SimpleDecay(Fitter):
                        dtype=self.fit_func_dtype) *
             erfc((sigma**2 - t * t1 + mu * t1)/(np.sqrt(2) * sigma * t1))
         ) + ofs
-
-    #def chi2(self, A, t1, c, mu, ofs, sigma):
-    #    """Chi2 to be minimized by minuit."""
-    #    return np.sum(
-    #        (
-    #            (self.ydata - self.fit_func(
-    #                self.xdata, A, t1, c, mu, ofs, sigma
-    #            )) / self.sigma
-    #        )**2
-    #    )
 
 
 class ThreeLevelMolkin(Fitter):
@@ -1039,8 +1019,9 @@ class FourLevel(Fitter):
         # variable definitions. Thus we must specify parameters
         # and there names specifically. We also define some sane defalts,
         # that should be updated by the user.
+        # The oder of the arguments matters, because
         kwargs = self._setup_fitter_kwargs(
-            {'Amp': 1, 'c': 1, 'mu': 0, 'sigma':200, 't1': 1, 't2': 0.7},
+            {'Amp': 1, 't1': 1, 't2': 0.7, 'c': 1, 'sigma':200, 'mu': 0,},
             kwargs
         )
         Fitter.__init__(self, *args, **kwargs)

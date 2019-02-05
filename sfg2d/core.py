@@ -2156,55 +2156,15 @@ class Record2d():
 
 
 def concatenate_list_of_SfgRecords(list_of_records):
-    """Concatenate SfgRecords into one big SfgRecord."""
+    """Concatenate SfgRecords into one big SfgRecord.
 
-    concatable_attributes = ('rawData', 'base', 'norm')
+    Uses records.concatenate_list_of_SfgRecord. Is kept here for backwards
+    compatibility.
+    """
+    logger.warn('Method deprecated. Use from records module instead.')
+    from records import concatenate_list_of_SfgRecords
+    return concatenate_list_of_SfgRecords(list_of_records)
 
-    ret = SfgRecord()
-    ret.metadata["central_wl"] = None
-    # TODO Rewrite this pythonic
-    for attribute in concatable_attributes:
-        setattr(
-            ret,
-            attribute,
-            np.concatenate(
-                [getattr(elm, attribute) for elm in list_of_records],
-                FRAME_AXIS_INDEX
-            )
-        )
-
-    concatable_lists = ('wavelength', 'wavenumber')
-    for attribute in concatable_lists:
-        if all([all(getattr(elm, attribute)==getattr(list_of_records[0], attribute)) for elm in list_of_records]):
-            setattr(ret, attribute, getattr(list_of_records[0], attribute))
-            if attribute == 'wavenumber':
-                ret._setted_wavenumber = True
-            if attribute == 'wavelength':
-                ret._setted_wavelength = True
-        else:
-            logger.debug('Not concatenating {}'.format(attribute))
-
-    # Concatenate unlistable attributes
-    concatable_attributes = (
-        'het_shift', 'het_start', 'het_stop', 'pp_delays', 'norm_het_shift', 'norm_het_start', 'norm_het_stop',
-    )
-    for attribute in concatable_attributes:
-        if all([getattr(elm, attribute) == getattr(list_of_records[0], attribute) for elm in list_of_records]):
-            setattr(ret, attribute, getattr(list_of_records[0], attribute))
-
-    # concat some properties
-    ret.dates = np.concatenate([elm.dates for elm in list_of_records]).tolist()
-    ret.pp_delays = list_of_records[0].pp_delays
-
-    # Keep unchanged metadata and listify changed metadata.
-    for key in list_of_records[0].metadata:
-        values = [record.metadata.get(key) for record in list_of_records]
-        if all([elm == values[0] for elm in values]):
-            ret.metadata[key] = values[0]
-        else:
-            ret.metadata[key] = values
-
-    return ret
 
 def SfgRecords_from_file_list(list, **kwargs):
     """Import a list of files as a single SfgRecord.
