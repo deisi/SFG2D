@@ -1682,6 +1682,8 @@ class SfgRecord():
 
         elif self.type == "npz":
             imp = imported['data']
+            # This should be a bad idear, because it means
+            # load and save function must be the same at all time
             for key, value in self.saveable.items():
                 if key in imp.keys():
                     # There are some male formatted arrays

@@ -1,4 +1,5 @@
 #from . import veronica, victor_controller
+import logging
 from .spe import PrincetonSPEFile3
 from .ntb import NtbFile
 from .veronica import get_from_veronika
@@ -14,6 +15,7 @@ import warnings
 import numpy as np
 
 SPECS = CONFIG['SPECS']
+logger = logging.getLogger(__name__)
 
 def import_data(fname, type=None):
     """Import the data."""
@@ -49,7 +51,27 @@ def import_data(fname, type=None):
     if type == "npz":
         if isinstance(fname, str):
             return {'type': type, 'data': np.load(fname), 'metadata':  metadata,}
-        raise NotImplementedError('List implementation for npz files not implemented')
+        if isinstance(fname, list):
+            msg = 'Only concatenates rawData, base and norm.'
+            msg += 'The rest is taken from first entry.'
+            logger.warn(msg)
+            ret = {'type': type, 'metadata': metadata}
+            datas = []
+            for elm in fname:
+                datas.append(np.load(elm))
+
+            # npz imports are almost dicts. However, we cant overwrite
+            # the npz import because this could lead to data beeing written
+            # on the hdd without us wanting it. This is an import function
+            # not a saving function. Thus the ret dict, that encapsulates the
+            ret['data'] = {}
+            for key in datas[0].keys():
+                ret['data'][key] = datas[0][key]
+
+            for key in ('rawData', 'norm', 'base'):
+                ret['data'][key] = np.concatenate([datas[i][key] for i in range(len(datas))], 1)
+            return ret
+        raise NotImplementedError('.npz files must be passed individually or as list.')
 
     if type == "veronica":
         if isinstance(fname, str):

@@ -46,12 +46,17 @@ def records_agg(names, func):
     return ret
 
 
+def list_agg(object_list, func):
+    """Aggregation function for a list of objects."""
+    ret = []
+    for elm in object_list:
+        ret.append(func(elm))
+    return ret
+
+
 def records_list_agg(records, func):
     """Aggregation function for a list of records."""
-    ret = []
-    for record in records:
-        ret.append(func(record))
-    return ret
+    return list_agg(records, func)
 
 
 def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kwargs_xdata_record=None, kwargs_ydata_record=None, kwargs_plot=None):
