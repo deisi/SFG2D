@@ -70,6 +70,9 @@ def import_data(fname, type=None):
 
             for key in ('rawData', 'norm', 'base'):
                 ret['data'][key] = np.concatenate([datas[i][key] for i in range(len(datas))], 1)
+
+            for elm in datas:
+                elm.close()
             return ret
         raise NotImplementedError('.npz files must be passed individually or as list.')
 

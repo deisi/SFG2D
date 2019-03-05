@@ -165,7 +165,7 @@ class PrincetonSPEFile3():
         params = poly_coeff[np.where(poly_coeff != 0)][::-1]
         if len(params) > 1:
             self.calib_poly = np.poly1d(params)
-            self.wavelength = self.calib_poly(np.arange(self.xdim))
+            self.wavelength = self.calib_poly(self.wavelength)
         self.metadata['poly_coeff'] = poly_coeff
 
     def _readData(self):
