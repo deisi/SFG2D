@@ -508,6 +508,11 @@ class FourLevelMolKinM(Fitter):
         self.N0 = N0
         self.full_output = full_output
         self.infodict = None  # Infodict return of the Odeint.
+
+        kwargs = self._setup_fitter_kwargs(
+            {'s': 1, 't1': 1, 't2': 0.7, 'c': 1, 'mu': 0,},
+            kwargs
+        )
         Fitter.__init__(self, *args, **kwargs)
 
     def ext_gaus(self, t, mu, sigma):
@@ -656,23 +661,6 @@ class FourLevelMolKinM(Fitter):
             t2
         )
 
-    #def chi2(self, s, t1, t2, c, mu):
-    #    """Chi2 to be minimized by minuit.
-
-    #    **Arguments:**
-    #      - **s**: Gaussian Amplitude of the excitation
-    #      - **t1**: Livetime of the first state
-    #      - **t2**: Livetime of the second state
-    #      - **c**: Coefficient of the heat
-
-    #    """
-    #    return np.sum(
-    #        (
-    #            (self.ydata - self.fit_func(self.xdata, s, t1, t2, c, mu)) /
-    #            self.sigma
-    #        )**2
-    #    )
-
     def save(self, fname):
         """Save FourLevelMolKin results."""
         parameter_dict = {
@@ -683,17 +671,6 @@ class FourLevelMolKinM(Fitter):
         }
         super().__save__(fname, parameter_dict)
 
-#class FourLevelSolution(Fitter):
-#    def __init__(
-#            self,
-#            *args,
-#            N0=[1,0,0,0],
-#            **kwargs
-#    ):
-#    """Model that uses the analytically solution of the 4 LevelSystem.
-#
-#    The Conzept for the solution was taken from: (doi:10.1021/jp003158e) Lock, A. J.; Woutersen, S. & Bakker, H. J.
-#    """
 
 
 
@@ -972,15 +949,6 @@ class ThreeLevelMolkin(Fitter):
         ).T
         return ((N[0] + c * N[2] - N[1])**2) / (self.N0[0]**2)
 
-    #def chi2(self, s, t1, c, mu):
-    #    """Chi2 to be minimized by minuit."""
-    #    return np.sum(
-    #        (
-    #            (self.ydata - self.fit_func(self.xdata, s, t1, c, mu)) /
-    #            self.sigma
-    #        )**2
-    #    )
-
 
 class TwoExponentials(Fitter):
     def __init__(self, *args, **kwargs):
@@ -1012,7 +980,12 @@ class TwoExponentials(Fitter):
 
 
 class FourLevel(Fitter):
-    """Analytical Solution to the 4 Level Model."""
+    """Analytical Solution to the 4 Level Model.
+
+    The Conzept for the solution was taken from: (doi:10.1021/jp003158e) Lock,
+    A. J.; Woutersen, S. & Bakker, H. J.
+    """
+
     def __init__(self, *args, **kwargs):
 
         # Autodiscovery of iminuit doesnt work with implicit
