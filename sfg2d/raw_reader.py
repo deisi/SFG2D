@@ -1,16 +1,13 @@
 """Module to read raw data and produce records with."""
-from pylab import *
-import sys
+
 import os
+import matplotlib.pyplot as plt
 import numpy as np
 import sfg2d.core as core
 import sfg2d.records as rr
-import sfg2d.fig as fig
 import sfg2d.models
 import dpath.util
 import logging
-from copy import deepcopy
-from pip._internal.utils.misc import get_installed_distributions
 from . import myyaml as yaml
 import pandas as pd
 from glob import glob
@@ -296,7 +293,7 @@ def make_models(config_models, records, save_models=True, config_models_path='./
     models = {}
 
     logger.info('Making Models...')
-    for model_name in sort(list(config_models.keys())):
+    for model_name in np.sort(list(config_models.keys())):
         logger.info('Working on model {}'.format(model_name))
         this_model_config = config_models[model_name]
         # Replace record string with real record becuse real records contain the data

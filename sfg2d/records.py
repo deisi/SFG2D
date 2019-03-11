@@ -369,6 +369,15 @@ def get_basesubed(record, kwargs=None):
         kwargs_select = {**kwargs_select, **kwargs}
     return record.select(**kwargs_select).flatten()
 
+def get_basesubed_errors(record, kwargs=None):
+    """Get only the basesubed."""
+    kwargs_select = {
+        'prop': 'basesubed',
+    }
+    if isinstance(kwargs, dict):
+        kwargs_select = {**kwargs_select, **kwargs}
+    return record.sem(**kwargs_select).flatten()
+
 
 def get_normalized(record, kwargs=None):
     """Get only the basesubed."""
@@ -380,6 +389,14 @@ def get_normalized(record, kwargs=None):
         kwargs_select = {**kwargs_select, **kwargs}
     return record.select(**kwargs_select).flatten()
 
+def get_normalized_errors(record, kwargs=None):
+    """Get only the basesubed."""
+    kwargs_select = {
+        'prop': 'normalized',
+    }
+    if isinstance(kwargs, dict):
+        kwargs_select = {**kwargs_select, **kwargs}
+    return record.sem(**kwargs_select).flatten()
 
 def get_wavenumbers(record, kwargs=None):
     kwargs_select = {

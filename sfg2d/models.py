@@ -1057,7 +1057,29 @@ class FourLevel(Fitter):
         return N0, N1, N2, N3
 
     def fit_func(self, t, Amp, t1, t2, c, mu, sigma):
-        """Analytical solution to the 4 level system convoluted with gaussian"""
+        """Function for the time dependency of pump-probe sfg data.
+
+        Function is derived by analytically solving the 4 level system and
+        subsequent convolution with a gaussian excitation function of the
+        model. Initial state is N0=1. All other states are empty.
+
+        **Arguments**:
+        - **t**:  Array of Time values. Usually given by experiment.
+        - **Amp**: Amplitude of the excitation pulse. Determines the fraction
+                 of oscillators excited by the excitation pulse.
+        - **t1**: Lifetime of the first excited vibrational state in units of
+                  **t**
+        - **t2**: Lifetime of the second excited vibrational state in units of
+                  **t**
+        - **c**: Scaling factor of final (heated) state. Used to account for
+                 spectral differences induced by residual heat.
+        - **mu**: Tempoaral position of pump pulse in units of **t**.
+        - **sigma**: Temporal width of pump pulse in units of **t**.
+
+        **Returns**
+        Modeled result as deduced from the 4 level system for the given array
+        of **t** time values.
+        """
         pi=np.pi;
         #a0 = erf((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/sigma))
         def mysqrt(x): return np.sqrt(x)

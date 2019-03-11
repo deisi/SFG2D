@@ -14,7 +14,7 @@ ipython
 
 jupyter
 
-jupyter_dashboards
+jupyterlab
 
 xmltodict
 
@@ -35,3 +35,5 @@ dpath
 ipympl
 
 numpy-indexed
+
+altair
