@@ -37,3 +37,7 @@ ipympl
 numpy-indexed
 
 altair
+
+selenium
+
+chromedriver

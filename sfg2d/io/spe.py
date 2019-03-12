@@ -131,6 +131,8 @@ class PrincetonSPEFile3():
         self.metadata['exposureTime'] = timedelta(
             seconds=self._readFromHeader('f', 10)[0]  # in seconds
         )
+        # Fix a naming bug but don't brack backwards compatibility
+        self.metadata['exposure_time'] = self.metadata['exposureTime']
         date = self._readFromHeader('9s', 20)[0].decode('utf-8')
         self.metadata['tempSet'] = self._readFromHeader('f', 36)[0]
         timeLocal = self._readFromHeader('6s', 172)[0].decode('utf-8')
