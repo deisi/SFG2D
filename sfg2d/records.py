@@ -141,7 +141,7 @@ def plot_traces(record_names, kwargs_xdata, kwargs_ydata, kwargs_yerr=None, kwar
         xdata = record.select(**kwargs_xdata)
         ydata = record.select(**kwargs_ydata)
         yerr = record.sem(**kwargs_yerr)
-        plot.trace(xdata, ydata, yerr=yerr, **kwargs_plot)
+        plot.trace(xdata, ydata, yerr=yerr, **kwargs_plots)
 
 def plot_tracks(record_names, kwargs_ydata, kwargs_plots=None):
     if not kwargs_plots:

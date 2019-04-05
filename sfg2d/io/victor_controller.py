@@ -9,10 +9,15 @@ PIXEL = CONFIG['PIXEL']
 SPECS = CONFIG['SPECS']
 
 
-def get_from_victor_controller(fpath, **kwargs):
+def get_from_victor_controller(fpath, sort_pp_times=True, **kwargs):
     """Import data from victor controller
 
-    kwargs are passed to np.genfromtxt"""
+    sort_pp_times: This boolean allows to have scrambeled (radomized ordered)
+    pp_delays data. Upon import the data is reshaped is such a way that
+    pp_delays are in order. even though the actual measurment was not performed
+    in this order. kwargs are passed to np.genfromtxt
+
+    """
     try:
         raw_data = np.genfromtxt(fpath, dtype='long', **kwargs)[:, 1:]
     except ValueError:
@@ -49,6 +54,12 @@ def get_from_victor_controller(fpath, **kwargs):
             column_slice = slice(PIXEL*pp_delay_index, PIXEL*pp_delay_index + PIXEL)
             row_slice = slice(rep_index*SPECS, rep_index*SPECS+SPECS)
             ret[pp_delay_index, rep_index] = raw_data[column_slice, row_slice].T
+
+    # Sorts data by pp_delays
+    if sort_pp_times:
+        sorting_ideces = np.argsort(pp_delays)
+        pp_delays = pp_delays[sorting_ideces]
+        ret = ret[sorting_ideces]
 
     return ret, pp_delays
 
