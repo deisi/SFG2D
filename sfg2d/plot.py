@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import sfg2d
 from numpy import transpose, where, linspace, all, array
 
+
 def fit_model(
         x,
         y,
@@ -163,6 +164,7 @@ def spectrum(
         ax=None,
         xlabel=None,
         ylabel=None,
+        yerr=None,
         **kwargs
 ):
     """
@@ -179,9 +181,13 @@ def spectrum(
     if not ax:
         ax = plt.gca()
 
-    for delay in ydata:
-        for frame in delay:
-            for spec in frame:
+    num_delay, num_frames, num_spec, num_pixel = ydata.shape
+
+    for i_delay in range(num_delay):
+        for i_frame in range(num_frames):
+            for i_spec in range(num_spec):
+                spec = ydata[i_delay, i_frame, i_spec]
+
                # We need a scatter like plot if its just one point
                 if all(array(spec.shape) == 1):
                     kwargs.setdefault('marker', 'o')
@@ -189,7 +195,14 @@ def spectrum(
                 if isinstance(xdata, type(None)):
                     ax.plot(spec.T, *args, **kwargs)
                 else:
-                    ax.plot(xdata, spec.T, *args, **kwargs)
+                    if isinstance(yerr, type(None)):
+                        ax.plot(xdata, spec.T,  *args, **kwargs)
+                    else:
+                        spec_yerr = yerr[i_delay, i_frame, i_spec]
+                        errorline(
+                            xdata, spec.T, spec_yerr.T,
+                            *args, **kwargs
+                        )
 
     if xlabel:
         ax.set_xlabel(xlabel)
