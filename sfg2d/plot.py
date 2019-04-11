@@ -340,3 +340,61 @@ def multifig(xdata, ydata, fig_axis=0, kwargs_plot=None, titles=None):
         yd = ydata.take([i], fig_axis)
         spectrum(xdata, yd, **kwargs_plot)
     return figs
+
+
+def errorline(xdata, ydata, yerr, kwargs_plot=None, kwargs_filllines=None):
+    """Function to  plot lines with surrounding error lines.
+
+    **Arguments**
+    - **xdata**: array of x data
+    - **ydata**: array of ydata
+    - **yerr**: array of yerr. Used as line boundaries
+
+    **kwargs**:
+    - **kwargs_plot**: keywords passed to plot of the data
+    - **kwargs_fillines**: keywords passed to fillines plot that makes up
+      the boundaries lines of the error plot.
+    """
+    if not kwargs_plot:
+        kwargs_plot = {}
+    if not kwargs_filllines:
+        kwargs_filllines = {}
+    lines = plt.plot(xdata, ydata, *kwargs_plot)
+    ymin, ymax = ydata - yerr, ydata + yerr
+    kwargs_filllines.setdefault('color', [line.get_color() for line in lines])
+    kwargs_filllines.setdefault('alpha', 0.3)
+    lines.append(plt.fill_between(xdata, ymin, ymax, **kwargs_filllines))
+    return lines
+
+def multifig_errorline(
+    xdata,
+    ydata,
+    yerr,
+    kwargs_errorline=None,
+    xlim=None,
+    ylim=None,
+    titles=None,
+    xlabel='Frequency/cm$^{-1}$',
+    ylabel='Ratio/a.u.',
+    ioff=True,
+):
+    """Function to make multiple errorline plots."""
+    if not kwargs_errorline:
+        kwargs_errorline = {}
+
+    if ioff:
+        plt.ioff()
+    figs = []
+    num_figs = ydata.shape[0]
+    for i_fig in range(num_figs):
+        fig, ax = plt.subplots()
+        figs.append(fig)
+        errorline(xdata, ydata[i_fig], yerr[i_fig], **kwargs_errorline)
+        plt.xlabel(xlabel)
+        plt.xlim(xlim)
+        plt.ylim(ylim)
+        if titles:
+            plt.title(titles[i_fig])
+    if ioff:
+        plt.ion()
+    return figs

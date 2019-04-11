@@ -183,9 +183,11 @@ def plot_models(model_names, plot_kwargs=None, text_kwargs=None, kwargs_data=Non
 
 
 @sfgfig.ioff
-def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
-             fig_axis=0, kwargs_plot=None,
-             sfile='bleach.pdf', ylim=None, titles=None):
+def multifig_bleach(
+        record_name, kwargs_xdata=None, kwargs_ydata=None, kwargs_yerr=None,
+        fig_axis=0, kwargs_plot=None,
+        sfile='bleach.pdf', ylim=None, titles=None
+):
     """Function to make a multi figure plot from y data selection.
 
     `fig_axis` defines the axis of kwargs_ydata selecteion that will be looped
@@ -199,6 +201,7 @@ def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
     **Kewords:**
       - **kwargs_xdata**: Keywords to select xdata with
       - **kwargs_ydata**: Keywirds to select ydata with
+      - **kwargs_yerr**: Keywrods to select yerr with
       - **fig_axis**: Axis to loop the figures over. Each entry in ydata of this
           axis will create a new figure.
       - **sfile**: The file to save the pdf will the figures in
@@ -217,6 +220,9 @@ def multifig_bleach(record_name, kwargs_xdata=None, kwargs_ydata=None,
     record = records[record_name]
     xdata = record.select(**kwargs_xdata)
     ydata = record.select(**kwargs_ydata)
+    if isinstance(kwargs_yerr, dict):
+        yerr = record.sem(**kwargs_yerr)
+        kwargs_plot['yerr'] = yerr
     # Buffer to store ylim. This is used to autmatically have
     # the same max y lim in all figures
     ylimset = [0, 0]
@@ -358,7 +364,31 @@ def cache_records(records, cache_dir='./cache'):
         logger.debug('Saving cached record to {}'.format(fname))
         record.save(fname)
 
-# ## Aggregation Functions Templates
+def get_bleach(record, kwargs_xdata=None, kwargs_ydata=None, kwargs_yerr=None):
+    """Extract bleach from record. Sets typical kwargs parameters"""
+    if not kwargs_xdata:
+        kwargs_xdata = {}
+    if not kwargs_ydata:
+        kwargs_ydata = {}
+
+    kwargs_xdata.setdefault('prop', 'wavenumber')
+
+    kwargs_ydata.setdefault('prop', 'bleach')
+    kwargs_ydata.setdefault('frame_med', True)
+    kwargs_ydata.setdefault('medfilt_pixel', 7)
+    kwargs_ydata.setdefault('resample_freqs', 20)
+
+    for key, value in kwargs_ydata.items():
+        kwargs_yerr.setdefault(key, value)
+    kwargs_yerr['frame_med'] = False
+
+    xdata = record.select(**kwargs_xdata)
+    ydata = record.select(**kwargs_ydata)
+    yerr = record.sem(**kwargs_ydata)
+
+    return xdata, ydata, yerr
+
+# ## Aggregation Function Templates
 def get_basesubed(record, kwargs=None):
     """Get only the basesubed."""
     kwargs_select = {
