@@ -324,6 +324,8 @@ def heat_time(t, H0, tau=1000, c=0):
 
     c:        number
         time offset of the model
+    for_ratio: bool
+        makes negative values 1 so it works with ratio and not diff
 
     ----------------
     return

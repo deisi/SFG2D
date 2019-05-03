@@ -177,7 +177,7 @@ class SfgRecord():
                  het_start=None, het_stop=None, norm_het_shift=None,
                  norm_het_start=None, norm_het_stop=None, roi_frames=None,
                  zero_time_select=None, pump_freq=None, pump_width=None,
-                 name=None, zero_time_subtraction=None,
+                 cc_width=None, cc_pos=None, name=None, zero_time_subtraction=None,
                  roi_delay=None, pumped_index=0, unpumped_index=1,
                  roi_spectra=None, vis_wl=None, replace_pixels=None,
                  average_pixels=None, trim_frames=None, base_corrections=None,
@@ -401,6 +401,12 @@ class SfgRecord():
         # Set pump_width
         if pump_width:
             self.pump_width = pump_width
+
+        if cc_width:
+            self.cc_width = cc_width
+
+        if cc_pos:
+            self.cc_pos = cc_pos
 
         if isinstance(base, str):
             base = SfgRecord(base).rawData
@@ -1045,6 +1051,24 @@ class SfgRecord():
     def pump_freq(self, value):
         logger.debug('Setting pump_freq to: {}'.format(value))
         self.metadata['pump_freq'] = value
+
+    @property
+    def cc_width(self):
+        return self.metadata.get('cc_width')
+
+    @cc_width.setter
+    def cc_width(self, value):
+        logger.debug('Setting cc_witch to: {}'.format(value))
+        self.metadata['cc_width'] = value
+
+    @property
+    def cc_pos(self):
+        return self.metadata.get('cc_pos')
+
+    @cc_pos.setter
+    def cc_pos(self, value):
+        logger.debug('Setting cc_pos to: {}'.format(value))
+        self.metadata['cc_pos'] = value
 
     @property
     def pump_width(self):

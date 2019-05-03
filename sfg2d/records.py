@@ -5,6 +5,7 @@ together.
 
 """
 import os
+import yaml
 from . import plot
 from . import fig as sfgfig
 from .core import SfgRecord
@@ -13,6 +14,7 @@ import logging
 from numpy import linspace, array, concatenate
 from scipy.stats import sem
 import pandas as pd
+import numpy as np
 
 from sfg2d.utils.config import CONFIG
 FRAME_AXIS_INDEX = CONFIG['FRAME_AXIS_INDEX']
@@ -59,7 +61,89 @@ def records_list_agg(records, func):
     return list_agg(records, func)
 
 
-def plot_spectra(record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None, kwargs_xdata_record=None, kwargs_ydata_record=None, kwargs_plot=None):
+def get_xyerr(
+    record,
+    kwargs_xdata=None,
+    kwargs_ydata=None,
+    kwargs_yerr=None
+):
+    """Get a triple of data from record.
+
+    A triple of data can in general be xdata, ydata and yerr. Can be used for
+    e.g. Pump-Vis, or to extract static spectra from time scan data.
+
+    """
+    if not kwargs_xdata:
+        kwargs_xdata = {}
+    if not kwargs_ydata:
+        kwargs_ydata = {}
+    if not kwargs_yerr:
+        kwargs_yerr = {}
+
+    kwargs_xdata.setdefault('prop', 'wavenumber')
+
+    kwargs_ydata.setdefault('prop', 'normalized')
+    kwargs_ydata.setdefault('frame_med', True)
+
+    for key, value in kwargs_ydata.items():
+        kwargs_yerr.setdefault(key, value)
+    kwargs_yerr['frame_med'] = False
+
+    xdata = record.select(**kwargs_xdata)
+    ydata = record.select(**kwargs_ydata)
+    yerr = record.sem(**kwargs_ydata)
+
+    return xdata, ydata, yerr
+
+
+def save_models(models, fpath):
+    """Save models to fpath.
+
+    models must be a dict with {'name': {'model': sfg2d.models.Model}}
+    """
+
+    s_dict = {}
+    for name, value in models.items():
+        model = value['model']
+        s_dict[name] = {
+            'fitarg': model.fitarg,
+            'class': model.__class__,
+            'xdata': model.xdata.tolist(),
+            'ydata': model.ydata.tolist(),
+            'sigma': model.sigma.tolist(),
+        }
+
+    with open(fpath, 'w') as ofile:
+        yaml.dump(
+            s_dict,
+            ofile,
+            default_flow_style=False
+        )
+
+
+def load_models(fpath):
+    """Load models saved with save_models and transform into model objects."""
+    with open(fpath, 'r') as stream:
+        imp_models = yaml.load(stream)
+
+    # Transform import into corresponding model objects
+    for name, value in imp_models.items():
+        value['xdata'] = np.array(value['xdata'])
+        value['ydata'] = np.array(value['ydata'])
+        value['sigma'] = np.array(value['sigma'])
+
+        value['model'] = value['class'](
+            xdata=value['xdata'],
+            ydata=value['ydata'],
+            sigma=value['sigma'],
+            fitarg=value['fitarg'],
+        )
+    return imp_models
+
+
+def plot_spectra(
+        record_names, kwargs_xdata, kwargs_ydata, kwargs_plots=None,
+        kwargs_xdata_record=None, kwargs_ydata_record=None, kwargs_plot=None):
     """High level function to generate plots.
 
     **Arguments**
@@ -370,6 +454,8 @@ def get_bleach(record, kwargs_xdata=None, kwargs_ydata=None, kwargs_yerr=None):
         kwargs_xdata = {}
     if not kwargs_ydata:
         kwargs_ydata = {}
+    if not kwargs_yerr:
+        kwargs_yerr = {}
 
     kwargs_xdata.setdefault('prop', 'wavenumber')
 

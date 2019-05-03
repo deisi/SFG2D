@@ -295,7 +295,7 @@ def contour(
     **Arguments:**
       - **xdata**: Usually pp_delays
       - **ydata**: usually wavenumbers
-      - **ydata**: usually bleach
+      - **zdata**: usually bleach
     """
     kwargs.setdefault('extend', 'both')
     num_pp_delays, num_frames, num_spectra, num_pixel = zdata.shape
