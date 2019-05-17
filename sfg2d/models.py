@@ -387,6 +387,12 @@ class Fitter():
         plt.errorbar(**kwargs_data)
         plt.plot(**kwargs_fit)
 
+    def save(fpath):
+        """Save fit."""
+        with open(fpath, 'w') as ofile:
+            yaml.dump(
+                self.fitarg
+            )
 
 class GaussianModelM(Fitter):
     def __init__(self, *args, **kwargs):
@@ -994,7 +1000,7 @@ class FourLevel(Fitter):
         # that should be updated by the user.
         # The oder of the arguments matters, because
         kwargs = self._setup_fitter_kwargs(
-            {'Amp': 1, 't1': 1, 't2': 0.7, 'c': 1, 'sigma':200, 'mu': 0,},
+            {'Amp': 1, 't1': 1, 't2': 0.7, 'c': 1, 'sigma':0.2, 'mu': 0,},
             kwargs
         )
         Fitter.__init__(self, *args, **kwargs)
@@ -1035,6 +1041,9 @@ class FourLevel(Fitter):
         Function is derived by analytically solving the 4 level system and
         subsequent convolution with a gaussian excitation function of the
         model. Initial state is N0=1. All other states are empty.
+
+        This exact implementation has a problem when t1==t2 exactly. Due to
+        numerical constrains this must be avoided.
 
         **Arguments**:
         - **t**:  Array of Time values. Usually given by experiment.

@@ -25,7 +25,7 @@ class NtbFile():
             WHAT THE FUCK, WHO DID THIS.
         """
         self._fname = fname
-        self._filedesc = open(fname, 'r')
+        self._filedesc = open(fname, 'r', encoding='latin-1')
         self._readFile()
         self._processData()
 
@@ -36,7 +36,7 @@ class NtbFile():
             line = ''
             self.header = []
             end_cond = 'Nr;TotalArea;Area;DeltaArea;DeltaMolecules;Pressure;Tension;Mode;Time;Temp;Potential;Radioactivity'
-            while end_cond  not in line:
+            while end_cond not in line:
                 line = self._filedesc.readline().replace(',', '.')
 
                 # There are empty lines in the file that must be skipped
@@ -54,7 +54,7 @@ class NtbFile():
                     )
                     self.header.append(lipid)
                     continue
-                
+
                 if end_cond in line:
                     self._names = yaml.load(line).split(';')
                     break
@@ -63,6 +63,21 @@ class NtbFile():
 
             # We want to have a single dict with the header information
             self.header = {k: v for d in self.header for k, v in d.items()}
+
+            htime = self.header['Time']
+            hdate = self.header['Date']
+            if isinstance(htime, int):
+                time = timedelta(seconds=htime)
+                date = datetime.strptime(hdate, "%d.%m.%Y")
+                thisdatetime = date + time
+            elif isinstance(htime, str):
+                thisdatetime = datetime.strptime(
+                    hdate + ' ' + htime,
+                    "%d.%m.%Y %H:%M:%S"
+                )
+            else:
+                raise IOError('Cant read date from header.')
+            self.header['datetime'] = thisdatetime
 
             # Read the actual data
             data = self._filedesc.read().replace(',', '.')
@@ -74,7 +89,8 @@ class NtbFile():
         # I Want to Process the Time Column to use datetime
         # Because this makes comparisons much easier.
         # This way, time is a absolute time axis
-        date = datetime.strptime(self.header["Date"], "%d.%m.%Y")
-        time = timedelta(seconds=self.header["Time"])
+        self.header['Duration'] = to_timedelta(self.df['Time'].iloc[-1], unit='s')
+        self.header['StartTime'] = self.header['datetime'] - self.header['Duration']
+
         self.df['TimeDelta'] = to_timedelta(self.df["Time"], unit='s')
-        self.df["Time"] = date + time - (self.df['TimeDelta'].iloc[-1] - self.df["TimeDelta"])
+        self.df["Time"] = self.header['StartTime'] + self.df['TimeDelta']

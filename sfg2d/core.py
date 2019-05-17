@@ -170,6 +170,8 @@ class SfgRecord():
       - **base_corrections**: list of dicts with
           ({"axis": axis_description, "value": value_to_set}). Usefull to cope
           with unstable baselines due to a bug in em-cm mode switching.
+      - **kwargs**:
+          get added to metadata
     """
     def __init__(self, fname=None, rawData=None,
                  base=None, norm=None, baseline_offset=0, wavelength=None,
@@ -181,6 +183,7 @@ class SfgRecord():
                  roi_delay=None, pumped_index=0, unpumped_index=1,
                  roi_spectra=None, vis_wl=None, replace_pixels=None,
                  average_pixels=None, trim_frames=None, base_corrections=None,
+                 **kwargs,
     ):
 
         ## Beacaue I know it will happen and we cans safely deal with it.
@@ -407,6 +410,10 @@ class SfgRecord():
 
         if cc_pos:
             self.cc_pos = cc_pos
+
+        # Add all additional kwargs to metadata
+        for item, value in kwargs.items():
+            self.metadata[item] = value
 
         if isinstance(base, str):
             base = SfgRecord(base).rawData
