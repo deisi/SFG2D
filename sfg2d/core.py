@@ -5,6 +5,7 @@ import numpy as np
 import scipy.fftpack as fft
 from scipy.signal import medfilt
 from scipy.stats import sem
+import scipy.ndimage as nd
 import dpath.util
 
 from .io import import_data
@@ -531,7 +532,7 @@ class SfgRecord():
             pixel_mean=False, medfilt_pixel=1, resample_freqs=0,
             attribute=None, scale=None, abs=False, square=False, sqrt=False,
             offset=None, roi_wavenumber=None, imag=False, real=False,
-            sum_pixel=False, rebin=False, rebin_agg=np.mean,
+            sum_pixel=False, rebin=False, rebin_agg=np.mean, gaussian_filter=None,
             debug=False,
             **kwargs
     ):
@@ -690,8 +691,15 @@ class SfgRecord():
             logger.debug('Calculating medfilt_pixel: {}'.format(medfilt_pixel))
             ret = medfilt(ret, (1, 1, 1, medfilt_pixel))
         if resample_freqs:
-            logger.debug('Calculating resample_freqs {}'.format(resample_freqs))
+            logger.debug('Calculating resample_freqs {}'.format(
+                resample_freqs)
+            )
             ret = double_resample(ret, resample_freqs, X_PIXEL_INDEX)
+        if gaussian_filter:
+            logger.debug('Filtering with gaussian filter {}'.format(
+                gaussian_filter)
+            )
+            ret = nd.gaussian_filter(ret, gaussian_filter)
         if scale:
             logger.debug('Sacaling with: {}'.format(scale))
             ret *= scale
