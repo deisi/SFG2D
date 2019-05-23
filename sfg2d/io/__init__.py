@@ -50,7 +50,7 @@ def import_data(fname, type=None):
 
     if type == "npz":
         if isinstance(fname, str):
-            return {'type': type, 'data': np.load(fname), 'metadata':  metadata,}
+            return {'type': type, 'data': np.load(fname, allow_pickle=True), 'metadata':  metadata,}
         if isinstance(fname, list):
             msg = 'Only concatenates rawData, base and norm.'
             msg += 'The rest is taken from first entry.'
