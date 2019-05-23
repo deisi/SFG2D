@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import sfg2d
 from numpy import transpose, where, linspace, all, array
 
-
 def fit_model(
         x,
         y,
@@ -359,7 +358,7 @@ def errorline(xdata, ydata, yerr, kwargs_plot=None, kwargs_filllines=None):
         kwargs_plot = {}
     if not kwargs_filllines:
         kwargs_filllines = {}
-    lines = plt.plot(xdata, ydata, *kwargs_plot)
+    lines = plt.plot(xdata, ydata, **kwargs_plot)
     ymin, ymax = ydata - yerr, ydata + yerr
     kwargs_filllines.setdefault('color', [line.get_color() for line in lines])
     kwargs_filllines.setdefault('alpha', 0.3)
