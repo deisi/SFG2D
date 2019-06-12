@@ -435,6 +435,97 @@ class GaussianModelM(Fitter):
         return A * norm.pdf(x, mu, sigma) + c
 
 
+class GaussianModelN(Fitter):
+    def __init__(self, *args, parameter_dict=None, **kwargs):
+        ''' Fit Gausian model using Minuit.
+        **args**/**kwargs:**
+          Get passed to `sfg2d.models.Fitter`. Options are:
+            - **parameter_dict**: Dict of parameters for gaussian fit.
+            - **xdata**: array of x data points
+            - **ydata**: array of y data points
+            - **sigma**: Array of y data errors
+            - **fitarg**: Dictionary with fit conditions.
+                Each parameter has an entry with its name `'parameter'`
+                `'error_parameter'` `'fix_parameter'` and `'limit_parameter'`
+            - **box_coords**: Coordinates of the fit result box in data coordinates.
+            - **roi**: Slice. Region of interest of the data.
+              This subregion will be used for fitting.
+            - **name**: Str, Name to describe the Model.
+        '''
+
+        self._parameter_names = None
+        self._parameter_dict_fitarg = None
+        self._pmn = ['A', 'mu', 'sigma', 'c']
+
+        #Numberfy params
+        if not parameter_dict:
+            raise NotImplementedError('Must have parameter dict currently')
+
+        self.parameter_dict = parameter_dict
+        if not kwargs:
+            kwargs = {}
+        kwargs['forced_parameters'] = self.parameter_names
+        kwargs['fitarg'] = self.parameter_dict_fitarg
+
+        Fitter.__init__(self, *args, **kwargs)
+        self._box_str_format = '{:5}: {:7.3g} $\\pm$ {:6.1g}\n'
+
+    @property
+    def parameter_names(self):
+        if isinstance(self._parameter_names, type(None)):
+            ret = []
+            for name in self._pmn:
+                pos = 0
+                for value in self.parameter_dict[name]:
+                    ret.append('%s%d'%(name, pos))
+                    pos += 1
+            self._parameter_names = ret
+        return self._parameter_names
+
+    @property
+    def parameter_dict_fitarg(self):
+        """Creates a numbered dictionary that can be used as fitargs
+        dict to create the fit function."""
+        if isinstance(self._parameter_dict_fitarg, type(None)):
+            ret = {}
+            for pm in self._pmn:
+                values = self.parameter_dict[pm]
+                pos = 0
+                for value in values:
+                    ret['%s%d'%(pm,pos)] = value
+                    pos += 1
+            self._parameter_dict_fitarg = ret
+        return self._parameter_dict_fitarg
+
+    def _params_from_parameter_dict(self):
+        ret = []
+        for name in self._parameter_names:
+            [ret.append(value) for value in self.parameter_dict[name]]
+        return np.array(ret)
+
+    def fit_func(self, x, *params):
+        """
+        Gaussian functions.
+        Pass parameters as list. Sorting of parameters is:
+        A0, A1,.. mu0, mu1,... sigma0, sigma1,....c0,c1,....
+        """
+
+        # Minuit passes negative values for sigma
+        # and these values lead to failures of the fitting
+        i = len(params)//4
+        pparams = np.reshape(params, (4, i)).T
+        ret = np.zeros_like(x)
+        for _p in pparams:
+            ret += self._gaussian(x, *_p)
+        return ret
+
+    def _gaussian(self, x, A, mu, sigma, c):
+        """Gaussian function"""
+        if sigma < 0:
+            return 0
+        return A * norm.pdf(x, mu, sigma) + c
+
+
 class LorenzianModel(Fitter):
     """
     N-Lorenzian Peaks and Non Resonant background to fit SFG

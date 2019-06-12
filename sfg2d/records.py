@@ -65,7 +65,8 @@ def get_xyerr(
     record,
     kwargs_xdata=None,
     kwargs_ydata=None,
-    kwargs_yerr=None
+    kwargs_yerr=None,
+    squeeze=False,
 ):
     """Get a triple of data from record.
 
@@ -92,6 +93,9 @@ def get_xyerr(
     xdata = record.select(**kwargs_xdata)
     ydata = record.select(**kwargs_ydata)
     yerr = record.sem(**kwargs_ydata)
+
+    if squeeze:
+        return xdata.squeeze(), ydata.squeeze(), yerr.squeeze()
 
     return xdata, ydata, yerr
 
