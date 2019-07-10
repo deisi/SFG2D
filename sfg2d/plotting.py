@@ -548,6 +548,26 @@ def plot_record_contour(
     return fig, ax
 
 
+def plot_model_data(model, kwargs_data=None, kwargs_fit=None, **kwargs):
+    """Plot data and fit of model  object.
+    kwargs_data are passed to kwargs of data plot
+    kwargs_fit are passed to kwargs of fit
+    kwargs are passed to both plot functions of data and fit
+    """
+    if not kwargs_data:
+        kwargs_data = {}
+    if not kwargs_fit:
+        kwargs_fit = {}
+    kwargs_data.setdefault('fmt', 'o')
+
+    data = plt.errorbar(
+        model.xdata, model.ydata, model.sigma,
+        **{**kwargs, **kwargs_data}
+    )
+    fit = plt.plot(model.xsample, model.ysample, **{**kwargs, **kwargs_fit})
+    return data, fit
+
+
 def plot_model_trace(
         name,
         model,
@@ -671,4 +691,3 @@ def time_track(
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_title(title)
-

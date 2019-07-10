@@ -581,6 +581,7 @@ class SfgRecord():
 
         # For historic reasons kwargs_prop and kwargs are not the same
         kwargs_prop = {**kwargs, **kwargs_prop}
+        logger.debug('select:kwargs_prop: {}'.format(kwargs_prop))
 
         # Internal definitions are used by default to make interface
         # as small simple as possible.
@@ -1460,6 +1461,7 @@ class SfgRecord():
         kwargs['pixel_mean'] = True
         kwargs['roi_delay'] = roi_delay
 
+        logger.debug('trace:{}'.format(kwargs_prop))
         y = self.select(
             prop=prop,
             kwargs_prop=kwargs_prop,

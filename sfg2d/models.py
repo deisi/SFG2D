@@ -394,6 +394,26 @@ class Fitter():
                 self.fitarg
             )
 
+    @property
+    def kwargs(self):
+        """Dict containing the most important kwargs of the Model."""
+        return {
+            'xdata' : self.xdata.tolist(),
+            'ydata' : self.ydata.tolist(),
+            'sigma': self.sigma.tolist(),
+            'fitarg' : self.fitarg,
+            }
+
+    @property
+    def dict(self):
+        """Dict containing class name and most important kwargs."""
+        return {
+            'name': self.__class__.__name__,
+            'module': self.__module__,
+            'kwargs': self.kwargs
+        }
+
+
 class GaussianModelM(Fitter):
     def __init__(self, *args, **kwargs):
         ''' Fit Gausian model using Minuit.
@@ -1136,6 +1156,10 @@ class FourLevel(Fitter):
         This exact implementation has a problem when t1==t2 exactly. Due to
         numerical constrains this must be avoided.
 
+        If difference instead of ratio is used. The function keeps the same
+        due to the distributivity of the convolution and the fact that gaussian
+        convolved with -1 gives -1. Therefore only -1 needs to be subtract.
+
         **Arguments**:
         - **t**:  Array of Time values. Usually given by experiment.
         - **Amp**: Amplitude of the excitation pulse. Determines the fraction
@@ -1152,6 +1176,7 @@ class FourLevel(Fitter):
         **Returns**
         Modeled result as deduced from the 4 level system for the given array
         of **t** time values.
+
         """
         pi=np.pi;
         #a0 = erf((((2.**-0.5)*mu)/sigma)-(((2.**-0.5)*t)/sigma))
@@ -1375,3 +1400,13 @@ class FourLevel(Fitter):
            ))*(sigma*aux109))));
         output=aux110/sigma;
         return output
+
+class FourLevelDifference(FourLevel):
+    """This is the fit model for the four level model if difference instead
+    of ratio is used. The only difference is that we need to subtract -1. This
+    is due to two things. First, the convolution is distributive, second convolution
+    of -1 with gaussian is -1. Therefore this is the correct and most simple solution.
+    """
+
+    def fit_func(self, t, Amp, t1, t2, c, mu, sigma):
+        return super().fit_func(t, Amp, t1, t2, c, mu, sigma) - 1

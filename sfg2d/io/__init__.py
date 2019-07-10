@@ -17,6 +17,60 @@ import numpy as np
 SPECS = CONFIG['SPECS']
 logger = logging.getLogger(__name__)
 
+
+def serialize_dict(ddict, decimals=8):
+    """
+    serialize a dict with np.arrays and np.ints into
+    a dict with lists and inst so it can be serialized
+    into a json file.
+
+    *Arguments*
+    - ddict: dictionary
+
+    *Returns*:
+    dictionary with
+      np.ndarrays -> lists
+      np.int64 -> ints
+    rest is unchanged.
+    """
+    ret = ddict.copy()
+    for key, value in ddict.items():
+        if type(value) is dict:
+            ret[key] = serialize_dict(value, decimals)
+        elif type(value) is np.ndarray:
+            v = np.around(value, decimals)
+            ret[key] = v.tolist()
+        elif type(value) is np.int64:
+            ret[key] = int(np.around(value, decimals))
+        else:
+            ret[key] = value
+    return ret
+
+
+def deserialize_dict(ddict):
+    """
+    Deserialize a dict with lists into a dict with np.arrays.
+
+    This function is the opposite of serialize_dict
+
+    *Arguments*
+    ddict: dictionary
+
+    *Returns*
+    dictionary with
+        lists -> np.ndarray
+
+    """
+    ret = ddict.copy()
+    for key, value in ret.items():
+        if type(value) is dict:
+            ret[key] = deserialize_dict(value)
+        elif type(value) is list:
+            ret[key] = np.array(value)
+        else:
+            ret[key] = value
+    return ret
+
 def import_data(fname, type=None):
     """Import the data."""
     # Pick import function according to data type.
