@@ -1,5 +1,6 @@
 #from . import veronica, victor_controller
 import logging
+import json
 from .spe import PrincetonSPEFile3
 from .ntb import NtbFile
 from .veronica import get_from_veronika
@@ -16,6 +17,21 @@ import numpy as np
 
 SPECS = CONFIG['SPECS']
 logger = logging.getLogger(__name__)
+
+
+def save_dict(fname, ddict,  decimals=4, indent=True):
+    _ddict = serialize_dict(ddict, decimals)
+
+    with open(fname, 'w') as fp:
+        json.dump(_ddict, fp, indent=indent)
+
+
+def read_json_dict(fname):
+    """Read json dict from hdd."""
+    with open(fname) as json_file:
+        data = json.load(json_file)
+
+    return deserialize_dict(data)
 
 
 def serialize_dict(ddict, decimals=8):
@@ -112,7 +128,7 @@ def import_data(fname, type=None):
             ret = {'type': type, 'metadata': metadata}
             datas = []
             for elm in fname:
-                datas.append(np.load(elm))
+                datas.append(np.load(elm, allow_pickle=True))
 
             # npz imports are almost dicts. However, we cant overwrite
             # the npz import because this could lead to data beeing written

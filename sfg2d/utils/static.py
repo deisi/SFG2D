@@ -343,6 +343,44 @@ def heat_time(t, H0, tau=1000, c=0):
         return 0
     return HM(t)
 
+
+def heat_four_level(t, t1, t2, N10, mu=0, N20=0, N30=0):
+    """Heat modeled as population of N3 from the four-level-model.
+
+    This model neglects the instrument response function.
+
+    **Parameters:**
+      - **t**: Time points to calculated population of
+      - **t1**: Lifetime of first excited state
+      - **t2**: Lifetime of intermediate (heat) state
+      - **N10**: Fraction if initialy excited oszillators. This
+          determines the amount of heated oscillators after a long
+          time. It equals the final heat state.
+      - **mu**: start time of the process.
+      - **N20**: Fraction of initialy excited oszillators in heated state
+      - **N30**: Fraction if initialy excited oszillators in final state
+
+
+    **Returns:**
+      Tuple of N0, N1, N2, N3 at times t
+
+    """
+    # The experimental t = 0 is not necessarily the same as t=0 here.
+    # mu shifts the function on the x axis
+    t = t - mu
+    aux0 = (((np.exp(((t/t1)+(t/t2))))*t1)+((np.exp((t/t1)))*t2))-((
+        np.exp(((t/t1)+(t/t2))))*t2)
+    aux1 = (
+        (np.exp((((-t)/t2)-(t/t1))))*(N10*(aux0-((np.exp((t/t2)))*t1)))
+    )/(t1-t2)
+    N3 = ((np.exp(((-t)/t2)))*((-1.+(np.exp((t/t2))))*N20))+(N30+aux1)
+
+    # Causality demands, that negative times are 0. Mathematically
+    # this is not required.
+    N3[np.where(t < 0)] = 0
+    return N3
+
+
 def gaus_func(x, A=1, mu=0, sigma=1, c=0):
     """Gaussian function
 

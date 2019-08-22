@@ -555,6 +555,7 @@ class LorenzianModel(Fitter):
 
         # Must definde forced_parameters because iminuits parameter auto
         # discovery fails for sfgn as fit function
+        self.n_lorenzians = n_lorenzians
         _fitarg = {k: 0 for k in flatten([('amp_%i'%i, 'pos_%i'%i, 'width_%i'%i) for i in range(n_lorenzians)])}
         _fitarg = {'nr': 0, 'phase': 0, **_fitarg}
         self.parameter_names = list(_fitarg.keys())
@@ -571,6 +572,13 @@ class LorenzianModel(Fitter):
 
     def fit_func(self, x, *args, **kwargs):
         return sfgn(x, *args, **kwargs)
+
+    @property
+    def kwargs(self):
+        """n_lorenzians is needed for model to work."""
+        ret = super().kwargs
+        ret['n_lorenzians'] = self.n_lorenzians
+        return ret
 
 
 class SkewedNormal(Fitter):
