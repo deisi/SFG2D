@@ -23,3 +23,4 @@ chromedriver
 altair
 iminuit
 cairosvg
+uncertainties
