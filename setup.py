@@ -6,41 +6,6 @@ from setuptools import setup
 from setuptools.extension import Extension
 from glob import glob
 
-try:
-    from Cython.Build import cythonize
-    USE_CYTHON = True
-    print('Cython is available')
-    if os.name == 'nt':
-        print('No Compilation under Windows')
-        USE_CYTHON = False
-except ImportError:
-    print('Cython is not available; using pre-generated C files')
-    USE_CYTHON = False
-
-ext = '.pyx' if USE_CYTHON else '.c'
-extensions = []
-for source_file in glob('sfg2d/utils/*' + ext):
-    if not USE_CYTHON:
-        continue
-    fname, _ = os.path.splitext(os.path.basename(source_file))
-    extensions.append(
-        Extension('sfg2d.utils.{0}'.format(fname),
-                  sources=['sfg2d/utils/{0}{1}'.format(fname, ext)],
-                  #include_dirs=[np.get_include()]
-        )
-    )
-
-if USE_CYTHON:
-    try:
-        import numpy as np
-    except ImportError:
-        print("Please install numpy before building package with cython.")
-        print("Error Numpy missing. Abording.")
-        sys.exit()
-
-    for extension in extensions:
-        extension.include_dirs = [np.get_include()]
-    extensions = cythonize(extensions)
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -49,13 +14,12 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    'Click>=6.0',
-    'numpy',
-    'matplotlib',
-    'scipy',
-    'pandas',
-    'ipython',
-    #'PySide', Not python 3.5 Ready Yet.
+    #'Click>=6.0',
+    #'numpy',
+    #'matplotlib',
+    #'scipy',
+    #'pandas',
+    #'ipython',
 ]
 
 test_requirements = [
@@ -101,6 +65,4 @@ setup(
     ],
     test_suite='tests',
     tests_require=test_requirements,
-    ext_modules=extensions,
 )
-

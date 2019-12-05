@@ -227,7 +227,6 @@ def chi_resonant_multi(x, res_args):
         The length of thre res_args array determines the number of resonances.
         For each 3 values a new resonance is created.
     """
-    #print(x)
     number_of_resonances = len(res_args)//3
     # List of Results per resonance
     ChiRs = []
