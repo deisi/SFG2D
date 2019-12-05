@@ -35,7 +35,6 @@ Temporary Items
 env/
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
